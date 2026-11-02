@@ -1,4 +1,4 @@
-# Telegram Bot V2
+# My Python App
 
 App Kivy នេះបង្កើតដោយ PyApp Builder។
 

@@ -9,6 +9,7 @@ import threading
 import requests
 import time
 
+# កំណត់ពណ៌ផ្ទៃខាងក្រោយឱ្យងងឹតស្អាត
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
 
 class TelegramLiteApp(App):
@@ -17,20 +18,20 @@ class TelegramLiteApp(App):
         self.is_running = False
         self.bot_thread = None
 
-        # បង្កើត Layout
+        # បង្កើត Layout សម្រាប់ដាក់ UI
         layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
 
         # ចំណងជើង
-        layout.add_widget(Label(text="[b]Telegram Bot Controller[/b]", markup=True, font_size='20sp', size_hint_y=None, height=50))
+        layout.add_widget(Label(text="[b]Telegram Bot Controller[/b]", markup=True, font_size='22sp', size_hint_y=None, height=50))
 
-        # ប្រអប់ដាក់ Token
+        # ប្រអប់ដាក់ Bot Token
         layout.add_widget(Label(text="Bot Token (ពី @BotFather):", size_hint_y=None, height=30))
         self.token_input = TextInput(hint_text="ឧទាហរណ៍: 123456:ABC-DEF...", multiline=False, size_hint_y=None, height=50)
         layout.add_widget(self.token_input)
 
         # ប្រអប់ដាក់សារឆ្លើយតប
         layout.add_widget(Label(text="សារឆ្លើយតប (Auto Reply):", size_hint_y=None, height=30))
-        self.reply_input = TextInput(text="សូមស្វាគមន៍! ខ្ញុំគឺជា Bot។", multiline=False, size_hint_y=None, height=50)
+        self.reply_input = TextInput(text="សូមស្វាគមន៍! ខ្ញុំគឺជា Bot ស្វ័យប្រវត្តិ។", multiline=False, size_hint_y=None, height=50)
         layout.add_widget(self.reply_input)
 
         # ប៊ូតុង Start/Stop
@@ -42,7 +43,8 @@ class TelegramLiteApp(App):
         self.status_label = Label(text="ស្ថានភាព: បិទ", color=(1, 0.3, 0.3, 1), size_hint_y=None, height=50)
         layout.add_widget(self.status_label)
         
-        layout.add_widget(Label()) # ចន្លោះទំនេរ
+        # ចន្លោះទំនេរខាងក្រោម
+        layout.add_widget(Label()) 
 
         return layout
 
@@ -58,7 +60,7 @@ class TelegramLiteApp(App):
             self.btn_toggle.background_color = (1, 0, 0, 1)
             self.update_status("ស្ថានភាព: កំពុងដំណើរការ...", (0, 1, 0, 1))
             
-            # ចាប់ផ្តើម Bot ក្នុង Thread
+            # ចាប់ផ្តើម Bot ក្នុង Thread ដើម្បីកុំឱ្យ UI គាំង
             self.bot_thread = threading.Thread(target=self.run_bot, args=(token,), daemon=True)
             self.bot_thread.start()
         else:
