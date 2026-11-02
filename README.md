@@ -48,7 +48,7 @@ python app.py                    # http://localhost:8000
 | POST | `/build` | បង្កើត job រួចបញ្ជូនទៅ build |
 | POST | `/project.zip` | ទាញយក project ជា ZIP |
 | GET | `/j/<id>` | ទំព័រស្ថានភាព |
-| GET | `/api/jobs/<id>` | JSON ស្ថានភាព |
+| GET | `/api/jobs/<id>` | JSON ស្ថានភាព + `progress` (percent / step / eta / steps) |
 | GET | `/dl/<id>` | ទាញយក APK |
 | GET | `/api/health` | health check |
 
