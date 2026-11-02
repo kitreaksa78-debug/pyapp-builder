@@ -1,13 +1,13 @@
 [app]
-title = My Python App
-package.name = myapp
-package.domain = org.test
+title = Telegram Bot V2
+package.name = telegrambot
+package.domain = com.kitreaksa
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,ttf
 source.exclude_dirs = .git,.github,.buildozer,bin,out,jobs,templates,static,__pycache__,venv
 source.exclude_patterns = README.md,*.yml,*.yaml,requirements.txt,render.yaml,.gitignore
 version = 1.0
-requirements = python3,kivy,python-telegram-bot,cryptography,requests
+requirements = python3,kivy,python-telegram-bot,cryptography,requests,urllib3,chardet,idna,pillow,openssl,pyjnius,android
 orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET
