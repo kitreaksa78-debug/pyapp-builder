@@ -11,7 +11,19 @@ hosting ឥតគិតថ្លៃ (Render free) មិនអាចរត់វ
 2. Workflow [`build-apk.yml`](.github/workflows/build-apk.yml) រត់ក្នុង container `kivy/buildozer` រួច `buildozer android debug`
 3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក
 
-ការ build ដំបូងប្រហែល **១០–២៥ នាទី** (compile Python សម្រាប់ Android)។ លើកក្រោយលឿនជាង ព្រោះមាន cache។
+ការ build ដំបូងប្រហែល **១០–២០ នាទី** (compile Python សម្រាប់ Android)។ លើកក្រោយលឿនជាង ព្រោះមាន cache។
+
+### Version ដែលបានតេស្ត
+| ធាតុ | Version |
+|---|---|
+| buildozer | 1.5.0 |
+| python-for-android | `v2024.01.21` (pin ក្នុង `buildozer.spec`) |
+| NDK / API | 25b / 31 (min 21) |
+| ABI | `arm64-v8a` |
+| Runner | `ubuntu-latest` + Python 3.11 |
+
+> **ហេតុអ្វី pin ចាស់?** p4a master ឥឡូវ compile hostpython **3.14** ហើយ pip ក្នុង venv របស់វាខូច
+> (`cannot import name 'BuildDependencyInstallError'`) ⇒ build ធ្លាក់រាល់ដង។ ការប្រើ p4a 2024 ដែលប្រើ hostpython 3.11 ដំណើរការល្អ។
 
 ## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
 ```bash
