@@ -1,61 +1,11 @@
-# PyApp Builder
+# Telegram
 
-សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ពី app **Kivy**៖ សរសេរ `main.py` ក្នុង browser → ចុច **Build APK** → ទាញយក `.apk`។
+App Kivy នេះបង្កើតដោយ PyApp Builder។
 
-## ហេតុអ្វី build ក្នុង GitHub Actions?
-`buildozer` (python-for-android) ត្រូវការ Android SDK + NDK ជាង 2 GB និង Java —
-hosting ឥតគិតថ្លៃ (Render free) មិនអាចរត់វាបានទេ។ ដូច្នេះ៖
-
-1. សាយ Flask បង្កើត project (main.py + buildozer.spec) និង push ទៅ branch `build/<job>` ក្នុង repo ខ្លួនឯង
-   (តាម GitHub API — មិនត្រូវការ `git` ក្នុង server)
-2. Workflow [`build-apk.yml`](.github/workflows/build-apk.yml) រត់ក្នុង container `kivy/buildozer` រួច `buildozer android debug`
-3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក
-
-ការ build ដំបូងប្រហែល **១០–២០ នាទី** (compile Python សម្រាប់ Android)។ លើកក្រោយលឿនជាង ព្រោះមាន cache។
-
-### Version ដែលបានតេស្ត
-| ធាតុ | Version |
-|---|---|
-| buildozer | 1.5.0 |
-| python-for-android | `v2024.01.21` (pin ក្នុង `buildozer.spec`) |
-| NDK / API | 25b / 31 (min 21) |
-| ABI | `arm64-v8a` |
-| Runner | `ubuntu-latest` + Python 3.11 |
-
-> **ហេតុអ្វី pin ចាស់?** p4a master ឥឡូវ compile hostpython **3.14** ហើយ pip ក្នុង venv របស់វាខូច
-> (`cannot import name 'BuildDependencyInstallError'`) ⇒ build ធ្លាក់រាល់ដង។ ការប្រើ p4a 2024 ដែលប្រើ hostpython 3.11 ដំណើរការល្អ។
-
-## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
+## Build ជា APK លើកុំព្យូទ័រ (Linux)
 ```bash
-pip install -r requirements.txt
-export GH_REPO=owner/repo        # repo ដែលមាន .github/workflows/build-apk.yml
-export GH_TOKEN=ghp_xxx          # token មានសិទ្ធិ repo + workflow
-python app.py                    # http://localhost:8000
+sudo apt install -y git zip unzip openjdk-17-jdk python3-pip
+pip install buildozer cython
+buildozer android debug
 ```
-បើគ្មាន `GH_REPO`/`GH_TOKEN` សាយនៅតែដំណើរការ — អ្នកអាច **ទាញយក project ជា ZIP** ទៅ build ខ្លួនឯង។
-បើម៉ាស៊ីនមាន `buildozer` ក្នុង PATH សាយនឹង build ក្នុងម៉ាស៊ីនផ្ទាល់ (មិនត្រូវការ GitHub)។
-
-## Deploy លើ Render
-`render.yaml` មានរួច៖ runtime python, start `gunicorn app:app`។
-កំណត់ env `GH_REPO` និង `GH_TOKEN` ក្នុង Dashboard → Environment។
-
-> Free plan មាន disk បណ្ដោះអាសន្ន — job metadata បាត់ពេល restart។ APK នៅលើ GitHub release ដូច្នេះ link នៅតែប្រើបាន។
-
-## API
-| Method | Path | ការងារ |
-|---|---|---|
-| GET | `/` | ទំព័រសរសេរកូដ |
-| POST | `/build` | បង្កើត job រួចបញ្ជូនទៅ build |
-| POST | `/project.zip` | ទាញយក project ជា ZIP |
-| GET | `/j/<id>` | ទំព័រស្ថានភាព |
-| GET | `/api/jobs/<id>` | JSON ស្ថានភាព + `progress` (percent / step / eta / steps) |
-| GET | `/dl/<id>` | ទាញយក APK |
-| GET | `/api/health` | health check |
-
-## ចំណាំអំពីអក្សរខ្មែរ
-Kivy ត្រូវការ file font (`.ttf`) ដើម្បីបង្ហាញអក្សរខ្មែរ។ បើចង់ប្រើខ្មែរ សូមបន្ថែម
-`NotoSansKhmer-Regular.ttf` ក្នុង project និងកំណត់ `Label(font_name="NotoSansKhmer-Regular.ttf")`។
-
-## សុវត្ថិភាព
-- សាយរត់កូដរបស់អ្នក **តែក្នុង Android app** ដែលអ្នកដំឡើងខ្លួនឯង — មិនរត់នៅលើ server ទេ។
-- `GH_TOKEN` គឺជា secret របស់ server — កុំដាក់ក្នុង code ឬ commit។
+APK នឹងនៅក្នុង `bin/`។
