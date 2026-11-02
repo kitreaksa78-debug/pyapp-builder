@@ -69,6 +69,9 @@ def buildozer_spec(title: str, package: str, version: str = "1.0") -> str:
         f"package.domain = {domain}\n"
         "source.dir = .\n"
         "source.include_exts = py,png,jpg,kv,atlas,json,ttf\n"
+        # ការពាយឲ្យឯកសាររបស់សាយ (Flask) ចូលទៅក្នុង APK
+        "source.exclude_dirs = .git,.github,.buildozer,bin,out,jobs,templates,static,__pycache__,venv\n"
+        "source.exclude_patterns = README.md,*.yml,*.yaml,requirements.txt,render.yaml,.gitignore\n"
         f"version = {version}\n"
         "requirements = python3,kivy\n"
         "orientation = portrait\n"
