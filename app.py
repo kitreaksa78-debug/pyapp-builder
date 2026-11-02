@@ -79,7 +79,7 @@ def buildozer_spec(title: str, package: str, version: str = "1.0") -> str:
         "android.api = 31\n"
         "android.minapi = 21\n"
         "android.ndk = 25b\n"
-        "p4a.branch = v2026.05.09\n"
+        "p4a.branch = v2024.01.21\n"
         "\n"
         "[buildozer]\n"
         "log_level = 2\n"
