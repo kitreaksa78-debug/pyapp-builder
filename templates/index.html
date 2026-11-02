@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PyApp Builder — សរសេរ Python បង្កើត APK</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#26303d; --fg:#e6edf3; --dim:#8b949e;
+    --accent:#4f8cff; --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:system-ui,-apple-system,"Noto Sans Khmer","Segoe UI",Roboto,sans-serif;line-height:1.6}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 18px 64px}
+  h1{font-size:26px;margin:0 0 6px}
+  .lead{color:var(--dim);margin:0 0 22px;font-size:15px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
+  label{display:block;font-size:13px;color:var(--dim);margin:0 0 6px}
+  input[type=text],textarea{width:100%;background:#0b1017;color:var(--fg);border:1px solid var(--line);
+       border-radius:10px;padding:11px 12px;font-size:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  input[type=text]{font-family:inherit}
+  textarea{min-height:340px;resize:vertical;line-height:1.5}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1 1 260px}
+  .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+  button{border:0;border-radius:10px;padding:12px 20px;font-size:15px;font-weight:600;cursor:pointer}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{background:#21262d;color:var(--fg);border:1px solid var(--line)}
+  .note{font-size:13px;color:var(--dim)}
+  .pill{display:inline-block;font-size:12px;padding:3px 9px;border-radius:999px;
+        border:1px solid var(--line);color:var(--dim);margin-left:8px;vertical-align:middle}
+  .pill.ok{color:var(--ok);border-color:#1f6f3a}
+  .pill.bad{color:var(--bad);border-color:#6e2b28}
+  code{background:#0b1017;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px}
+  ol{padding-left:20px;color:var(--dim);font-size:14px}
+  ol b{color:var(--fg)}
+  .flash{background:#3d1d1d;border:1px solid #6e2b28;color:#ffb4ae}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PyApp Builder</h1>
+  <p class="lead">សរសេរ app ដោយ <b>Python</b> (Kivy) ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
+
+  {% if not gh_ready and not local_build %}
+  <div class="card flash">
+    <b>Server មិនទាន់កំណត់ GH_REPO / GH_TOKEN</b> — អ្នកនៅតែអាចសរសេរកូដ និង
+    <b>ទាញយក project ជា ZIP</b> ដើម្បី build ខ្លួនឯង។ ដើម្បីឲ្យសាយ build APK ដោយស្វ័យប្រវត្តិ
+    ត្រូវដាក់ env <code>GH_REPO=owner/repo</code> និង <code>GH_TOKEN</code> (token មានសិទ្ធិ <code>repo</code> + <code>workflow</code>)។
+  </div>
+  {% endif %}
+
+  <form class="card" method="post" action="/build" id="buildForm">
+    <div class="row">
+      <div>
+        <label>ឈ្មោះ app</label>
+        <input type="text" name="title" value="{{ default_title }}" maxlength="48" required>
+      </div>
+      <div>
+        <label>Package name</label>
+        <input type="text" name="package" value="{{ default_package }}" required>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <label>main.py (Python + Kivy)</label>
+      <textarea name="code" spellcheck="false">{{ default_code }}</textarea>
+    </div>
+
+    <div class="btns">
+      <button class="primary" type="submit">▶ Build APK</button>
+      <button class="ghost" type="submit" formaction="/project.zip" formnovalidate>⬇ ទាញយក project (ZIP)</button>
+    </div>
+    <p class="note" style="margin-bottom:0">
+      ស្ថានភាព build៖
+      {% if local_build %}<span class="pill ok">buildozer ក្នុងម៉ាស៊ីនមេ</span>
+      {% elif gh_ready %}<span class="pill ok">GitHub Actions · {{ repo }}</span>
+      {% else %}<span class="pill bad">មិនទាន់កំណត់</span>{% endif %}
+    </p>
+  </form>
+
+  <div class="card">
+    <b>របៀបប្រើ</b>
+    <ol>
+      <li>កែ <b>main.py</b> — អ្វីដែល app ធ្វើ (អក្សរ, ប៊ូតុង, គណនា, …)</li>
+      <li>ចុច <b>Build APK</b> → រង់ចាំ (ដំបូង ~10–25 នាទី ព្រោះត្រូវ compile Python សម្រាប់ Android)</li>
+      <li>ចុច <b>ទាញយក APK</b> → ដំឡើង (ត្រូវបើក «Install unknown apps»)</li>
+    </ol>
+    <p class="note">ចំណាំ៖ អក្សរខ្មែរក្នុង Kivy ត្រូវការ file font (.ttf) — បើចង់ប្រើខ្មែរ សូមបន្ថែម font ក្នុង project។</p>
+  </div>
+</div>
+</body>
+</html>

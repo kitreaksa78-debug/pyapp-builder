@@ -1,0 +1,57 @@
+name: build-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag for the APK (e.g. apk-1a2b3c4d5e6f)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: buildozer android debug
+    runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:latest
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Allow git in the mounted workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Cache buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            /root/.buildozer
+            .buildozer
+          key: buildozer-${{ hashFiles('buildozer.spec') }}
+
+      - name: Build APK
+        run: buildozer -v android debug
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp bin/*.apk out/app-debug.apk
+          ls -l out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: out/app-debug.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          body: "APK បង្កើតដោយ PyApp Builder (Kivy + buildozer)."
+          files: out/app-debug.apk

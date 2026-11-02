@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ job.title }} — Build</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#26303d;--fg:#e6edf3;--dim:#8b949e;
+        --accent:#4f8cff;--ok:#3fb950;--bad:#f85149;--warn:#d29922}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Noto Sans Khmer",sans-serif;line-height:1.6}
+  .wrap{max-width:760px;margin:0 auto;padding:32px 18px 64px}
+  h1{font-size:22px;margin:0 0 4px}
+  .lead{color:var(--dim);margin:0 0 22px;font-size:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .state{font-size:18px;font-weight:600;margin:0 0 6px}
+  .note{color:var(--dim);font-size:14px;margin:0}
+  .spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);
+           border-radius:50%;display:inline-block;vertical-align:-3px;margin-right:8px;
+           animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  a.btn,button{border:0;border-radius:10px;padding:12px 20px;font-size:15px;font-weight:600;
+     cursor:pointer;text-decoration:none;display:inline-block;margin-top:16px;margin-right:10px}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{background:#21262d;color:var(--fg);border:1px solid var(--line)}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+  code{background:#0b1017;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px}
+  pre{background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;
+      font-size:12px;color:#ffb4ae;white-space:pre-wrap}
+  .meta{font-size:13px;color:var(--dim);margin-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>{{ job.title }}</h1>
+  <p class="lead"><code>{{ job.package }}</code> · job <code>{{ job.id }}</code></p>
+
+  <div class="card">
+    <p class="state" id="state">
+      {% if job.status == 'done' %}<span class="ok">✅ APK រួចរាល់</span>
+      {% elif job.status == 'error' %}<span class="bad">⚠ Build មិនជោគជ័យ</span>
+      {% else %}<span class="spinner"></span>កំពុង build…{% endif %}
+    </p>
+    <p class="note" id="note">{{ job.status_note or 'កំពុងរង់ចាំ…' }}</p>
+    <div id="errwrap">{% if job.error %}<pre id="err">{{ job.error }}</pre>{% endif %}</div>
+    <div id="actions">
+      {% if job.status == 'done' %}
+      <a class="btn primary" href="{{ job.apk_url or ('/dl/' ~ job.id) }}">⬇ ទាញយក APK</a>
+      {% endif %}
+      {% if job.run_url %}<a class="btn ghost" href="{{ job.run_url }}" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>{% endif %}
+      <a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>
+    </div>
+    <p class="meta">ដំបូងប្រហែល ១០–២៥ នាទី (compile Python សម្រាប់ Android)។ ទំព័រនេះធ្វើបច្ចុប្បន្នភាពខ្លួនឯង។</p>
+  </div>
+</div>
+<script>
+const jobId = {{ job.id|tojson }};
+const stateEl = document.getElementById('state');
+const noteEl = document.getElementById('note');
+const actions = document.getElementById('actions');
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+async function tick(){
+  try {
+    const r = await fetch('/api/jobs/' + jobId, {cache: 'no-store'});
+    const j = await r.json();
+    noteEl.textContent = j.note || '';
+    if (j.status === 'done') {
+      stateEl.innerHTML = '<span class="ok">✅ APK រួចរាល់</span>';
+      let html = '<a class="btn primary" href="' + esc(j.apk_url || ('/dl/' + jobId)) + '">⬇ ទាញយក APK</a>';
+      if (j.run_url) html += '<a class="btn ghost" href="' + esc(j.run_url) + '" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>';
+      html += '<a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>';
+      actions.innerHTML = html;
+      return;
+    }
+    if (j.status === 'error') {
+      stateEl.innerHTML = '<span class="bad">⚠ Build មិនជោគជ័យ</span>';
+      if (j.error) noteEl.insertAdjacentHTML('afterend', '<pre>' + esc(j.error) + '</pre>');
+      return;
+    }
+  } catch (e) { /* បន្តព្យាយាម */ }
+  setTimeout(tick, 6000);
+}
+{% if job.status not in ('done', 'error') %}setTimeout(tick, 4000);{% endif %}
+</script>
+</body>
+</html>

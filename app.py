@@ -1,0 +1,393 @@
+#!/usr/bin/env python3
+"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app Kivy។
+
+អ្នកសរសេរ (ឬកែ) main.py ក្នុងទំព័រ រួចចុច «Build APK»។
+ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (buildozer + Android SDK)
+ព្រោះ buildozer ត្រូវការ SDK/NDK ជាង 2GB ដែលមិនអាចរត់លើ hosting ឥតគិតថ្លៃបាន។
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import threading
+import time
+import urllib.error
+import urllib.request
+import zipfile
+from pathlib import Path
+
+from flask import (Flask, abort, jsonify, redirect, render_template, request,
+                   send_file, url_for)
+from werkzeug.exceptions import HTTPException
+
+ROOT = Path(__file__).resolve().parent
+JOBS = ROOT / "jobs"
+JOBS.mkdir(exist_ok=True)
+
+GH_REPO = os.environ.get("GH_REPO", "").strip()
+GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
+GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-apk.yml") or "build-apk.yml").strip()
+GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
+
+DEFAULT_APP = (ROOT / "templates" / "app_template.py").read_text(encoding="utf-8")
+
+NAME_RE = re.compile(r"^[\w .\-()]{1,48}$", re.UNICODE)
+PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
+ID_RE = re.compile(r"^[a-f0-9]{12}$")
+MAX_CODE = 60_000
+
+app = Flask(__name__)
+
+
+# ---------------------------------------------------------------- helpers
+def validate(title: str, package: str, code: str):
+    title = (title or "").strip()
+    package = (package or "").strip()
+    code = (code or "").replace("\r\n", "\n").strip()
+    if not NAME_RE.match(title):
+        raise ValueError("ឈ្មោះ app មិនត្រឹមត្រូវ (១–៤៨ តួអក្សរ)")
+    if not PKG_RE.match(package):
+        raise ValueError("package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo")
+    if not code:
+        raise ValueError("main.py ទទេ")
+    if len(code) > MAX_CODE:
+        raise ValueError("កូដវែងពេក (អតិបរមា 60,000 តួ)")
+    return title, package, code + "\n"
+
+
+def buildozer_spec(title: str, package: str, version: str = "1.0") -> str:
+    domain, _, name = package.rpartition(".")
+    return (
+        "[app]\n"
+        f"title = {title}\n"
+        f"package.name = {name}\n"
+        f"package.domain = {domain}\n"
+        "source.dir = .\n"
+        "source.include_exts = py,png,jpg,kv,atlas,json,ttf\n"
+        f"version = {version}\n"
+        "requirements = python3,kivy\n"
+        "orientation = portrait\n"
+        "fullscreen = 0\n"
+        "android.permissions = INTERNET\n"
+        "android.accept_sdk_license = True\n"
+        "\n"
+        "[buildozer]\n"
+        "log_level = 2\n"
+        "warn_on_root = 0\n"
+    )
+
+
+def project_files(title: str, package: str, code: str) -> dict:
+    return {
+        "main.py": code,
+        "buildozer.spec": buildozer_spec(title, package),
+        "README.md": (
+            f"# {title}\n\n"
+            "App Kivy នេះបង្កើតដោយ PyApp Builder។\n\n"
+            "## Build ជា APK លើកុំព្យូទ័រ (Linux)\n"
+            "```bash\nsudo apt install -y git zip unzip openjdk-17-jdk python3-pip\n"
+            "pip install buildozer cython\nbuildozer android debug\n```\n"
+            "APK នឹងនៅក្នុង `bin/`។\n"
+        ),
+    }
+
+
+def slugify(text: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return s or "kivy-app"
+
+
+def job_dir(job_id: str) -> Path:
+    if not ID_RE.match(job_id or ""):
+        abort(404)
+    d = JOBS / job_id
+    if not d.is_dir():
+        abort(404)
+    return d
+
+
+def load_job(job_id: str) -> dict:
+    d = job_dir(job_id)
+    return json.loads((d / "meta.json").read_text(encoding="utf-8"))
+
+
+def save_job(meta: dict) -> None:
+    d = JOBS / meta["id"]
+    d.mkdir(parents=True, exist_ok=True)
+    tmp = d / "meta.json.tmp"
+    tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(d / "meta.json")
+
+
+def local_build_available() -> bool:
+    return bool(shutil.which("buildozer"))
+
+
+# ---------------------------------------------------------------- github
+class GitHub:
+    def __init__(self, repo: str, token: str):
+        self.repo = repo
+        self.token = token
+
+    def call(self, path: str, method: str = "GET", payload=None):
+        url = "https://api.github.com" + path
+        body = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(url, data=body, method=method)
+        req.add_header("Authorization", "Bearer " + self.token)
+        req.add_header("Accept", "application/vnd.github+json")
+        req.add_header("User-Agent", "pyapp-builder")
+        if body is not None:
+            req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read()
+        return json.loads(raw) if raw else {}
+
+    def push_branch(self, branch: str, files: dict, message: str) -> str:
+        base = self.call(f"/repos/{self.repo}/git/ref/heads/{GH_BRANCH}")["object"]["sha"]
+        base_commit = self.call(f"/repos/{self.repo}/git/commits/{base}")
+        tree = self.call(f"/repos/{self.repo}/git/trees", "POST", {
+            "base_tree": base_commit["tree"]["sha"],
+            "tree": [{"path": p, "mode": "100644", "type": "blob", "content": c}
+                     for p, c in files.items()],
+        })
+        commit = self.call(f"/repos/{self.repo}/git/commits", "POST", {
+            "message": message, "tree": tree["sha"], "parents": [base],
+        })
+        try:
+            self.call(f"/repos/{self.repo}/git/refs", "POST",
+                      {"ref": f"refs/heads/{branch}", "sha": commit["sha"]})
+        except urllib.error.HTTPError as exc:
+            if exc.code != 422:
+                raise
+            self.call(f"/repos/{self.repo}/git/refs/heads/{branch}", "PATCH",
+                      {"sha": commit["sha"], "force": True})
+        return commit["sha"]
+
+    def dispatch(self, branch: str, tag: str) -> None:
+        self.call(f"/repos/{self.repo}/actions/workflows/{GH_WORKFLOW}/dispatches", "POST",
+                  {"ref": branch, "inputs": {"tag": tag}})
+
+    def find_run(self, branch: str, not_before: float):
+        data = self.call(f"/repos/{self.repo}/actions/runs?per_page=20")
+        for run in data.get("workflow_runs", []):
+            if run.get("head_branch") != branch:
+                continue
+            created = run.get("created_at", "")
+            try:
+                ts = time.mktime(time.strptime(created, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+            except ValueError:
+                ts = not_before
+            if ts + 5 >= not_before:
+                return run
+        return None
+
+
+def gh() -> GitHub:
+    return GitHub(GH_REPO, GH_TOKEN)
+
+
+# ---------------------------------------------------------------- job flow
+def create_job(title: str, package: str, code: str) -> dict:
+    job_id = secrets.token_hex(6)
+    tag = "apk-" + job_id
+    meta = {
+        "id": job_id,
+        "title": title,
+        "package": package,
+        "tag": tag,
+        "status": "queued",
+        "status_note": "",
+        "error": "",
+        "apk_url": "",
+        "run_url": "",
+        "created": time.time(),
+        "checked": 0.0,
+        "branch": f"build/{job_id}",
+        "mode": "local" if local_build_available() and not (GH_REPO and GH_TOKEN) else "github",
+    }
+    d = JOBS / job_id
+    d.mkdir(parents=True, exist_ok=True)
+    for path, content in project_files(title, package, code).items():
+        (d / path).write_text(content, encoding="utf-8")
+    (d / "main.py").write_text(code, encoding="utf-8")
+    save_job(meta)
+
+    if meta["mode"] == "local":
+        threading.Thread(target=run_local_build, args=(meta,), daemon=True).start()
+        return meta
+
+    if not (GH_REPO and GH_TOKEN):
+        meta["status"] = "error"
+        meta["error"] = ("Server មិនបានកំណត់ GH_REPO / GH_TOKEN — "
+                         "អ្នកអាចទាញយក project ជា ZIP ទៅ build ខ្លួនឯងបាន។")
+        save_job(meta)
+        return meta
+
+    try:
+        client = gh()
+        client.push_branch(meta["branch"], project_files(title, package, code),
+                           f"Build {title} ({tag})")
+        client.dispatch(meta["branch"], tag)
+        meta["status"] = "building"
+        meta["status_note"] = "បញ្ជូនទៅ GitHub Actions រួច — កំពុងតម្រៀបជួរ…"
+    except Exception as exc:  # noqa: BLE001 — បង្ហាញកំហុសដល់អ្នកប្រើ
+        meta["status"] = "error"
+        meta["error"] = f"មិនអាចចាប់ផ្តើម build បាន: {exc}"
+    save_job(meta)
+    return meta
+
+
+def refresh_job(meta: dict) -> dict:
+    if meta["mode"] != "github" or meta["status"] not in ("building", "queued"):
+        return meta
+    if time.time() - meta.get("checked", 0) < 5:
+        return meta
+    meta["checked"] = time.time()
+    try:
+        run = gh().find_run(meta["branch"], meta["created"])
+    except Exception as exc:  # noqa: BLE001
+        meta["status_note"] = f"រង់ចាំ GitHub… ({exc})"
+        save_job(meta)
+        return meta
+    if not run:
+        waited = time.time() - meta["created"]
+        if waited > 150:
+            meta["status"] = "error"
+            meta["error"] = ("រកមិនឃើញ workflow run — ពិនិត្យថា repo មាន "
+                             f".github/workflows/{GH_WORKFLOW} និង GH_TOKEN មានសិទ្ធិ workflow")
+        else:
+            meta["status_note"] = "រង់ចាំ workflow ចាប់ផ្តើម…"
+        save_job(meta)
+        return meta
+    meta["run_url"] = run.get("html_url", "")
+    meta["status_note"] = f"{run.get('status')} · {run.get('conclusion') or 'កំពុងរត់'}"
+    if run.get("status") == "completed":
+        if run.get("conclusion") == "success":
+            meta["status"] = "done"
+            meta["apk_url"] = (f"https://github.com/{GH_REPO}/releases/download/"
+                               f"{meta['tag']}/app-debug.apk")
+        else:
+            meta["status"] = "error"
+            meta["error"] = f"Build បរាជ័យ ({run.get('conclusion')}) — មើល log ក្នុង GitHub"
+    save_job(meta)
+    return meta
+
+
+def run_local_build(meta: dict) -> None:
+    d = JOBS / meta["id"]
+    meta["status"] = "building"
+    meta["status_note"] = "កំពុង build ក្នុងម៉ាស៊ីនមេ (buildozer)…"
+    save_job(meta)
+    try:
+        proc = subprocess.run(["buildozer", "android", "debug"], cwd=d,
+                              capture_output=True, text=True, timeout=3600)
+        apks = sorted((d / "bin").glob("*.apk"))
+        if proc.returncode == 0 and apks:
+            meta["status"] = "done"
+            meta["apk_url"] = url_for("download", job_id=meta["id"], _external=False)
+            meta["status_note"] = apks[0].name
+        else:
+            meta["status"] = "error"
+            tail = (proc.stderr or proc.stdout or "")[-1200:]
+            meta["error"] = "buildozer បរាជ័យ: " + tail
+    except Exception as exc:  # noqa: BLE001
+        meta["status"] = "error"
+        meta["error"] = f"buildozer error: {exc}"
+    save_job(meta)
+
+
+# ---------------------------------------------------------------- routes
+@app.get("/")
+def home():
+    return render_template(
+        "index.html",
+        default_code=DEFAULT_APP,
+        default_title="My Python App",
+        default_package="org.pyapp.demo",
+        gh_ready=bool(GH_REPO and GH_TOKEN),
+        repo=GH_REPO,
+        local_build=local_build_available(),
+    )
+
+
+@app.post("/build")
+def build():
+    title, package, code = validate(
+        request.form.get("title", ""),
+        request.form.get("package", ""),
+        request.form.get("code", ""),
+    )
+    meta = create_job(title, package, code)
+    return redirect(url_for("job_page", job_id=meta["id"]))
+
+
+@app.post("/project.zip")
+def project_zip():
+    title, package, code = validate(
+        request.form.get("title", ""),
+        request.form.get("package", ""),
+        request.form.get("code", ""),
+    )
+    buf = io.BytesIO()
+    base = slugify(title)
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path, content in project_files(title, package, code).items():
+            zf.writestr(f"{base}/{path}", content)
+    buf.seek(0)
+    return send_file(buf, mimetype="application/zip", as_attachment=True,
+                     download_name=f"{base}.zip")
+
+
+@app.get("/j/<job_id>")
+def job_page(job_id: str):
+    meta = refresh_job(load_job(job_id))
+    return render_template("job.html", job=meta)
+
+
+@app.get("/api/jobs/<job_id>")
+def job_status(job_id: str):
+    meta = refresh_job(load_job(job_id))
+    return jsonify({
+        "id": meta["id"], "status": meta["status"], "note": meta["status_note"],
+        "error": meta["error"], "apk_url": meta["apk_url"], "run_url": meta["run_url"],
+        "title": meta["title"],
+    })
+
+
+@app.get("/dl/<job_id>")
+def download(job_id: str):
+    meta = refresh_job(load_job(job_id))
+    if meta["status"] != "done":
+        abort(409, description="APK មិនទាន់រួចរាល់")
+    if meta["mode"] == "local":
+        d = job_dir(job_id)
+        apks = sorted((d / "bin").glob("*.apk"))
+        if not apks:
+            abort(404)
+        return send_file(apks[0], as_attachment=True, download_name="app-debug.apk")
+    return redirect(meta["apk_url"])
+
+
+@app.errorhandler(ValueError)
+def on_value_error(exc):
+    return render_template("error.html", code=400, msg=str(exc)), 400
+
+
+@app.errorhandler(HTTPException)
+def on_http_error(exc):
+    return render_template("error.html", code=exc.code, msg=exc.description), exc.code
+
+
+@app.get("/api/health")
+def health():
+    return jsonify({"ok": True, "mode": "local" if local_build_available() else "github",
+                    "gh_ready": bool(GH_REPO and GH_TOKEN)})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "8000")), debug=False)
