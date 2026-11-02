@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import (Flask, abort, jsonify, redirect, render_template, request,
@@ -136,6 +137,46 @@ def local_build_available() -> bool:
     return bool(shutil.which("buildozer"))
 
 
+# រយៈពេលជាមធ្យម (វិនាទី) វាស់ពី run ពិត — ប្រើគណនា % ពេលជំហានមួយកំពុងរត់
+STEP_SECONDS = {
+    "Set up job": 5,
+    "Checkout": 6,
+    "Python 3.11": 9,
+    "Pin python to 3.11": 2,
+    "System dependencies": 60,
+    "Buildozer": 22,
+    "Cache SDK/NDK and p4a builds": 15,
+    "Build APK": 420,
+    "Collect APK": 4,
+    "Upload artifact": 8,
+    "Publish release": 9,
+}
+STEP_KH = {
+    "Set up job": "រៀបចំ runner",
+    "Checkout": "ទាញកូដ",
+    "Python 3.11": "ដំឡើង Python 3.11",
+    "Pin python to 3.11": "កំណត់ Python 3.11",
+    "System dependencies": "ដំឡើងកម្មវិធីប្រព័ន្ធ",
+    "Buildozer": "ដំឡើង buildozer",
+    "Cache SDK/NDK and p4a builds": "ស្តារ cache SDK/NDK",
+    "Build APK": "Build APK (compile Python → Android)",
+    "Collect APK": "ប្រមូល APK",
+    "Upload artifact": "ផ្ទុកឡើង artifact",
+    "Publish release": "បង្កើត release",
+}
+
+
+def _parse_ts(value: str | None) -> float:
+    """'2026-11-02T09:14:08Z' → epoch វិនាទី (0 បើខូច)។"""
+    if not value:
+        return 0.0
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return 0.0
+
+
 # ---------------------------------------------------------------- github
 class GitHub:
     def __init__(self, repo: str, token: str):
@@ -194,6 +235,46 @@ class GitHub:
                 return run
         return None
 
+    def run_progress(self, run: dict) -> dict:
+        """% ពិតប្រាកដពីជំហានរបស់ workflow (conclusion + started_at របស់ GitHub)។"""
+        steps: list[dict] = []
+        if run.get("id"):
+            try:
+                data = self.call(f"/repos/{self.repo}/actions/runs/{run['id']}/jobs")
+            except Exception:  # noqa: BLE001 — % គ្រាន់ជាព័ត៌មានបន្ថែម
+                data = {}
+            for job in data.get("jobs") or []:
+                steps.extend(job.get("steps") or [])
+        now = time.time()
+        total = done = remaining = 0.0
+        current = ""
+        shown: list[dict] = []
+        for step in steps:
+            name = step.get("name") or ""
+            if name.startswith("Post ") or name == "Complete job":
+                continue
+            expected = STEP_SECONDS.get(name, 20)
+            total += expected
+            if step.get("conclusion"):
+                done += expected
+                shown.append({"name": STEP_KH.get(name, name), "state": "done"})
+            elif step.get("status") == "in_progress":
+                started = _parse_ts(step.get("started_at")) or now
+                frac = min(0.95, max(0.0, (now - started) / expected))
+                done += expected * frac
+                remaining += expected * (1 - frac)
+                current = name
+                shown.append({"name": STEP_KH.get(name, name), "state": "now"})
+            else:
+                remaining += expected
+                shown.append({"name": STEP_KH.get(name, name), "state": "wait"})
+        if run.get("status") == "completed":
+            return {"percent": 100, "step": "", "steps": shown, "eta": 0}
+        percent = int(round(100 * done / total)) if total else 0
+        return {"percent": max(0, min(99, percent)),
+                "step": STEP_KH.get(current, current),
+                "steps": shown, "eta": int(remaining)}
+
 
 def gh() -> GitHub:
     return GitHub(GH_REPO, GH_TOKEN)
@@ -213,6 +294,7 @@ def create_job(title: str, package: str, code: str) -> dict:
         "error": "",
         "apk_url": "",
         "run_url": "",
+        "progress": {"percent": 0, "step": "", "steps": [], "eta": 0},
         "created": time.time(),
         "checked": 0.0,
         "branch": f"build/{job_id}",
@@ -279,9 +361,15 @@ def refresh_job(meta: dict) -> dict:
             meta["status"] = "done"
             meta["apk_url"] = (f"https://github.com/{GH_REPO}/releases/download/"
                                f"{meta['tag']}/app-debug.apk")
+            meta["progress"] = {"percent": 100, "step": "", "steps": [], "eta": 0}
         else:
             meta["status"] = "error"
             meta["error"] = f"Build បរាជ័យ ({run.get('conclusion')}) — មើល log ក្នុង GitHub"
+    else:
+        try:
+            meta["progress"] = gh().run_progress(run)
+        except Exception:  # noqa: BLE001
+            pass
     save_job(meta)
     return meta
 
@@ -364,6 +452,7 @@ def job_status(job_id: str):
         "id": meta["id"], "status": meta["status"], "note": meta["status_note"],
         "error": meta["error"], "apk_url": meta["apk_url"], "run_url": meta["run_url"],
         "title": meta["title"],
+        "progress": meta.get("progress") or {"percent": 0, "step": "", "steps": [], "eta": 0},
     })
 
 

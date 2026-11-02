@@ -28,6 +28,24 @@
   pre{background:#0b1017;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;
       font-size:12px;color:#ffb4ae;white-space:pre-wrap}
   .meta{font-size:13px;color:var(--dim);margin-top:12px}
+
+  /* ---- progress ---- */
+  .prog{margin:18px 0 4px}
+  .bar{height:14px;background:#0b1017;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .fill{height:100%;width:0;border-radius:999px;
+        background:linear-gradient(90deg,#2f6fe0,#4f8cff);
+        transition:width .6s ease}
+  .fill.ok{background:linear-gradient(90deg,#2ea043,#3fb950)}
+  .prow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:8px 0 0}
+  .pct{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin:0}
+  .step{font-size:13px;color:var(--dim);text-align:right;margin:0}
+  .steps{list-style:none;margin:14px 0 0;padding:0;font-size:13.5px}
+  .steps li{display:flex;gap:8px;padding:3px 0;color:var(--dim)}
+  .steps li.done{color:#9fb3c8}
+  .steps li.now{color:var(--fg);font-weight:600}
+  .steps li.now .ico{color:var(--accent)}
+  .steps li.wait{opacity:.55}
+  .ico{width:16px;flex:0 0 16px;text-align:center}
 </style>
 </head>
 <body>
@@ -42,6 +60,21 @@
       {% else %}<span class="spinner"></span>កំពុង build…{% endif %}
     </p>
     <p class="note" id="note">{{ job.status_note or 'កំពុងរង់ចាំ…' }}</p>
+
+    <div class="prog" id="progwrap">
+      <div class="bar"><div class="fill{% if job.status == 'done' %} ok{% endif %}" id="fill"
+        style="width:{{ job.progress.percent if job.progress else 0 }}%"></div></div>
+      <div class="prow">
+        <p class="pct" id="pct">{{ job.progress.percent if job.progress else 0 }}%</p>
+        <p class="step" id="step">{{ job.progress.step if job.progress else '' }}</p>
+      </div>
+      <ul class="steps" id="steps">
+        {% for s in (job.progress.steps if job.progress else []) %}
+        <li class="{{ s.state }}"><span class="ico">{{ '✓' if s.state == 'done' else ('◐' if s.state == 'now' else '○') }}</span>{{ s.name }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
     <div id="errwrap">{% if job.error %}<pre id="err">{{ job.error }}</pre>{% endif %}</div>
     <div id="actions">
       {% if job.status == 'done' %}
@@ -50,7 +83,7 @@
       {% if job.run_url %}<a class="btn ghost" href="{{ job.run_url }}" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>{% endif %}
       <a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>
     </div>
-    <p class="meta">ដំបូងប្រហែល ១០–២៥ នាទី (compile Python សម្រាប់ Android)។ ទំព័រនេះធ្វើបច្ចុប្បន្នភាពខ្លួនឯង។</p>
+    <p class="meta">% គណនាពីជំហានពិតរបស់ GitHub Actions។ ដំបូងប្រហែល ១០–១៥ នាទី (compile Python សម្រាប់ Android)។</p>
   </div>
 </div>
 <script>
@@ -58,16 +91,37 @@ const jobId = {{ job.id|tojson }};
 const stateEl = document.getElementById('state');
 const noteEl = document.getElementById('note');
 const actions = document.getElementById('actions');
+const fillEl = document.getElementById('fill');
+const pctEl = document.getElementById('pct');
+const stepEl = document.getElementById('step');
+const stepsEl = document.getElementById('steps');
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function renderProgress(p){
+  if (!p) return;
+  fillEl.style.width = Math.max(0, Math.min(100, p.percent || 0)) + '%';
+  pctEl.textContent = (p.percent || 0) + '%';
+  let line = p.step || '';
+  if (p.eta > 0 && p.eta < 3600) line += (line ? ' · ' : '') + '~' + Math.max(1, Math.round(p.eta / 60)) + ' នាទីទៀត';
+  stepEl.textContent = line;
+  if (p.steps && p.steps.length) {
+    stepsEl.innerHTML = p.steps.map(s => {
+      const ico = s.state === 'done' ? '✓' : (s.state === 'now' ? '◐' : '○');
+      return '<li class="' + s.state + '"><span class="ico">' + ico + '</span>' + esc(s.name) + '</li>';
+    }).join('');
+  }
+}
 
 async function tick(){
   try {
     const r = await fetch('/api/jobs/' + jobId, {cache: 'no-store'});
     const j = await r.json();
     noteEl.textContent = j.note || '';
+    renderProgress(j.progress);
     if (j.status === 'done') {
       stateEl.innerHTML = '<span class="ok">✅ APK រួចរាល់</span>';
+      fillEl.classList.add('ok');
       let html = '<a class="btn primary" href="' + esc(j.apk_url || ('/dl/' + jobId)) + '">⬇ ទាញយក APK</a>';
       if (j.run_url) html += '<a class="btn ghost" href="' + esc(j.run_url) + '" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>';
       html += '<a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>';
@@ -76,13 +130,15 @@ async function tick(){
     }
     if (j.status === 'error') {
       stateEl.innerHTML = '<span class="bad">⚠ Build មិនជោគជ័យ</span>';
-      if (j.error) noteEl.insertAdjacentHTML('afterend', '<pre>' + esc(j.error) + '</pre>');
+      if (j.error && !document.getElementById('err')) {
+        noteEl.insertAdjacentHTML('afterend', '<pre id="err">' + esc(j.error) + '</pre>');
+      }
       return;
     }
   } catch (e) { /* បន្តព្យាយាម */ }
   setTimeout(tick, 6000);
 }
-{% if job.status not in ('done', 'error') %}setTimeout(tick, 4000);{% endif %}
+{% if job.status not in ('done', 'error') %}setTimeout(tick, 3000);{% endif %}
 </script>
 </body>
 </html>
