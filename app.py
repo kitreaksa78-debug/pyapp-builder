@@ -28,6 +28,8 @@ from javaapp import DEFAULT_JAVA_SOURCE, java_project_files, validate_java_code
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
 JOBS.mkdir(exist_ok=True)
+FILES = ROOT / "files"
+FILES.mkdir(exist_ok=True)
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
@@ -39,6 +41,9 @@ GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 NAME_RE = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]{1,48}$", re.UNICODE)
 PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
+# ឈ្មោះ file សម្រាប់និពន្ធកូដ (nano) — គ្មាន / ឬ ..
+FILE_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+MAX_FILE_BYTES = 400_000
 
 app = Flask(__name__)
 
@@ -52,6 +57,12 @@ def validate_common(title: str, package: str):
     if not PKG_RE.match(package):
         raise ValueError("package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo")
     return title, package
+
+
+def file_path(name: str) -> Path:
+    if not FILE_RE.match(name or "") or name in (".", ".."):
+        raise ValueError("ឈ្មោះ file មិនត្រឹមត្រូវ — ប្រើ a-z, 0-9, _, -, .")
+    return FILES / name
 
 
 def slugify(text: str) -> str:
@@ -337,6 +348,63 @@ def build():
     title, package, files = files_from_form(request.form)
     meta = create_job(title, package, files)
     return redirect(url_for("job_page", job_id=meta["id"]))
+
+
+@app.get("/nano")
+def nano_page():
+    """និពន្ធកូដបែប nano — សរសេរបានគ្រប់ភាសា។"""
+    name = (request.args.get("f") or "main.java").strip()
+    if not FILE_RE.match(name):
+        name = "main.java"
+    target = FILES / name
+    content = ""
+    if target.is_file():
+        content = target.read_text(encoding="utf-8", errors="replace")
+    files = sorted(p.name for p in FILES.iterdir() if p.is_file())
+    return render_template("nano.html", files=files, name=name, content=content)
+
+
+@app.get("/api/files")
+def api_files():
+    items = []
+    for path in sorted(FILES.iterdir()):
+        if path.is_file():
+            stat = path.stat()
+            items.append({"name": path.name, "size": stat.st_size,
+                          "mtime": int(stat.st_mtime)})
+    return jsonify({"files": items})
+
+
+@app.get("/api/files/<name>")
+def api_file_get(name: str):
+    path = file_path(name)
+    if not path.is_file():
+        abort(404)
+    return jsonify({"name": path.name,
+                    "content": path.read_text(encoding="utf-8", errors="replace")})
+
+
+@app.post("/api/files/<name>")
+def api_file_save(name: str):
+    path = file_path(name)
+    data = request.get_json(silent=True) or {}
+    content = data.get("content")
+    if not isinstance(content, str):
+        raise ValueError("content ទាត់")
+    if len(content.encode("utf-8")) > MAX_FILE_BYTES:
+        raise ValueError("file ធំពេក (អតិបរមា 400KB)")
+    path.write_text(content, encoding="utf-8")
+    lines = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+    return jsonify({"ok": True, "name": path.name, "lines": lines,
+                    "bytes": len(content.encode("utf-8"))})
+
+
+@app.get("/files/<name>/download")
+def file_download(name: str):
+    path = file_path(name)
+    if not path.is_file():
+        abort(404)
+    return send_file(path, as_attachment=True, download_name=path.name)
 
 
 @app.post("/project.zip")

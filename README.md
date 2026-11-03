@@ -36,7 +36,11 @@ python app.py                 # http://localhost:8000
 ## API
 | Method | Path | ការងារ |
 |---|---|---|
-| GET | `/` | ទំព័រសរសេរកូដ Java |
+| GET | `/` | ទំព័រសរសេរកូដ Java + build APK |
+| GET | `/nano?f=<file>` | និពន្ធកូដបែប nano (គ្រប់ភាសា) |
+| GET | `/api/files` | បញ្ជី file ដែលបានរក្សាទុក |
+| GET / POST | `/api/files/<name>` | អាន / រក្សាទុក file |
+| GET | `/files/<name>/download` | ទាញយក file |
 | POST | `/build` | បង្កើត job រួច dispatch workflow |
 | POST | `/project.zip` | ទាញយក project ជា ZIP |
 | GET | `/j/<id>` | ទំព័រស្ថានភាព + % |

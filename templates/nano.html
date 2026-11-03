@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nano — {{ name }}</title>
+<style>
+  :root{--bg:#0b0f14;--bar:#e6edf3;--barfg:#0b0f14;--fg:#d7e2ee;--dim:#7d8b9a;
+        --line:#1d2733;--accent:#4f8cff;--ok:#3fb950;--bad:#f85149;--warn:#d29922}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;
+       font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}
+
+  .top{background:var(--bar);color:var(--barfg);padding:4px 10px;font-weight:700;
+       display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .top .grow{flex:1}
+  .top .tag{font-weight:600;background:#0b0f14;color:#e6edf3;border-radius:999px;
+            padding:1px 8px;font-size:11px}
+  .dirty{color:#b3261e}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+           padding:6px 10px;border-bottom:1px solid var(--line);background:#0e141b}
+  .toolbar select,.toolbar input{background:#0b0f14;color:var(--fg);border:1px solid var(--line);
+           border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px}
+  .toolbar button{background:#1b2430;color:var(--fg);border:1px solid var(--line);
+           border-radius:6px;padding:5px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+  .toolbar button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .toolbar button:hover{filter:brightness(1.15)}
+
+  .editor{flex:1;display:flex;min-height:0;overflow:hidden}
+  .gutter{padding:8px 8px 8px 10px;text-align:right;color:#4d5a68;background:#080d12;
+          border-right:1px solid var(--line);overflow:hidden;user-select:none;white-space:pre;
+          line-height:1.5;font-size:13px}
+  textarea{flex:1;border:0;outline:0;resize:none;background:transparent;color:var(--fg);
+           padding:8px 12px;font:inherit;line-height:1.5;white-space:pre;overflow:auto;
+           tab-size:4;caret-color:var(--accent)}
+
+  .status{padding:3px 10px;font-size:12.5px;color:var(--dim);border-top:1px solid var(--line);
+          background:#0e141b;min-height:22px}
+  .status.ok{color:var(--ok)} .status.bad{color:var(--bad)} .status.warn{color:var(--warn)}
+
+  .keys{background:var(--bar);color:var(--barfg);font-size:12px;padding:3px 8px;
+        display:flex;flex-wrap:wrap;gap:2px 12px}
+  .keys b{font-weight:700}
+
+  .panel{position:fixed;inset:0;background:rgba(4,8,12,.94);display:none;
+         padding:24px;overflow:auto;z-index:9}
+  .panel.show{display:block}
+  .panel h2{font-size:15px;margin:0 0 12px;color:var(--bar)}
+  .panel table{border-collapse:collapse;font-size:13px}
+  .panel td{padding:3px 14px 3px 0;color:var(--fg);vertical-align:top}
+  .panel td:first-child{color:var(--accent);white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <span>GNU nano 7.2</span>
+  <span class="grow">{{ name }}<span id="dirty" class="dirty" style="display:none"> *</span></span>
+  <span class="tag" id="langTag">code</span>
+  <span class="tag" id="linesTag">0 បន្ទាត់</span>
+</div>
+
+<div class="toolbar">
+  <label class="grow" style="flex:1;min-width:180px">
+    <input id="nameInput" value="{{ name }}" spellcheck="false"
+           style="width:100%" title="ឈ្មោះ file (ឧ. app.py, main.cpp, index.html)">
+  </label>
+  <select id="openSelect" title="បើក file ដែលបានរក្សាទុក">
+    <option value="">— បើក file —</option>
+    {% for f in files %}<option value="{{ f }}"{% if f == name %} selected{% endif %}>{{ f }}</option>{% endfor %}
+  </select>
+  <button class="primary" id="saveBtn">^O Save</button>
+  <button id="dlBtn">⬇ Download</button>
+  <button class="primary" id="buildBtn" style="display:none">▶ Build APK</button>
+  <a href="/" style="color:var(--dim);font-size:12.5px;text-decoration:none">← ត្រឡប់</a>
+</div>
+
+<div id="buildBox" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;
+     padding:6px 10px;border-bottom:1px solid var(--line);background:#0e141b">
+  <input id="appTitle" placeholder="ឈ្មោះ app" value="My App"
+         style="background:#0b0f14;color:#d7e2ee;border:1px solid var(--line);
+                border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px">
+  <input id="pkg" placeholder="package (org.pyapp.demo)" value="org.pyapp.demo"
+         style="background:#0b0f14;color:#d7e2ee;border:1px solid var(--line);
+                border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px">
+  <span style="color:#7d8b9a;font-size:12px">file .java តែប៉ុណ្ណោះដែល build បាន</span>
+</div>
+
+<div class="editor">
+  <div class="gutter" id="gutter">1</div>
+  <textarea id="code" spellcheck="false" wrap="off" autocomplete="off"
+            autocapitalize="off" autocorrect="off">{{ content }}</textarea>
+</div>
+
+<div class="status" id="status">^O រក្សាទុក · ^X ត្រឡប់ · ^G ជំនួយ</div>
+
+<div class="keys">
+  <span><b>^G</b> Help</span><span><b>^O</b> Write Out</span><span><b>^W</b> Where Is</span>
+  <span><b>^K</b> Cut</span><span><b>^U</b> Paste</span><span><b>^X</b> Exit</span>
+</div>
+
+<div class="panel" id="help">
+  <h2>nano — ជំនួយ</h2>
+  <table>
+    <tr><td>^O / ^S</td><td>រក្សាទុក file ទៅ server</td></tr>
+    <tr><td>^X</td><td>ត្រឡប់ទៅទំព័រដើម</td></tr>
+    <tr><td>^K</td><td>កាត់បន្ទាត់បច្ចុប្បន្ន</td></tr>
+    <tr><td>^U</td><td>បិទភ្ជាប់បន្ទាត់ដែលបានកាត់</td></tr>
+    <tr><td>^W</td><td>ស្វែងរកពាក្យ</td></tr>
+    <tr><td>Tab</td><td>បញ្ចូល Tab (ដូច nano)</td></tr>
+    <tr><td>^G</td><td>បិទ/បើកជំនួយនេះ</td></tr>
+  </table>
+  <p style="color:#7d8b9a;font-size:12.5px">
+    សរសេរបានគ្រប់ភាសា៖ Python (.py), C (.c), C++ (.cpp), Java (.java), HTML (.html),
+    JavaScript (.js), PHP (.php), Bash (.sh), JSON, CSS, SQL …<br>
+    បើ file ជា <b>.java</b> → ចុច <b>Build APK</b> ដើម្បីបង្កើត APK ភ្លាម។
+  </p>
+</div>
+
+<script>
+const area = document.getElementById('code');
+const gutter = document.getElementById('gutter');
+const nameInput = document.getElementById('nameInput');
+const statusEl = document.getElementById('status');
+const dirtyEl = document.getElementById('dirty');
+const langTag = document.getElementById('langTag');
+const linesTag = document.getElementById('linesTag');
+const help = document.getElementById('help');
+const buildBtn = document.getElementById('buildBtn');
+const buildBox = document.getElementById('buildBox');
+
+let dirty = false;
+let cutBuffer = '';
+
+const LANGS = {
+  py: 'Python', c: 'C', h: 'C/C++', cpp: 'C++', cc: 'C++', hpp: 'C++', cs: 'C#',
+  java: 'Java', kt: 'Kotlin', js: 'JavaScript', ts: 'TypeScript', jsx: 'React',
+  html: 'HTML', htm: 'HTML', css: 'CSS', php: 'PHP', sh: 'Bash', bash: 'Bash',
+  zsh: 'Zsh', json: 'JSON', xml: 'XML', sql: 'SQL', go: 'Go', rs: 'Rust',
+  rb: 'Ruby', lua: 'Lua', txt: 'Text', md: 'Markdown', yml: 'YAML', yaml: 'YAML',
+  gradle: 'Gradle', toml: 'TOML', ini: 'INI'
+};
+
+function currentName() { return nameInput.value.trim() || 'untitled.txt'; }
+function ext() {
+  const n = currentName();
+  const i = n.lastIndexOf('.');
+  return i < 0 ? '' : n.slice(i + 1).toLowerCase();
+}
+function pretty(bytes) { return bytes < 1024 ? bytes + ' B' : (bytes / 1024).toFixed(1) + ' KB'; }
+
+function refreshMeta() {
+  const lines = area.value.split('\n').length;
+  let g = '';
+  for (let i = 1; i <= lines; i++) g += i + '\n';
+  gutter.textContent = g;
+  linesTag.textContent = lines + ' បន្ទាត់ · ' + pretty(area.value.length);
+  langTag.textContent = LANGS[ext()] || (ext() ? ext().toUpperCase() : 'code');
+  const isJava = ext() === 'java';
+  buildBtn.style.display = isJava ? 'inline-block' : 'none';
+  buildBox.style.display = isJava ? 'flex' : 'none';
+}
+
+function markDirty(state) {
+  dirty = state;
+  dirtyEl.style.display = state ? 'inline' : 'none';
+}
+
+function say(text, kind) {
+  statusEl.textContent = text;
+  statusEl.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+async function save() {
+  const name = currentName();
+  if (!/^[A-Za-z0-9_.\-]{1,64}$/.test(name)) {
+    say('ឈ្មោះ file មិនត្រឹមត្រូវ — ប្រើ a-z, 0-9, _, -, .', 'bad');
+    return;
+  }
+  say('កំពុងរក្សាទុក…');
+  try {
+    const r = await fetch('/api/files/' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: area.value})
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.description || j.error || r.status);
+    markDirty(false);
+    say('បានរក្សាទុក ' + j.name + ' — ' + j.lines + ' បន្ទាត់ (' + pretty(j.bytes) + ')', 'ok');
+    refreshMeta();
+  } catch (e) {
+    say('រក្សាទុកមិនបាន: ' + e.message, 'bad');
+  }
+}
+
+function buildApk() {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/build';
+  const add = (k, v) => {
+    const i = document.createElement('input');
+    i.type = 'hidden'; i.name = k; i.value = v;
+    form.appendChild(i);
+  };
+  add('title', document.getElementById('appTitle').value || 'My App');
+  add('package', document.getElementById('pkg').value || 'org.pyapp.demo');
+  add('java_code', area.value);
+  document.body.appendChild(form);
+  form.submit();
+}
+
+document.getElementById('saveBtn').addEventListener('click', save);
+document.getElementById('dlBtn').addEventListener('click', () => {
+  save().then(() => { window.location = '/files/' + encodeURIComponent(currentName()) + '/download'; });
+});
+buildBtn.addEventListener('click', buildApk);
+
+document.getElementById('openSelect').addEventListener('change', (e) => {
+  if (!e.target.value) return;
+  if (dirty && !confirm('មានការកែដែលមិនបានរក្សាទុក — បន្តបើក file ថ្មី?')) return;
+  window.location = '/nano?f=' + encodeURIComponent(e.target.value);
+});
+
+nameInput.addEventListener('input', refreshMeta);
+area.addEventListener('input', () => { markDirty(true); refreshMeta(); });
+area.addEventListener('scroll', () => { gutter.scrollTop = area.scrollTop; });
+
+function lineStart(text, pos) {
+  const i = text.lastIndexOf('\n', pos - 1);
+  return i < 0 ? 0 : i + 1;
+}
+function lineEnd(text, pos) {
+  const i = text.indexOf('\n', pos);
+  return i < 0 ? text.length : i;
+}
+
+area.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if (e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (key === 's' || key === 'o') { e.preventDefault(); save(); return; }
+    if (key === 'x') {
+      e.preventDefault();
+      if (dirty && !confirm('ការកែមិនបានរក្សាទុក — ចង់ចេញទេ?')) return;
+      window.location = '/';
+      return;
+    }
+    if (key === 'g') { e.preventDefault(); help.classList.toggle('show'); return; }
+    if (key === 'k') {
+      e.preventDefault();
+      const s = area.selectionStart;
+      const start = lineStart(area.value, s);
+      const end = lineEnd(area.value, s);
+      cutBuffer = area.value.slice(start, Math.min(end + 1, area.value.length));
+      area.value = area.value.slice(0, start) + area.value.slice(Math.min(end + 1, area.value.length));
+      area.selectionStart = area.selectionEnd = start;
+      markDirty(true); refreshMeta();
+      say('បានកាត់បន្ទាត់ (^U ដើម្បីបិទភ្ជាប់)', 'warn');
+      return;
+    }
+    if (key === 'u') {
+      e.preventDefault();
+      const pos = area.selectionStart;
+      area.value = area.value.slice(0, pos) + cutBuffer + area.value.slice(pos);
+      area.selectionStart = area.selectionEnd = pos + cutBuffer.length;
+      markDirty(true); refreshMeta();
+      say('បានបិទភ្ជាប់បន្ទាត់', 'ok');
+      return;
+    }
+    if (key === 'w') {
+      e.preventDefault();
+      const needle = prompt('ស្វែងរក:');
+      if (!needle) return;
+      const from = area.selectionEnd || 0;
+      let at = area.value.indexOf(needle, from);
+      if (at < 0) at = area.value.indexOf(needle);
+      if (at < 0) { say('រកមិនឃើញ: ' + needle, 'bad'); return; }
+      area.focus();
+      area.setSelectionRange(at, at + needle.length);
+      const line = area.value.slice(0, at).split('\n').length;
+      say('ឃើញនៅបន្ទាត់ ' + line, 'ok');
+      return;
+    }
+  }
+  if (key === 'tab') {
+    e.preventDefault();
+    const s = area.selectionStart;
+    area.value = area.value.slice(0, s) + '\t' + area.value.slice(area.selectionEnd);
+    area.selectionStart = area.selectionEnd = s + 1;
+    markDirty(true); refreshMeta();
+  }
+});
+
+help.addEventListener('click', () => help.classList.remove('show'));
+window.addEventListener('beforeunload', (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+refreshMeta();
+if (area.value) say('^O រក្សាទុក · ^G ជំនួយ · ^X ចេញ');
+</script>
+</body>
+</html>
