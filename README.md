@@ -1,11 +1,15 @@
-# My Python App
+# Java Live Test (Java)
 
-App Kivy នេះបង្កើតដោយ PyApp Builder។
+App Android native បង្កើតដោយ PyApp Builder។ សរសេរដោយ **Java** (គ្មាន Python/Kivy)។
 
-## Build ជា APK លើកុំព្យូទ័រ (Linux)
+- package: `org.pyapp.javalive`
+- minSdk 21 · targetSdk 34 · compileSdk 34
+- UI សង់ដោយកូដនៅក្នុង `app/src/main/java/org/pyapp/javalive/MainActivity.java`
+
+## Build APK ដោយខ្លួនឯង
+
 ```bash
-sudo apt install -y git zip unzip openjdk-17-jdk python3-pip
-pip install buildozer cython
-buildozer android debug
+# ត្រូវការ JDK 17 និង Android SDK (ANDROID_HOME)
+gradle assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
 ```
-APK នឹងនៅក្នុង `bin/`។
