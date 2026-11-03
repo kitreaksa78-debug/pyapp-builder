@@ -42,7 +42,8 @@ GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 DEFAULT_APP = (ROOT / "templates" / "app_template.py").read_text(encoding="utf-8")
 DEFAULT_JAVA_MESSAGE = "app នេះបង្កើតដោយ PyApp Builder — សរសេរដោយ Java ដំណើរការលើ Android ដោយផ្ទាល់។"
 
-NAME_RE = re.compile(r"^[\w .\-()]{1,48}$", re.UNICODE)
+# អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
+NAME_RE = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]{1,48}$", re.UNICODE)
 PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
 MAX_CODE = 60_000
