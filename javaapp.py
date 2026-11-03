@@ -13,6 +13,8 @@ MAX_CODE = 60_000
 
 PKG_LINE_RE = re.compile(r"^[ \t]*package[ \t]+[\w.]+[ \t]*;[ \t]*\n?", re.MULTILINE)
 CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
+# class ដែល extends Service ⇒ ត្រូវប្រកាសក្នុង manifest (ឧ. foreground service)
+SERVICE_RE = re.compile(r"\bclass\s+(\w+)\s+extends\s+Service\b")
 
 
 def xml_escape(text: str) -> str:
@@ -219,7 +221,7 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-
+@@PERMISSIONS@@
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
@@ -234,10 +236,16 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+@@SERVICES@@
     </application>
 
 </manifest>
 '''
+
+
+# permission ដែលត្រូវការពេលមាន Service (foreground service)
+SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC",
+                       "POST_NOTIFICATIONS")
 
 STRINGS = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -337,6 +345,30 @@ gradle assembleDebug
 '''
 
 
+def manifest_xml(code: str) -> str:
+    """Manifest — ប្រកាស Service ដែលអ្នកប្រើសរសេរដោយស្វ័យប្រវត្តិ។"""
+    names = []
+    for name in SERVICE_RE.findall(code):
+        for candidate in (f".{name}", f".MainActivity${name}"):
+            if candidate not in names:
+                names.append(candidate)
+
+    permissions = ""
+    services = ""
+    if names:
+        permissions = "".join(
+            f'    <uses-permission android:name="android.permission.{p}" />\n'
+            for p in SERVICE_PERMISSIONS)
+        services = "".join(
+            "        <service\n"
+            f'            android:name="{name}"\n'
+            '            android:exported="false"\n'
+            '            android:foregroundServiceType="dataSync" />\n'
+            for name in names)
+    return (MANIFEST.replace("@@PERMISSIONS@@", permissions)
+            .replace("@@SERVICES@@", services))
+
+
 def java_project_files(title: str, package: str, code: str) -> dict:
     """បង្កើត file ទាំងអស់របស់ project Java ជា dict {path: content}។"""
     package = package.strip()
@@ -348,7 +380,7 @@ def java_project_files(title: str, package: str, code: str) -> dict:
         "settings.gradle": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
         "gradle.properties": GRADLE_PROPS,
         "app/build.gradle": APP_GRADLE.replace("@@PKG@@", package),
-        "app/src/main/AndroidManifest.xml": MANIFEST,
+        "app/src/main/AndroidManifest.xml": manifest_xml(code),
         "app/src/main/res/values/strings.xml": STRINGS.replace("@@TITLE@@", xml_escape(title)),
         f"app/src/main/java/{path}/MainActivity.java": source,
         ".gitignore": GITIGNORE,
