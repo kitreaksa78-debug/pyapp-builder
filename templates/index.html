@@ -42,7 +42,7 @@
 <body>
 <div class="wrap">
   <h1>PyApp Builder</h1>
-  <p class="lead">បង្កើត app Android ជា file <code>.apk</code> — ជ្រើស <b>Java (native)</b> ឬ <b>Python (Kivy)</b>។</p>
+  <p class="lead">សរសេរ <b>Java</b> (ឬ Python) ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
 
   {% if not gh_ready and not local_build %}
   <div class="card flash">
@@ -73,30 +73,12 @@
     </div>
 
     <div id="javaFields" style="margin-top:16px">
-      <div class="row">
-        <div>
-          <label>ចំណងជើងក្នុង app</label>
-          <input type="text" name="heading" value="{{ default_heading }}" maxlength="120">
-        </div>
-        <div>
-          <label>អក្សរលើប៊ូតុង (ស្រេចចិត្ត)</label>
-          <input type="text" name="button_label" value="បើកគេហទំព័រ" maxlength="40">
-        </div>
-      </div>
-      <div style="margin-top:14px">
-        <label>អត្ថបទក្នុង app</label>
-        <textarea class="short" name="message">{{ default_message }}</textarea>
-      </div>
-      <div class="row" style="margin-top:14px">
-        <div>
-          <label>API URL (ស្រេចចិត្ត — app នឹងទាញ JSON មកបង្ហាញ)</label>
-          <input type="text" name="api_url" value="{{ default_api }}" placeholder="https://api.example.com/data">
-        </div>
-        <div>
-          <label>URL របស់ប៊ូតុង (ស្រេចចិត្ត)</label>
-          <input type="text" name="button_url" value="https://www.google.com" placeholder="https://example.com">
-        </div>
-      </div>
+      <label>MainActivity.java (សរសេរកូដ Java — កែបានសេរី)</label>
+      <textarea name="java_code" spellcheck="false">{{ default_java }}</textarea>
+      <p class="note" style="margin:6px 0 0">
+        Package បញ្ចូលស្វ័យប្រវត្តិពីប្រអប់ «Package name» — មិនត្រូវសរសេរ <code>package ...;</code> ខ្លួនឯងទេ។
+        ត្រូវរក្សា <code>class MainActivity</code>។
+      </p>
     </div>
 
     <div id="pyFields" style="display:none;margin-top:16px">
@@ -119,7 +101,7 @@
   <div class="card">
     <b>របៀបប្រើ</b>
     <ol>
-      <li>ជ្រើស <b>Java</b> (ណែនាំ) — សរសេរអក្សរ/API URL រួចចុច <b>Build APK</b></li>
+      <li>ជ្រើស <b>Java</b> (ណែនាំ) — សរសេរកូដ <b>Java</b> ក្នុងប្រអប់ រួចចុច <b>Build APK</b></li>
       <li>រង់ចាំ ~៣–៥ នាទី (Java) ឬ ~១០–១៥ នាទី (Python)</li>
       <li>ចុច <b>ទាញយក APK</b> → ដំឡើងលើទូរស័ព្ទ (ត្រូវបើក «Install unknown apps»)</li>
     </ol>

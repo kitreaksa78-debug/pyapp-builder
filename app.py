@@ -26,7 +26,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.exceptions import HTTPException
 
-from javaapp import java_project_files, validate_java_fields
+from javaapp import DEFAULT_JAVA_SOURCE, java_project_files, validate_java_code
 
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
@@ -40,7 +40,6 @@ JAVA_WORKFLOW = "build-java-apk.yml"
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 
 DEFAULT_APP = (ROOT / "templates" / "app_template.py").read_text(encoding="utf-8")
-DEFAULT_JAVA_MESSAGE = "app នេះបង្កើតដោយ PyApp Builder — សរសេរដោយ Java ដំណើរការលើ Android ដោយផ្ទាល់។"
 
 # អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
 NAME_RE = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]{1,48}$", re.UNICODE)
@@ -311,10 +310,8 @@ def files_from_form(form) -> tuple:
             form.get("title", ""), form.get("package", ""), form.get("code", ""))
         return "python", title, package, project_files(title, package, code)
     title, package = validate_common(form.get("title", ""), form.get("package", ""))
-    fields = validate_java_fields(
-        form.get("heading", ""), form.get("message", ""), form.get("api_url", ""),
-        form.get("button_label", ""), form.get("button_url", ""))
-    return "java", title, package, java_project_files(title, package, **fields)
+    code = validate_java_code(form.get("java_code", ""))
+    return "java", title, package, java_project_files(title, package, code)
 
 
 def create_job(lang: str, title: str, package: str, files: dict) -> dict:
@@ -447,9 +444,10 @@ def home():
         default_code=DEFAULT_APP,
         default_title="My App",
         default_package="org.pyapp.demo",
-        default_heading="សួស្តី!",
-        default_message=DEFAULT_JAVA_MESSAGE,
-        default_api=url_for("health", _external=True),
+        default_heading=None,
+        default_message=None,
+        default_api=None,
+        default_java=DEFAULT_JAVA_SOURCE,
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
         local_build=local_build_available(),

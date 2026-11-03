@@ -1,39 +1,18 @@
 #!/usr/bin/env python3
 """បង្កើត project Android native (Java + Gradle) សម្រាប់ build ជា APK។
 
-មិនប្រើ buildozer/Kivy ទេ — Gradle + Android SDK compile Java ដោយផ្ទាល់
-ដូច្នេះ APK ចេញលឿន (~៣–៥ នាទី) និងបើកដើរបានដោយគ្មាន Python runtime។
+អ្នកប្រើសរសេរ **កូដ Java** ដោយខ្លួនឯង (MainActivity.java) — package name
+បញ្ចូលដោយស្វ័យប្រវត្តិ។ Gradle + Android SDK compile ក្នុង GitHub Actions
+ដូច្នេះមិនត្រូវការ Python runtime នៅលើទូរស័ព្ទទេ។
 """
 from __future__ import annotations
 
 import re
 
-URL_RE = re.compile(r"^https?://[^\s\"'<>]+$")
+MAX_CODE = 60_000
 
-MAX_HEADING = 120
-MAX_MESSAGE = 4000
-MAX_LABEL = 40
-
-
-def java_literal(text: str) -> str:
-    """បំលែងអក្សរទៅជា Java string literal (ខ្មែរ → \\uXXXX) ដើម្បីកុំឲ្យខូច encoding។"""
-    parts = []
-    for ch in str(text):
-        if ch == "\\":
-            parts.append("\\\\")
-        elif ch == '"':
-            parts.append('\\"')
-        elif ch == "\n":
-            parts.append("\\n")
-        elif ch == "\r":
-            continue
-        elif ch == "\t":
-            parts.append("\\t")
-        elif " " <= ch <= "~":
-            parts.append(ch)
-        else:
-            parts.append("\\u%04x" % ord(ch))
-    return '"' + "".join(parts) + '"'
+PKG_LINE_RE = re.compile(r"^[ \t]*package[ \t]+[\w.]+[ \t]*;[ \t]*\n?", re.MULTILINE)
+CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
 
 
 def xml_escape(text: str) -> str:
@@ -41,24 +20,24 @@ def xml_escape(text: str) -> str:
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def validate_java_fields(heading: str, message: str, api_url: str,
-                         button_label: str, button_url: str) -> dict:
-    heading = (heading or "").strip()[:MAX_HEADING]
-    message = (message or "").strip()[:MAX_MESSAGE]
-    api_url = (api_url or "").strip()
-    button_label = (button_label or "").strip()[:MAX_LABEL]
-    button_url = (button_url or "").strip()
-    if api_url and not URL_RE.match(api_url):
-        raise ValueError("API URL មិនត្រឹមត្រូវ — ត្រូវចាប់ផ្តើមដោយ http:// ឬ https://")
-    if button_url and not URL_RE.match(button_url):
-        raise ValueError("URL ប៊ូតុងមិនត្រឹមត្រូវ — ត្រូវចាប់ផ្តើមដោយ http:// ឬ https://")
-    return {"heading": heading, "message": message, "api_url": api_url,
-            "button_label": button_label, "button_url": button_url}
+def validate_java_code(code: str) -> str:
+    code = (code or "").replace("\r\n", "\n").strip()
+    if not code:
+        raise ValueError("កូដ Java ទទេ — សរសេរ class MainActivity")
+    if len(code) > MAX_CODE:
+        raise ValueError("កូដវែងពេក (អតិបរមា 60,000 តួ)")
+    if not CLASS_RE.search(code):
+        raise ValueError("កូដត្រូវមាន class ឈ្មោះ MainActivity (ឈ្មោះដូចដើម)")
+    return code
 
 
-ACTIVITY = r'''package @@PKG@@;
+def normalize_java(code: str, package: str) -> str:
+    """ដាក់ `package ...;` ខាងលើ — បើអ្នកប្រើសរសេរ package ខ្លួនឯង យកចេញវិញ។"""
+    body = PKG_LINE_RE.sub("", code).strip("\n")
+    return f"package {package};\n\n{body}\n"
 
-import android.app.Activity;
+
+DEFAULT_JAVA_SOURCE = '''import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -69,6 +48,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -80,14 +60,16 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * បង្កើតដោយ PyApp Builder — app Android native សរសេរដោយ Java។
- * UI សង់ដោយកូដ (គ្មាន XML layout) ដូច្នេះ build មិនស្ទះដោយរឿង resource។
+ * App Android សរសេរដោយ Java — កែកូដនេះបានសេរី។
+ * package name បញ្ចូលដោយស្វ័យប្រវត្តិពីប្រអប់ "Package name" ខាងលើ។
  */
 public class MainActivity extends Activity {
 
-    private static final String API_URL = @@API_URL@@;
+    // ដាក់ URL របស់ API នៅទីនេះ (បើមិនប្រើ ទុកទទេ "")
+    private static final String API_URL = "https://pyapp-builder.onrender.com/api/health";
 
-    private TextView apiOut;
+    private EditText input;
+    private TextView output;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -100,67 +82,81 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.WHITE);
 
         TextView heading = new TextView(this);
-        heading.setText(@@HEADING@@);
-        heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        heading.setText("សួស្តី! នេះជា app Java");
+        heading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         heading.setTextColor(Color.parseColor("#0f172a"));
         heading.setGravity(Gravity.CENTER_HORIZONTAL);
         root.addView(heading);
 
-        TextView message = new TextView(this);
-        message.setText(@@MESSAGE@@);
-        message.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        message.setTextColor(Color.parseColor("#334155"));
-        message.setPadding(0, dp(12), 0, 0);
-        root.addView(message);
+        TextView about = new TextView(this);
+        about.setText("សរសេរកូដ Java ក្នុងប្រអប់ខាងលើ រួចចុច Build APK។");
+        about.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        about.setTextColor(Color.parseColor("#475569"));
+        about.setPadding(0, dp(10), 0, 0);
+        root.addView(about);
 
-        Button openButton = new Button(this);
-        openButton.setText(@@BUTTON_LABEL@@);
-        openButton.setAllCaps(false);
-        openButton.setVisibility(@@BUTTON_VIS@@);
-        openButton.setOnClickListener(new View.OnClickListener() {
+        input = new EditText(this);
+        input.setHint("សរសេរឈ្មោះរបស់អ្នក");
+        input.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        root.addView(input, topMargin(dp(16)));
+
+        Button greet = new Button(this);
+        greet.setText("ស្វាគមន៍");
+        greet.setAllCaps(false);
+        greet.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(@@BUTTON_URL@@)));
+                String name = input.getText().toString().trim();
+                if (name.isEmpty()) {
+                    name = "មិត្តភក្តិ";
+                }
+                output.setText("សួស្តី " + name + "! 👋");
             }
         });
-        root.addView(openButton, buttonLayout());
+        root.addView(greet, topMargin(dp(16)));
 
-        Button apiButton = new Button(this);
-        apiButton.setText("ហៅ API");
-        apiButton.setAllCaps(false);
-        apiButton.setVisibility(@@API_VIS@@);
-        apiButton.setOnClickListener(new View.OnClickListener() {
+        Button api = new Button(this);
+        api.setText("ហៅ API");
+        api.setAllCaps(false);
+        api.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 callApi();
             }
         });
-        root.addView(apiButton, buttonLayout());
+        root.addView(api, topMargin(dp(16)));
 
-        apiOut = new TextView(this);
-        apiOut.setText(@@API_HINT@@);
-        apiOut.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        apiOut.setTextColor(Color.parseColor("#334155"));
-        apiOut.setTypeface(Typeface.MONOSPACE);
-        apiOut.setPadding(dp(10), dp(10), dp(10), dp(10));
-        apiOut.setBackgroundColor(Color.parseColor("#f1f5f9"));
-        apiOut.setMovementMethod(new ScrollingMovementMethod());
-        LinearLayout.LayoutParams outLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        outLp.topMargin = dp(14);
-        root.addView(apiOut, outLp);
+        Button open = new Button(this);
+        open.setText("បើកគេហទំព័រ");
+        open.setAllCaps(false);
+        open.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")));
+            }
+        });
+        root.addView(open, topMargin(dp(16)));
+
+        output = new TextView(this);
+        output.setText("លទ្ធផលនឹងបង្ហាញនៅទីនេះ។");
+        output.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        output.setTextColor(Color.parseColor("#334155"));
+        output.setTypeface(Typeface.MONOSPACE);
+        output.setPadding(dp(10), dp(10), dp(10), dp(10));
+        output.setBackgroundColor(Color.parseColor("#f1f5f9"));
+        output.setMovementMethod(new ScrollingMovementMethod());
+        root.addView(output, topMargin(dp(16)));
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         setContentView(scroll);
     }
 
-    private LinearLayout.LayoutParams buttonLayout() {
+    private LinearLayout.LayoutParams topMargin(int pixels) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(16);
+        lp.topMargin = pixels;
         return lp;
     }
 
@@ -170,10 +166,10 @@ public class MainActivity extends Activity {
 
     private void callApi() {
         if (API_URL.isEmpty()) {
-            apiOut.setText("API URL មិនបានកំណត់");
+            output.setText("API URL មិនបានកំណត់");
             return;
         }
-        apiOut.setText("កំពុងភ្ជាប់ " + API_URL + " …");
+        output.setText("កំពុងភ្ជាប់ " + API_URL + " …");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -191,11 +187,11 @@ public class MainActivity extends Activity {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
                         String line;
                         while ((line = reader.readLine()) != null) {
-                            sb.append(line).append('\n');
+                            sb.append(line).append('\\n');
                         }
                         reader.close();
                     }
-                    result = "HTTP " + code + "  (" + API_URL + ")\n" + sb.toString().trim();
+                    result = "HTTP " + code + "\\n" + sb.toString().trim();
                 } catch (Exception e) {
                     result = "មិនអាចភ្ជាប់ API បាន: " + e;
                 } finally {
@@ -210,7 +206,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        apiOut.setText(out);
+                        output.setText(out);
                     }
                 });
             }
@@ -218,7 +214,6 @@ public class MainActivity extends Activity {
     }
 }
 '''
-
 
 MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -326,11 +321,11 @@ out/
 
 README = '''# @@TITLE@@ (Java)
 
-App Android native បង្កើតដោយ PyApp Builder។ សរសេរដោយ **Java** (គ្មាន Python/Kivy)។
+App Android native បង្កើតដោយ PyApp Builder — សរសេរដោយ **Java**។
 
 - package: `@@PKG@@`
 - minSdk 21 · targetSdk 34 · compileSdk 34
-- UI សង់ដោយកូដនៅក្នុង `app/src/main/java/@@PATH@@/MainActivity.java`
+- កូដ app៖ `app/src/main/java/@@PATH@@/MainActivity.java`
 
 ## Build APK ដោយខ្លួនឯង
 
@@ -342,29 +337,11 @@ gradle assembleDebug
 '''
 
 
-def java_project_files(title: str, package: str, heading: str = "", message: str = "",
-                       api_url: str = "", button_label: str = "",
-                       button_url: str = "") -> dict:
+def java_project_files(title: str, package: str, code: str) -> dict:
     """បង្កើត file ទាំងអស់របស់ project Java ជា dict {path: content}។"""
     package = package.strip()
     path = package.replace(".", "/")
-    heading = heading or title
-    message = message or ""
-    label = button_label or "បើកគេហទំព័រ"
-    url = button_url or "https://www.google.com"
-
-    activity = (ACTIVITY
-                .replace("@@PKG@@", package)
-                .replace("@@HEADING@@", java_literal(heading))
-                .replace("@@MESSAGE@@", java_literal(message))
-                .replace("@@BUTTON_LABEL@@", java_literal(label))
-                .replace("@@BUTTON_URL@@", java_literal(url))
-                .replace("@@BUTTON_VIS@@", "View.VISIBLE" if button_url else "View.GONE")
-                .replace("@@API_URL@@", java_literal(api_url))
-                .replace("@@API_VIS@@", "View.VISIBLE" if api_url else "View.GONE")
-                .replace("@@API_HINT@@", java_literal(
-                    "ចុច «ហៅ API» ដើម្បីទាញទិន្នន័យពី " + api_url if api_url
-                    else "API URL មិនបានកំណត់")))
+    source = normalize_java(code, package)
 
     return {
         "build.gradle": ROOT_GRADLE,
@@ -373,7 +350,7 @@ def java_project_files(title: str, package: str, heading: str = "", message: str
         "app/build.gradle": APP_GRADLE.replace("@@PKG@@", package),
         "app/src/main/AndroidManifest.xml": MANIFEST,
         "app/src/main/res/values/strings.xml": STRINGS.replace("@@TITLE@@", xml_escape(title)),
-        f"app/src/main/java/{path}/MainActivity.java": activity,
+        f"app/src/main/java/{path}/MainActivity.java": source,
         ".gitignore": GITIGNORE,
         "README.md": (README.replace("@@TITLE@@", title).replace("@@PKG@@", package)
                       .replace("@@PATH@@", path)),
