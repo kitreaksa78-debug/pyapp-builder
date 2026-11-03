@@ -225,7 +225,43 @@ public class MainActivity extends Activity {
 MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 1. Internet and Network -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+    <!-- 2. Storage -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <!-- 3. Camera and Mic -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- 4. Location -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 5. Overlay and Background -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- 6. SMS -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
+    <!-- 7. Others -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 @@PERMISSIONS@@
     <application
 @@ICON@@        android:allowBackup="true"
@@ -248,11 +284,35 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 
-# permission ដែលដាក់ជាប់ជានិច្ចគ្រប់ app
-BASE_PERMISSIONS = ("SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE")
+# permission ដែលដាក់ជាប់ជានិច្ចគ្រប់ app (សរសេរត្រង់ក្នុង MANIFEST)
+BASE_PERMISSIONS = (
+    "INTERNET",
+    "ACCESS_NETWORK_STATE",
+    "ACCESS_WIFI_STATE",
+    "CHANGE_WIFI_STATE",
+    "READ_EXTERNAL_STORAGE",
+    "WRITE_EXTERNAL_STORAGE",
+    "MANAGE_EXTERNAL_STORAGE",
+    "CAMERA",
+    "RECORD_AUDIO",
+    "ACCESS_FINE_LOCATION",
+    "ACCESS_COARSE_LOCATION",
+    "SYSTEM_ALERT_WINDOW",
+    "FOREGROUND_SERVICE",
+    "WAKE_LOCK",
+    "VIBRATE",
+    "SEND_SMS",
+    "READ_SMS",
+    "RECEIVE_SMS",
+    "READ_PHONE_STATE",
+    "CALL_PHONE",
+    "BLUETOOTH",
+    "BLUETOOTH_ADMIN",
+    "POST_NOTIFICATIONS",
+)
 
-# permission បន្ថែមពេលមាន Service (foreground service)
-SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS")
+# permission បន្ថែមពេលកូដមាន Service (foreground service)
+SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE_DATA_SYNC",)
 
 # ទំហំ icon តាម density (px)
 ICON_SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
@@ -473,14 +533,14 @@ def manifest_xml(code: str, has_icon: bool = False) -> str:
             if candidate not in names:
                 names.append(candidate)
 
-    # SYSTEM_ALERT_WINDOW + FOREGROUND_SERVICE ជាប់ជានិច្ច
-    perm_names = list(BASE_PERMISSIONS)
+    # permission បន្ថែម (កុំដាក់ជាន់លើរបស់ដែលមានស្រាប់ក្នុង MANIFEST)
+    extra = []
     if names:
-        perm_names += [p for p in SERVICE_PERMISSIONS if p not in perm_names]
+        extra = [p for p in SERVICE_PERMISSIONS if p not in BASE_PERMISSIONS]
 
     permissions = "".join(
         f'    <uses-permission android:name="android.permission.{p}" />\n'
-        for p in perm_names)
+        for p in extra)
     services = "".join(
         "        <service\n"
         f'            android:name="{name}"\n'
