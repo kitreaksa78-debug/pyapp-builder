@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PyApp Builder — បង្កើត APK (Java / Python)</title>
+<title>PyApp Builder — សរសេរ Java បង្កើត APK</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --line:#26303d; --fg:#e6edf3; --dim:#8b949e;
@@ -17,10 +17,11 @@
   .lead{color:var(--dim);margin:0 0 22px;font-size:15px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
   label{display:block;font-size:13px;color:var(--dim);margin:0 0 6px}
-  input[type=text],textarea,select{width:100%;background:#0b1017;color:var(--fg);border:1px solid var(--line);
+  input[type=text],textarea{width:100%;background:#0b1017;color:var(--fg);border:1px solid var(--line);
        border-radius:10px;padding:11px 12px;font-size:14px}
-  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:340px;resize:vertical;line-height:1.5}
-  textarea.short{min-height:130px;font-family:inherit}
+  input[type=text]{font-family:inherit}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:420px;
+       resize:vertical;line-height:1.5}
   .row{display:flex;gap:14px;flex-wrap:wrap}
   .row>div{flex:1 1 260px}
   .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
@@ -36,19 +37,18 @@
   ol{padding-left:20px;color:var(--dim);font-size:14px}
   ol b{color:var(--fg)}
   .flash{background:#3d1d1d;border:1px solid #6e2b28;color:#ffb4ae}
-  .muted{opacity:.75}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>PyApp Builder</h1>
-  <p class="lead">សរសេរ <b>Java</b> (ឬ Python) ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
+  <p class="lead">សរសេរ app ដោយ <b>Java</b> ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
 
-  {% if not gh_ready and not local_build %}
+  {% if not gh_ready %}
   <div class="card flash">
-    <b>Server មិនទាន់កំណត់ GH_REPO / GH_TOKEN</b> — អ្នកនៅតែអាចសរសេរ និង
+    <b>Server មិនទាន់កំណត់ GH_REPO / GH_TOKEN</b> — អ្នកនៅតែអាចសរសេរកូដ និង
     <b>ទាញយក project ជា ZIP</b> ដើម្បី build ខ្លួនឯង។ ដើម្បីឲ្យសាយ build APK ដោយស្វ័យប្រវត្តិ
-    ត្រូវដាក់ env <code>GH_REPO=owner/repo</code> និង <code>GH_TOKEN</code>។
+    ត្រូវដាក់ env <code>GH_REPO=owner/repo</code> និង <code>GH_TOKEN</code> (token មានសិទ្ធិ <code>repo</code> + <code>workflow</code>)។
   </div>
   {% endif %}
 
@@ -65,25 +65,12 @@
     </div>
 
     <div style="margin-top:16px">
-      <label>ភាសា / ប្រភេទ build</label>
-      <select name="lang" id="lang">
-        <option value="java" selected>Java — native Android (លឿន ~៣–៥ នាទី · ធានាបើកដើរ)</option>
-        <option value="python">Python — Kivy + buildozer (~១០–១៥ នាទី)</option>
-      </select>
-    </div>
-
-    <div id="javaFields" style="margin-top:16px">
       <label>MainActivity.java (សរសេរកូដ Java — កែបានសេរី)</label>
       <textarea name="java_code" spellcheck="false">{{ default_java }}</textarea>
       <p class="note" style="margin:6px 0 0">
         Package បញ្ចូលស្វ័យប្រវត្តិពីប្រអប់ «Package name» — មិនត្រូវសរសេរ <code>package ...;</code> ខ្លួនឯងទេ។
         ត្រូវរក្សា <code>class MainActivity</code>។
       </p>
-    </div>
-
-    <div id="pyFields" style="display:none;margin-top:16px">
-      <label>main.py (Python + Kivy)</label>
-      <textarea name="code" spellcheck="false">{{ default_code }}</textarea>
     </div>
 
     <div class="btns">
@@ -93,7 +80,6 @@
     <p class="note" style="margin-bottom:0">
       ស្ថានភាព build៖
       {% if gh_ready %}<span class="pill ok">GitHub Actions · {{ repo }}</span>
-      {% elif local_build %}<span class="pill ok">buildozer ក្នុងម៉ាស៊ីនមេ (Python)</span>
       {% else %}<span class="pill bad">មិនទាន់កំណត់</span>{% endif %}
     </p>
   </form>
@@ -101,25 +87,13 @@
   <div class="card">
     <b>របៀបប្រើ</b>
     <ol>
-      <li>ជ្រើស <b>Java</b> (ណែនាំ) — សរសេរកូដ <b>Java</b> ក្នុងប្រអប់ រួចចុច <b>Build APK</b></li>
-      <li>រង់ចាំ ~៣–៥ នាទី (Java) ឬ ~១០–១៥ នាទី (Python)</li>
+      <li>សរសេរកូដ <b>Java</b> ក្នុងប្រអប់ <code>MainActivity.java</code></li>
+      <li>ចុច <b>Build APK</b> → រង់ចាំ ~២–៣ នាទី (Gradle compile Java)</li>
       <li>ចុច <b>ទាញយក APK</b> → ដំឡើងលើទូរស័ព្ទ (ត្រូវបើក «Install unknown apps»)</li>
     </ol>
-    <p class="note">Java ប្រើ <code>android.app.Activity</code> សង់ UI ដោយកូដ — គ្មាន Python runtime
-      ដូច្នេះ app បើកដើរភ្លាម ហើយអាចហៅ API បាន (មាន <code>INTERNET</code> permission រួចហើយ)។</p>
+    <p class="note">app ប្រើ <code>android.app.Activity</code> សង់ UI ដោយកូដ — គ្មាន runtime បន្ថែម
+      ដូច្នេះបើកដើរភ្លាម ហើយហៅ API បាន (មាន <code>INTERNET</code> permission រួចហើយ)។</p>
   </div>
 </div>
-<script>
-const lang = document.getElementById('lang');
-const javaFields = document.getElementById('javaFields');
-const pyFields = document.getElementById('pyFields');
-function sync(){
-  const isPy = lang.value === 'python';
-  javaFields.style.display = isPy ? 'none' : 'block';
-  pyFields.style.display = isPy ? 'block' : 'none';
-}
-lang.addEventListener('change', sync);
-sync();
-</script>
 </body>
 </html>

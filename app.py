@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app Kivy។
+"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app Java។
 
-អ្នកសរសេរ (ឬកែ) main.py ក្នុងទំព័រ រួចចុច «Build APK»។
-ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (buildozer + Android SDK)
-ព្រោះ buildozer ត្រូវការ SDK/NDK ជាង 2GB ដែលមិនអាចរត់លើ hosting ឥតគិតថ្លៃបាន។
+អ្នកសរសេរ (ឬកែ) `MainActivity.java` ក្នុងទំព័រ រួចចុច «Build APK»។
+ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (Gradle + Android SDK)
+ព្រោះ hosting ឥតគិតថ្លៃមិនអាចដំឡើង Android SDK/JDK បានទេ។
 """
 from __future__ import annotations
 
@@ -12,9 +12,6 @@ import json
 import os
 import re
 import secrets
-import shutil
-import subprocess
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -34,18 +31,14 @@ JOBS.mkdir(exist_ok=True)
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
-# workflow សម្រាប់ Python (Kivy) និង Java (native Gradle)
-PY_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-apk.yml") or "build-apk.yml").strip()
-JAVA_WORKFLOW = "build-java-apk.yml"
+GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-java-apk.yml")
+               or "build-java-apk.yml").strip()
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
-
-DEFAULT_APP = (ROOT / "templates" / "app_template.py").read_text(encoding="utf-8")
 
 # អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
 NAME_RE = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]{1,48}$", re.UNICODE)
 PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
 ID_RE = re.compile(r"^[a-f0-9]{12}$")
-MAX_CODE = 60_000
 
 app = Flask(__name__)
 
@@ -61,64 +54,9 @@ def validate_common(title: str, package: str):
     return title, package
 
 
-def validate(title: str, package: str, code: str):
-    title, package = validate_common(title, package)
-    code = (code or "").replace("\r\n", "\n").strip()
-    if not code:
-        raise ValueError("main.py ទទេ")
-    if len(code) > MAX_CODE:
-        raise ValueError("កូដវែងពេក (អតិបរមា 60,000 តួ)")
-    return title, package, code + "\n"
-
-
-def buildozer_spec(title: str, package: str, version: str = "1.0") -> str:
-    domain, _, name = package.rpartition(".")
-    return (
-        "[app]\n"
-        f"title = {title}\n"
-        f"package.name = {name}\n"
-        f"package.domain = {domain}\n"
-        "source.dir = .\n"
-        "source.include_exts = py,png,jpg,kv,atlas,json,ttf\n"
-        # ការពាយឲ្យឯកសាររបស់សាយ (Flask) ចូលទៅក្នុង APK
-        "source.exclude_dirs = .git,.github,.buildozer,bin,out,jobs,templates,static,__pycache__,venv\n"
-        "source.exclude_patterns = README.md,*.yml,*.yaml,requirements.txt,render.yaml,.gitignore\n"
-        f"version = {version}\n"
-        "requirements = python3,kivy,requests\n"
-        "orientation = portrait\n"
-        "fullscreen = 0\n"
-        "android.permissions = INTERNET\n"
-        "android.accept_sdk_license = True\n"
-        "android.archs = arm64-v8a\n"
-        "android.api = 31\n"
-        "android.minapi = 21\n"
-        "android.ndk = 25b\n"
-        "p4a.branch = v2024.01.21\n"
-        "\n"
-        "[buildozer]\n"
-        "log_level = 2\n"
-        "warn_on_root = 0\n"
-    )
-
-
-def project_files(title: str, package: str, code: str) -> dict:
-    return {
-        "main.py": code,
-        "buildozer.spec": buildozer_spec(title, package),
-        "README.md": (
-            f"# {title}\n\n"
-            "App Kivy នេះបង្កើតដោយ PyApp Builder។\n\n"
-            "## Build ជា APK លើកុំព្យូទ័រ (Linux)\n"
-            "```bash\nsudo apt install -y git zip unzip openjdk-17-jdk python3-pip\n"
-            "pip install buildozer cython\nbuildozer android debug\n```\n"
-            "APK នឹងនៅក្នុង `bin/`។\n"
-        ),
-    }
-
-
 def slugify(text: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return s or "kivy-app"
+    return s or "android-app"
 
 
 def job_dir(job_id: str) -> Path:
@@ -143,25 +81,15 @@ def save_job(meta: dict) -> None:
     tmp.replace(d / "meta.json")
 
 
-def local_build_available() -> bool:
-    return bool(shutil.which("buildozer"))
-
-
 # រយៈពេលជាមធ្យម (វិនាទី) វាស់ពី run ពិត — ប្រើគណនា % ពេលជំហានមួយកំពុងរត់
-STEP_SECONDS = {        "Set up job": 5,
-        "Checkout": 6,
-        # workflow Java (Gradle)
-        "Set up JDK 17": 14,
-        "Android SDK": 30,
-        "Set up Gradle": 18,
-        "Debug keystore": 4,
-        "Build APK (Java)": 130,
-    "Python 3.11": 9,
-    "Pin python to 3.11": 2,
-    "System dependencies": 60,
-    "Buildozer": 22,
-    "Cache SDK/NDK and p4a builds": 15,
-    "Build APK": 420,
+STEP_SECONDS = {
+    "Set up job": 5,
+    "Checkout": 6,
+    "Set up JDK 17": 14,
+    "Android SDK": 30,
+    "Set up Gradle": 18,
+    "Debug keystore": 4,
+    "Build APK (Java)": 130,
     "Collect APK": 4,
     "Upload artifact": 8,
     "Publish release": 9,
@@ -174,12 +102,6 @@ STEP_KH = {
     "Set up Gradle": "ដំឡើង Gradle",
     "Debug keystore": "បង្កើត key សម្រាប់ sign",
     "Build APK (Java)": "Build APK (compile Java → Android)",
-    "Python 3.11": "ដំឡើង Python 3.11",
-    "Pin python to 3.11": "កំណត់ Python 3.11",
-    "System dependencies": "ដំឡើងកម្មវិធីប្រព័ន្ធ",
-    "Buildozer": "ដំឡើង buildozer",
-    "Cache SDK/NDK and p4a builds": "ស្តារ cache SDK/NDK",
-    "Build APK": "Build APK (compile Python → Android)",
     "Collect APK": "ប្រមូល APK",
     "Upload artifact": "ផ្ទុកឡើង artifact",
     "Publish release": "បង្កើត release",
@@ -237,9 +159,8 @@ class GitHub:
                       {"sha": commit["sha"], "force": True})
         return commit["sha"]
 
-    def dispatch(self, branch: str, tag: str, workflow: str = "") -> None:
-        wf = workflow or PY_WORKFLOW
-        self.call(f"/repos/{self.repo}/actions/workflows/{wf}/dispatches", "POST",
+    def dispatch(self, branch: str, tag: str) -> None:
+        self.call(f"/repos/{self.repo}/actions/workflows/{GH_WORKFLOW}/dispatches", "POST",
                   {"ref": branch, "inputs": {"tag": tag}})
 
     def find_run(self, branch: str, not_before: float):
@@ -303,27 +224,19 @@ def gh() -> GitHub:
 
 # ---------------------------------------------------------------- job flow
 def files_from_form(form) -> tuple:
-    """(lang, title, package, files) ពី form របស់ទំព័រដើម។"""
-    lang = (form.get("lang") or "java").strip().lower()
-    if lang == "python":
-        title, package, code = validate(
-            form.get("title", ""), form.get("package", ""), form.get("code", ""))
-        return "python", title, package, project_files(title, package, code)
+    """(title, package, files) ពី form របស់ទំព័រដើម។"""
     title, package = validate_common(form.get("title", ""), form.get("package", ""))
     code = validate_java_code(form.get("java_code", ""))
-    return "java", title, package, java_project_files(title, package, code)
+    return title, package, java_project_files(title, package, code)
 
 
-def create_job(lang: str, title: str, package: str, files: dict) -> dict:
+def create_job(title: str, package: str, files: dict) -> dict:
     job_id = secrets.token_hex(6)
     tag = "apk-" + job_id
-    workflow = JAVA_WORKFLOW if lang == "java" else PY_WORKFLOW
     meta = {
         "id": job_id,
         "title": title,
         "package": package,
-        "lang": lang,
-        "workflow": workflow,
         "tag": tag,
         "status": "queued",
         "status_note": "",
@@ -334,9 +247,6 @@ def create_job(lang: str, title: str, package: str, files: dict) -> dict:
         "created": time.time(),
         "checked": 0.0,
         "branch": f"build/{job_id}",
-        # buildozer មានតែលើ Python — ផ្លូវ Java ត្រូវការ GitHub Actions ជានិច្ច
-        "mode": ("local" if lang == "python" and local_build_available()
-                 and not (GH_REPO and GH_TOKEN) else "github"),
     }
     d = JOBS / job_id
     d.mkdir(parents=True, exist_ok=True)
@@ -345,10 +255,6 @@ def create_job(lang: str, title: str, package: str, files: dict) -> dict:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
     save_job(meta)
-
-    if meta["mode"] == "local":
-        threading.Thread(target=run_local_build, args=(meta,), daemon=True).start()
-        return meta
 
     if not (GH_REPO and GH_TOKEN):
         meta["status"] = "error"
@@ -360,7 +266,7 @@ def create_job(lang: str, title: str, package: str, files: dict) -> dict:
     try:
         client = gh()
         client.push_branch(meta["branch"], files, f"Build {title} ({tag})")
-        client.dispatch(meta["branch"], tag, workflow)
+        client.dispatch(meta["branch"], tag)
         meta["status"] = "building"
         meta["status_note"] = "បញ្ជូនទៅ GitHub Actions រួច — កំពុងតម្រៀបជួរ…"
     except Exception as exc:  # noqa: BLE001 — បង្ហាញកំហុសដល់អ្នកប្រើ
@@ -371,7 +277,7 @@ def create_job(lang: str, title: str, package: str, files: dict) -> dict:
 
 
 def refresh_job(meta: dict) -> dict:
-    if meta["mode"] != "github" or meta["status"] not in ("building", "queued"):
+    if meta["status"] not in ("building", "queued"):
         return meta
     if time.time() - meta.get("checked", 0) < 5:
         return meta
@@ -387,8 +293,8 @@ def refresh_job(meta: dict) -> dict:
         if waited > 150:
             meta["status"] = "error"
             meta["error"] = ("រកមិនឃើញ workflow run — ពិនិត្យថា repo មាន "
-                             f".github/workflows/{meta.get('workflow') or PY_WORKFLOW} "
-                             "និង GH_TOKEN មានសិទ្ធិ workflow")
+                             f".github/workflows/{GH_WORKFLOW} និង GH_TOKEN "
+                             "មានសិទ្ធិ workflow")
         else:
             meta["status_note"] = "រង់ចាំ workflow ចាប់ផ្តើម…"
         save_job(meta)
@@ -413,57 +319,29 @@ def refresh_job(meta: dict) -> dict:
     return meta
 
 
-def run_local_build(meta: dict) -> None:
-    d = JOBS / meta["id"]
-    meta["status"] = "building"
-    meta["status_note"] = "កំពុង build ក្នុងម៉ាស៊ីនមេ (buildozer)…"
-    save_job(meta)
-    try:
-        proc = subprocess.run(["buildozer", "android", "debug"], cwd=d,
-                              capture_output=True, text=True, timeout=3600)
-        apks = sorted((d / "bin").glob("*.apk"))
-        if proc.returncode == 0 and apks:
-            meta["status"] = "done"
-            meta["apk_url"] = url_for("download", job_id=meta["id"], _external=False)
-            meta["status_note"] = apks[0].name
-        else:
-            meta["status"] = "error"
-            tail = (proc.stderr or proc.stdout or "")[-1200:]
-            meta["error"] = "buildozer បរាជ័យ: " + tail
-    except Exception as exc:  # noqa: BLE001
-        meta["status"] = "error"
-        meta["error"] = f"buildozer error: {exc}"
-    save_job(meta)
-
-
 # ---------------------------------------------------------------- routes
 @app.get("/")
 def home():
     return render_template(
         "index.html",
-        default_code=DEFAULT_APP,
+        default_java=DEFAULT_JAVA_SOURCE,
         default_title="My App",
         default_package="org.pyapp.demo",
-        default_heading=None,
-        default_message=None,
-        default_api=None,
-        default_java=DEFAULT_JAVA_SOURCE,
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
-        local_build=local_build_available(),
     )
 
 
 @app.post("/build")
 def build():
-    lang, title, package, files = files_from_form(request.form)
-    meta = create_job(lang, title, package, files)
+    title, package, files = files_from_form(request.form)
+    meta = create_job(title, package, files)
     return redirect(url_for("job_page", job_id=meta["id"]))
 
 
 @app.post("/project.zip")
 def project_zip():
-    _lang, title, _package, files = files_from_form(request.form)
+    title, _package, files = files_from_form(request.form)
     buf = io.BytesIO()
     base = slugify(title)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -496,12 +374,6 @@ def download(job_id: str):
     meta = refresh_job(load_job(job_id))
     if meta["status"] != "done":
         abort(409, description="APK មិនទាន់រួចរាល់")
-    if meta["mode"] == "local":
-        d = job_dir(job_id)
-        apks = sorted((d / "bin").glob("*.apk"))
-        if not apks:
-            abort(404)
-        return send_file(apks[0], as_attachment=True, download_name="app-debug.apk")
     return redirect(meta["apk_url"])
 
 
@@ -517,8 +389,8 @@ def on_http_error(exc):
 
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True, "mode": "local" if local_build_available() else "github",
-                    "gh_ready": bool(GH_REPO and GH_TOKEN)})
+    return jsonify({"ok": True, "gh_ready": bool(GH_REPO and GH_TOKEN),
+                    "workflow": GH_WORKFLOW})
 
 
 if __name__ == "__main__":
