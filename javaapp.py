@@ -292,9 +292,21 @@ android {
         versionName '1.0'
     }
 
+    // Key ថេរនៅក្នុង repo ⇒ build ថ្មីដំឡើងជំនួស app ចាស់បាន (គ្មាន error signature)
+    signingConfigs {
+        stable {
+            storeFile file('../signing/debug.p12')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+            storeType 'PKCS12'
+        }
+    }
+
     buildTypes {
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.stable
         }
     }
 

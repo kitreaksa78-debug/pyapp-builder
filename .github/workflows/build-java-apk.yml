@@ -37,15 +37,10 @@ jobs:
           gradle-version: "8.7"
           cache-disabled: false
 
-      - name: Debug keystore
+      - name: Signature key
         run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -keyalg RSA -keysize 2048 -validity 10000
-          fi
+          test -f signing/debug.p12 || (echo "missing signing/debug.p12" && exit 1)
+          ls -l signing/debug.p12
 
       - name: Build APK (Java)
         run: gradle --no-daemon --stacktrace assembleDebug
