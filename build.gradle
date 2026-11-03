@@ -1,0 +1,4 @@
+// Project បង្កើតដោយ PyApp Builder (Java + Gradle)
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
