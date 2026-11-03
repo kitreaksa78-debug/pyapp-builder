@@ -52,7 +52,7 @@
   </div>
   {% endif %}
 
-  <form class="card" method="post" action="/build" id="buildForm">
+  <form class="card" method="post" action="/build" id="buildForm" enctype="multipart/form-data">
     <div class="row">
       <div>
         <label>ឈ្មោះ app</label>
@@ -62,6 +62,25 @@
         <label>Package name</label>
         <input type="text" name="package" value="{{ default_package }}" required>
       </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <label>Logo / Icon (ជាជម្រើស — PNG ឬ JPG)</label>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input type="file" name="icon" id="iconInput"
+               accept="image/png,image/jpeg,image/webp"
+               style="flex:1;min-width:200px;background:#0b1017;color:var(--fg);
+                      border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px">
+        <img id="iconPreview" alt="logo"
+             style="display:none;width:56px;height:56px;border-radius:14px;
+                    object-fit:cover;border:1px solid var(--line);background:#0b1017">
+        <button class="ghost" type="button" id="iconClear"
+                style="display:none;padding:8px 14px;font-size:13px">✕ លុប logo</button>
+      </div>
+      <p class="note" style="margin:6px 0 0">
+        រូបត្រូវកាត់ជាការ៉េដោយស្វ័យប្រវត្តិ ហើយបង្កើត icon គ្រប់ទំហំ (48 – 192 px) ។
+        បើគ្មាន logo ទេ app ប្រើ icon លំនាំដើមរបស់ Android។
+      </p>
     </div>
 
     <div style="margin-top:16px">
@@ -95,5 +114,37 @@
       ដូច្នេះបើកដើរភ្លាម ហើយហៅ API បាន (មាន <code>INTERNET</code> permission រួចហើយ)។</p>
   </div>
 </div>
+<script>
+(function () {
+  const input = document.getElementById('iconInput');
+  if (!input) return;
+  const preview = document.getElementById('iconPreview');
+  const clear = document.getElementById('iconClear');
+  const form = document.getElementById('buildForm');
+
+  input.addEventListener('change', function () {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) {
+      alert('រូប logo ធំពេក (អតិបរមា 5 MB)');
+      input.value = '';
+      return;
+    }
+    preview.src = URL.createObjectURL(f);
+    preview.style.display = 'block';
+    clear.style.display = 'inline-block';
+  });
+
+  clear.addEventListener('click', function () {
+    input.value = '';
+    preview.removeAttribute('src');
+    preview.style.display = 'none';
+    clear.style.display = 'none';
+  });
+
+  // ចុច ZIP → ត្រូវរក្សា logo ដែរ (form ដូចគ្នា)
+  if (form) form.addEventListener('submit', function () {});
+})();
+</script>
 </body>
 </html>

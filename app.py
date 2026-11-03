@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
@@ -23,7 +24,8 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.exceptions import HTTPException
 
-from javaapp import DEFAULT_JAVA_SOURCE, java_project_files, validate_java_code
+from javaapp import (DEFAULT_JAVA_SOURCE, MAX_ICON_BYTES, java_project_files,
+                     validate_java_code)
 
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
@@ -152,10 +154,22 @@ class GitHub:
     def push_branch(self, branch: str, files: dict, message: str) -> str:
         base = self.call(f"/repos/{self.repo}/git/ref/heads/{GH_BRANCH}")["object"]["sha"]
         base_commit = self.call(f"/repos/{self.repo}/git/commits/{base}")
+        entries = []
+        for path, content in files.items():
+            if isinstance(content, (bytes, bytearray)):
+                # រូបភាព (logo) → ត្រូវបង្កើត blob ជា base64
+                blob = self.call(f"/repos/{self.repo}/git/blobs", "POST", {
+                    "content": base64.b64encode(content).decode("ascii"),
+                    "encoding": "base64",
+                })
+                entries.append({"path": path, "mode": "100644", "type": "blob",
+                                "sha": blob["sha"]})
+            else:
+                entries.append({"path": path, "mode": "100644", "type": "blob",
+                                "content": content})
         tree = self.call(f"/repos/{self.repo}/git/trees", "POST", {
             "base_tree": base_commit["tree"]["sha"],
-            "tree": [{"path": p, "mode": "100644", "type": "blob", "content": c}
-                     for p, c in files.items()],
+            "tree": entries,
         })
         commit = self.call(f"/repos/{self.repo}/git/commits", "POST", {
             "message": message, "tree": tree["sha"], "parents": [base],
@@ -234,11 +248,19 @@ def gh() -> GitHub:
 
 
 # ---------------------------------------------------------------- job flow
-def files_from_form(form) -> tuple:
-    """(title, package, files) ពី form របស់ទំព័រដើម។"""
+def files_from_form(form, uploads=None) -> tuple:
+    """(title, package, files) ពី form របស់ទំព័រដើម (បូក logo បើបាន upload)។"""
     title, package = validate_common(form.get("title", ""), form.get("package", ""))
     code = validate_java_code(form.get("java_code", ""))
-    return title, package, java_project_files(title, package, code)
+    icon = None
+    upload = uploads.get("icon") if uploads else None
+    if upload is not None and (upload.filename or "").strip():
+        icon = upload.read(MAX_ICON_BYTES + 1)
+        if not icon:
+            icon = None
+        elif len(icon) > MAX_ICON_BYTES:
+            raise ValueError("រូប logo ធំពេក (អតិបរមា 5 MB)")
+    return title, package, java_project_files(title, package, code, icon)
 
 
 def create_job(title: str, package: str, files: dict) -> dict:
@@ -264,7 +286,10 @@ def create_job(title: str, package: str, files: dict) -> dict:
     for path, content in files.items():
         target = d / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        if isinstance(content, (bytes, bytearray)):
+            target.write_bytes(content)
+        else:
+            target.write_text(content, encoding="utf-8")
     save_job(meta)
 
     if not (GH_REPO and GH_TOKEN):
@@ -345,7 +370,7 @@ def home():
 
 @app.post("/build")
 def build():
-    title, package, files = files_from_form(request.form)
+    title, package, files = files_from_form(request.form, request.files)
     meta = create_job(title, package, files)
     return redirect(url_for("job_page", job_id=meta["id"]))
 
@@ -409,7 +434,7 @@ def file_download(name: str):
 
 @app.post("/project.zip")
 def project_zip():
-    title, _package, files = files_from_form(request.form)
+    title, _package, files = files_from_form(request.form, request.files)
     buf = io.BytesIO()
     base = slugify(title)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:

@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import io
 import re
 
 MAX_CODE = 60_000
@@ -227,7 +228,7 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
     <uses-permission android:name="android.permission.INTERNET" />
 @@PERMISSIONS@@
     <application
-        android:allowBackup="true"
+@@ICON@@        android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
@@ -252,6 +253,10 @@ BASE_PERMISSIONS = ("SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE")
 
 # permission បន្ថែមពេលមាន Service (foreground service)
 SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS")
+
+# ទំហំ icon តាម density (px)
+ICON_SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+MAX_ICON_BYTES = 5 * 1024 * 1024
 
 # Helper សម្រាប់ overlay — បង្កើតតែពេលកូដប្រើ overlay
 OVERLAY_HELPER = '''package @@PKG@@;
@@ -425,7 +430,42 @@ gradle assembleDebug
 '''
 
 
-def manifest_xml(code: str) -> str:
+def launcher_icons(data: bytes) -> dict:
+    """បម្លែងរូបភាព (PNG/JPG/WebP) ទៅ mipmap គ្រប់ density → {path: bytes}។
+
+    រូបត្រូវកាត់ជាការ៉េ (center crop) ហើយ resize ជា PNG តម្លាភាព។
+    """
+    from PIL import Image, UnidentifiedImageError
+
+    if not data:
+        raise ValueError("គ្មានរូបភាព logo")
+    if len(data) > MAX_ICON_BYTES:
+        raise ValueError("រូប logo ធំពេក (អតិបរមា 5 MB)")
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("អានរូប logo មិនបាន — សូមប្រើ PNG ឬ JPG") from exc
+
+    img = img.convert("RGBA")
+    width, height = img.size
+    side = min(width, height)
+    left = (width - side) // 2
+    top = (height - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+
+    icons = {}
+    for density, px in ICON_SIZES.items():
+        resized = img.resize((px, px), Image.LANCZOS)
+        buf = io.BytesIO()
+        resized.save(buf, format="PNG", optimize=True)
+        blob = buf.getvalue()
+        icons[f"app/src/main/res/mipmap-{density}/ic_launcher.png"] = blob
+        icons[f"app/src/main/res/mipmap-{density}/ic_launcher_round.png"] = blob
+    return icons
+
+
+def manifest_xml(code: str, has_icon: bool = False) -> str:
     """Manifest — overlay/foreground permission + Service ដែលអ្នកប្រើសរសេរ។"""
     names = []
     for name in SERVICE_RE.findall(code):
@@ -447,22 +487,32 @@ def manifest_xml(code: str) -> str:
         '            android:exported="false"\n'
         '            android:foregroundServiceType="dataSync" />\n'
         for name in names)
+    icon = ""
+    if has_icon:
+        icon = ('        android:icon="@mipmap/ic_launcher"\n'
+                '        android:roundIcon="@mipmap/ic_launcher_round"\n')
     return (MANIFEST.replace("@@PERMISSIONS@@", permissions)
-            .replace("@@SERVICES@@", services))
+            .replace("@@SERVICES@@", services)
+            .replace("@@ICON@@", icon))
 
 
-def java_project_files(title: str, package: str, code: str) -> dict:
-    """បង្កើត file ទាំងអស់របស់ project Java ជា dict {path: content}។"""
+def java_project_files(title: str, package: str, code: str,
+                       icon: bytes | None = None) -> dict:
+    """បង្កើត file ទាំងអស់របស់ project Java ជា dict {path: content}។
+
+    បើផ្ដល់ `icon` (bytes របស់ PNG/JPG) → បង្កើត launcher icon គ្រប់ density។
+    """
     package = package.strip()
     path = package.replace(".", "/")
     source = normalize_java(code, package)
+    icons = launcher_icons(icon) if icon else {}
 
     files = {
         "build.gradle": ROOT_GRADLE,
         "settings.gradle": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
         "gradle.properties": GRADLE_PROPS,
         "app/build.gradle": APP_GRADLE.replace("@@PKG@@", package),
-        "app/src/main/AndroidManifest.xml": manifest_xml(code),
+        "app/src/main/AndroidManifest.xml": manifest_xml(code, bool(icons)),
         "app/src/main/res/values/strings.xml": STRINGS.replace("@@TITLE@@", xml_escape(title)),
         f"app/src/main/java/{path}/MainActivity.java": source,
         ".gitignore": GITIGNORE,
@@ -474,4 +524,5 @@ def java_project_files(title: str, package: str, code: str) -> dict:
     if OVERLAY_RE.search(code):
         files[f"app/src/main/java/{path}/OverlayHelper.java"] = (
             OVERLAY_HELPER.replace("@@PKG@@", package))
+    files.update(icons)
     return files
