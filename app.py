@@ -26,16 +26,21 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.exceptions import HTTPException
 
+from javaapp import java_project_files, validate_java_fields
+
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
 JOBS.mkdir(exist_ok=True)
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
-GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-apk.yml") or "build-apk.yml").strip()
+# workflow សម្រាប់ Python (Kivy) និង Java (native Gradle)
+PY_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-apk.yml") or "build-apk.yml").strip()
+JAVA_WORKFLOW = "build-java-apk.yml"
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 
 DEFAULT_APP = (ROOT / "templates" / "app_template.py").read_text(encoding="utf-8")
+DEFAULT_JAVA_MESSAGE = "app នេះបង្កើតដោយ PyApp Builder — សរសេរដោយ Java ដំណើរការលើ Android ដោយផ្ទាល់។"
 
 NAME_RE = re.compile(r"^[\w .\-()]{1,48}$", re.UNICODE)
 PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
@@ -46,14 +51,19 @@ app = Flask(__name__)
 
 
 # ---------------------------------------------------------------- helpers
-def validate(title: str, package: str, code: str):
+def validate_common(title: str, package: str):
     title = (title or "").strip()
     package = (package or "").strip()
-    code = (code or "").replace("\r\n", "\n").strip()
     if not NAME_RE.match(title):
         raise ValueError("ឈ្មោះ app មិនត្រឹមត្រូវ (១–៤៨ តួអក្សរ)")
     if not PKG_RE.match(package):
         raise ValueError("package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo")
+    return title, package
+
+
+def validate(title: str, package: str, code: str):
+    title, package = validate_common(title, package)
+    code = (code or "").replace("\r\n", "\n").strip()
     if not code:
         raise ValueError("main.py ទទេ")
     if len(code) > MAX_CODE:
@@ -138,9 +148,14 @@ def local_build_available() -> bool:
 
 
 # រយៈពេលជាមធ្យម (វិនាទី) វាស់ពី run ពិត — ប្រើគណនា % ពេលជំហានមួយកំពុងរត់
-STEP_SECONDS = {
-    "Set up job": 5,
-    "Checkout": 6,
+STEP_SECONDS = {        "Set up job": 5,
+        "Checkout": 6,
+        # workflow Java (Gradle)
+        "Set up JDK 17": 14,
+        "Android SDK": 30,
+        "Set up Gradle": 18,
+        "Debug keystore": 4,
+        "Build APK (Java)": 130,
     "Python 3.11": 9,
     "Pin python to 3.11": 2,
     "System dependencies": 60,
@@ -154,6 +169,11 @@ STEP_SECONDS = {
 STEP_KH = {
     "Set up job": "រៀបចំ runner",
     "Checkout": "ទាញកូដ",
+    "Set up JDK 17": "ដំឡើង JDK 17",
+    "Android SDK": "ដំឡើង Android SDK",
+    "Set up Gradle": "ដំឡើង Gradle",
+    "Debug keystore": "បង្កើត key សម្រាប់ sign",
+    "Build APK (Java)": "Build APK (compile Java → Android)",
     "Python 3.11": "ដំឡើង Python 3.11",
     "Pin python to 3.11": "កំណត់ Python 3.11",
     "System dependencies": "ដំឡើងកម្មវិធីប្រព័ន្ធ",
@@ -217,8 +237,9 @@ class GitHub:
                       {"sha": commit["sha"], "force": True})
         return commit["sha"]
 
-    def dispatch(self, branch: str, tag: str) -> None:
-        self.call(f"/repos/{self.repo}/actions/workflows/{GH_WORKFLOW}/dispatches", "POST",
+    def dispatch(self, branch: str, tag: str, workflow: str = "") -> None:
+        wf = workflow or PY_WORKFLOW
+        self.call(f"/repos/{self.repo}/actions/workflows/{wf}/dispatches", "POST",
                   {"ref": branch, "inputs": {"tag": tag}})
 
     def find_run(self, branch: str, not_before: float):
@@ -281,13 +302,30 @@ def gh() -> GitHub:
 
 
 # ---------------------------------------------------------------- job flow
-def create_job(title: str, package: str, code: str) -> dict:
+def files_from_form(form) -> tuple:
+    """(lang, title, package, files) ពី form របស់ទំព័រដើម។"""
+    lang = (form.get("lang") or "java").strip().lower()
+    if lang == "python":
+        title, package, code = validate(
+            form.get("title", ""), form.get("package", ""), form.get("code", ""))
+        return "python", title, package, project_files(title, package, code)
+    title, package = validate_common(form.get("title", ""), form.get("package", ""))
+    fields = validate_java_fields(
+        form.get("heading", ""), form.get("message", ""), form.get("api_url", ""),
+        form.get("button_label", ""), form.get("button_url", ""))
+    return "java", title, package, java_project_files(title, package, **fields)
+
+
+def create_job(lang: str, title: str, package: str, files: dict) -> dict:
     job_id = secrets.token_hex(6)
     tag = "apk-" + job_id
+    workflow = JAVA_WORKFLOW if lang == "java" else PY_WORKFLOW
     meta = {
         "id": job_id,
         "title": title,
         "package": package,
+        "lang": lang,
+        "workflow": workflow,
         "tag": tag,
         "status": "queued",
         "status_note": "",
@@ -298,13 +336,16 @@ def create_job(title: str, package: str, code: str) -> dict:
         "created": time.time(),
         "checked": 0.0,
         "branch": f"build/{job_id}",
-        "mode": "local" if local_build_available() and not (GH_REPO and GH_TOKEN) else "github",
+        # buildozer មានតែលើ Python — ផ្លូវ Java ត្រូវការ GitHub Actions ជានិច្ច
+        "mode": ("local" if lang == "python" and local_build_available()
+                 and not (GH_REPO and GH_TOKEN) else "github"),
     }
     d = JOBS / job_id
     d.mkdir(parents=True, exist_ok=True)
-    for path, content in project_files(title, package, code).items():
-        (d / path).write_text(content, encoding="utf-8")
-    (d / "main.py").write_text(code, encoding="utf-8")
+    for path, content in files.items():
+        target = d / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
     save_job(meta)
 
     if meta["mode"] == "local":
@@ -320,9 +361,8 @@ def create_job(title: str, package: str, code: str) -> dict:
 
     try:
         client = gh()
-        client.push_branch(meta["branch"], project_files(title, package, code),
-                           f"Build {title} ({tag})")
-        client.dispatch(meta["branch"], tag)
+        client.push_branch(meta["branch"], files, f"Build {title} ({tag})")
+        client.dispatch(meta["branch"], tag, workflow)
         meta["status"] = "building"
         meta["status_note"] = "បញ្ជូនទៅ GitHub Actions រួច — កំពុងតម្រៀបជួរ…"
     except Exception as exc:  # noqa: BLE001 — បង្ហាញកំហុសដល់អ្នកប្រើ
@@ -349,7 +389,8 @@ def refresh_job(meta: dict) -> dict:
         if waited > 150:
             meta["status"] = "error"
             meta["error"] = ("រកមិនឃើញ workflow run — ពិនិត្យថា repo មាន "
-                             f".github/workflows/{GH_WORKFLOW} និង GH_TOKEN មានសិទ្ធិ workflow")
+                             f".github/workflows/{meta.get('workflow') or PY_WORKFLOW} "
+                             "និង GH_TOKEN មានសិទ្ធិ workflow")
         else:
             meta["status_note"] = "រង់ចាំ workflow ចាប់ផ្តើម…"
         save_job(meta)
@@ -403,8 +444,11 @@ def home():
     return render_template(
         "index.html",
         default_code=DEFAULT_APP,
-        default_title="My Python App",
+        default_title="My App",
         default_package="org.pyapp.demo",
+        default_heading="សួស្តី!",
+        default_message=DEFAULT_JAVA_MESSAGE,
+        default_api=url_for("health", _external=True),
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
         local_build=local_build_available(),
@@ -413,26 +457,18 @@ def home():
 
 @app.post("/build")
 def build():
-    title, package, code = validate(
-        request.form.get("title", ""),
-        request.form.get("package", ""),
-        request.form.get("code", ""),
-    )
-    meta = create_job(title, package, code)
+    lang, title, package, files = files_from_form(request.form)
+    meta = create_job(lang, title, package, files)
     return redirect(url_for("job_page", job_id=meta["id"]))
 
 
 @app.post("/project.zip")
 def project_zip():
-    title, package, code = validate(
-        request.form.get("title", ""),
-        request.form.get("package", ""),
-        request.form.get("code", ""),
-    )
+    _lang, title, _package, files = files_from_form(request.form)
     buf = io.BytesIO()
     base = slugify(title)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path, content in project_files(title, package, code).items():
+        for path, content in files.items():
             zf.writestr(f"{base}/{path}", content)
     buf.seek(0)
     return send_file(buf, mimetype="application/zip", as_attachment=True,

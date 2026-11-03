@@ -51,7 +51,7 @@
 <body>
 <div class="wrap">
   <h1>{{ job.title }}</h1>
-  <p class="lead"><code>{{ job.package }}</code> · job <code>{{ job.id }}</code></p>
+  <p class="lead"><code>{{ job.package }}</code> · {{ 'Java (native)' if job.get('lang') != 'python' else 'Python (Kivy)' }} · job <code>{{ job.id }}</code></p>
 
   <div class="card">
     <p class="state" id="state">
@@ -83,7 +83,7 @@
       {% if job.run_url %}<a class="btn ghost" href="{{ job.run_url }}" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>{% endif %}
       <a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>
     </div>
-    <p class="meta">% គណនាពីជំហានពិតរបស់ GitHub Actions។ ដំបូងប្រហែល ១០–១៥ នាទី (compile Python សម្រាប់ Android)។</p>
+    <p class="meta">% គណនាពីជំហានពិតរបស់ GitHub Actions។ Java ≈ ៣–៥ នាទី · Python ≈ ១០–១៥ នាទី។</p>
   </div>
 </div>
 <script>
