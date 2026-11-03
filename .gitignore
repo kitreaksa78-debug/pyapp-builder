@@ -4,3 +4,4 @@ jobs/
 venv/
 .env
 files/
+.test/

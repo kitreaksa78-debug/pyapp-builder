@@ -15,6 +15,10 @@ PKG_LINE_RE = re.compile(r"^[ \t]*package[ \t]+[\w.]+[ \t]*;[ \t]*\n?", re.MULTI
 CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
 # class ដែល extends Service ⇒ ត្រូវប្រកាសក្នុង manifest (ឧ. foreground service)
 SERVICE_RE = re.compile(r"\bclass\s+(\w+)\s+extends\s+Service\b")
+# កូដប្រើ overlay (draw over other apps)?
+OVERLAY_RE = re.compile(
+    r"\b(SYSTEM_ALERT_WINDOW|TYPE_APPLICATION_OVERLAY|TYPE_PHONE|TYPE_SYSTEM_ALERT|"
+    r"canDrawOverlays|ACTION_MANAGE_OVERLAY_PERMISSION|WindowManager)\b")
 
 
 def xml_escape(text: str) -> str:
@@ -243,9 +247,73 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 
-# permission ដែលត្រូវការពេលមាន Service (foreground service)
-SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC",
-                       "POST_NOTIFICATIONS")
+# permission ដែលដាក់ជាប់ជានិច្ចគ្រប់ app
+BASE_PERMISSIONS = ("SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE")
+
+# permission បន្ថែមពេលមាន Service (foreground service)
+SERVICE_PERMISSIONS = ("FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS")
+
+# Helper សម្រាប់ overlay — បង្កើតតែពេលកូដប្រើ overlay
+OVERLAY_HELPER = '''package @@PKG@@;
+
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+import android.view.WindowManager;
+
+/**
+ * ជំនួយសម្រាប់ «បង្ហាញលើ app ផ្សេង» (SYSTEM_ALERT_WINDOW).
+ *
+ * ប្រើក្នុង MainActivity:
+ *   if (!OverlayHelper.has(this)) { OverlayHelper.request(this); }
+ *   WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+ *       ..., OverlayHelper.layoutType(), ...);
+ */
+public final class OverlayHelper {
+
+    private OverlayHelper() {}
+
+    /** តើ app មានសិទ្ធិបង្ហាញ overlay ហើយឬនៅ? (SDK < 23 មិនត្រូវការអនុញ្ញាត) */
+    public static boolean has(Context ctx) {
+        if (Build.VERSION.SDK_INT < 23) {
+            return true;
+        }
+        return Settings.canDrawOverlays(ctx);
+    }
+
+    /** បើកផ្ទាំង Settings ដើម្បីឲ្យអ្នកប្រើបើក «បង្ហាញលើ app ផ្សេង»។ */
+    public static void request(Context ctx) {
+        if (has(ctx)) {
+            return;
+        }
+        try {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + ctx.getPackageName()));
+            if (!(ctx instanceof android.app.Activity)) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+            ctx.startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent fallback = new Intent(Settings.ACTION_SETTINGS);
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(fallback);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Window type ត្រឹមត្រូវតាម SDK (TYPE_PHONE ចាស់ / TYPE_APPLICATION_OVERLAY ថ្មី)។ */
+    @SuppressWarnings("deprecation")
+    public static int layoutType() {
+        return Build.VERSION.SDK_INT >= 26
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+    }
+}
+'''
 
 STRINGS = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -358,25 +426,27 @@ gradle assembleDebug
 
 
 def manifest_xml(code: str) -> str:
-    """Manifest — ប្រកាស Service ដែលអ្នកប្រើសរសេរដោយស្វ័យប្រវត្តិ។"""
+    """Manifest — overlay/foreground permission + Service ដែលអ្នកប្រើសរសេរ។"""
     names = []
     for name in SERVICE_RE.findall(code):
         for candidate in (f".{name}", f".MainActivity${name}"):
             if candidate not in names:
                 names.append(candidate)
 
-    permissions = ""
-    services = ""
+    # SYSTEM_ALERT_WINDOW + FOREGROUND_SERVICE ជាប់ជានិច្ច
+    perm_names = list(BASE_PERMISSIONS)
     if names:
-        permissions = "".join(
-            f'    <uses-permission android:name="android.permission.{p}" />\n'
-            for p in SERVICE_PERMISSIONS)
-        services = "".join(
-            "        <service\n"
-            f'            android:name="{name}"\n'
-            '            android:exported="false"\n'
-            '            android:foregroundServiceType="dataSync" />\n'
-            for name in names)
+        perm_names += [p for p in SERVICE_PERMISSIONS if p not in perm_names]
+
+    permissions = "".join(
+        f'    <uses-permission android:name="android.permission.{p}" />\n'
+        for p in perm_names)
+    services = "".join(
+        "        <service\n"
+        f'            android:name="{name}"\n'
+        '            android:exported="false"\n'
+        '            android:foregroundServiceType="dataSync" />\n'
+        for name in names)
     return (MANIFEST.replace("@@PERMISSIONS@@", permissions)
             .replace("@@SERVICES@@", services))
 
@@ -387,7 +457,7 @@ def java_project_files(title: str, package: str, code: str) -> dict:
     path = package.replace(".", "/")
     source = normalize_java(code, package)
 
-    return {
+    files = {
         "build.gradle": ROOT_GRADLE,
         "settings.gradle": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
         "gradle.properties": GRADLE_PROPS,
@@ -399,3 +469,9 @@ def java_project_files(title: str, package: str, code: str) -> dict:
         "README.md": (README.replace("@@TITLE@@", title).replace("@@PKG@@", package)
                       .replace("@@PATH@@", path)),
     }
+
+    # កូដប្រើ overlay ⇒ បន្ថែម class ជំនួយសម្រាប់ស្នើសុំសិទ្ធិ
+    if OVERLAY_RE.search(code):
+        files[f"app/src/main/java/{path}/OverlayHelper.java"] = (
+            OVERLAY_HELPER.replace("@@PKG@@", package))
+    return files
