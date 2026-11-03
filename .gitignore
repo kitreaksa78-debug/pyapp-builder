@@ -1,5 +1,7 @@
-__pycache__/
-*.pyc
-jobs/
-venv/
-.env
+.gradle/
+build/
+app/build/
+local.properties
+out/
+*.iml
+.idea/
