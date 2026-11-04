@@ -504,12 +504,22 @@ def job_status(job_id: str):
     })
 
 
+def release_asset_url(job_id: str) -> str:
+    """URL APK ក្នុង GitHub release — កំណត់ដោយ job id ដូច្នេះមិនបាត់ពេល server restart។"""
+    return f"https://github.com/{GH_REPO}/releases/download/apk-{job_id}/app.apk"
+
+
 @app.get("/dl/<job_id>")
 def download(job_id: str):
+    if not ID_RE.match(job_id or ""):
+        abort(404)
+    if not (JOBS / job_id / "meta.json").is_file():
+        # Render restart/spin-down លុប jobs/ ⇒ ទាញពី release ដោយផ្ទាល់
+        return redirect(release_asset_url(job_id))
     meta = refresh_job(load_job(job_id))
     if meta["status"] != "done":
         abort(409, description="APK មិនទាន់រួចរាល់")
-    return redirect(meta["apk_url"])
+    return redirect(meta.get("apk_url") or release_asset_url(job_id))
 
 
 @app.errorhandler(ValueError)
