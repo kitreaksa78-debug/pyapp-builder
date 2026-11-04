@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app Java។
+"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app **C# (.NET for Android)**។
 
-អ្នកសរសេរ (ឬកែ) `MainActivity.java` ក្នុងទំព័រ រួចចុច «Build APK»។
-ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (Gradle + Android SDK)
-ព្រោះ hosting ឥតគិតថ្លៃមិនអាចដំឡើង Android SDK/JDK បានទេ។
+អ្នកសរសេរ (ឬកែ) `MainActivity.cs` ក្នុងទំព័រ រួចចុច «Build APK»។
+ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (.NET SDK + Android SDK)
+ព្រោះ hosting ឥតគិតថ្លៃមិនអាចដំឡើង .NET/Android SDK បានទេ។
 """
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.exceptions import HTTPException
 
-from javaapp import (DEFAULT_JAVA_SOURCE, MAX_ICON_BYTES, java_project_files,
-                     validate_java_code)
+from csapp import DEFAULT_CS_SOURCE, cs_project_files, validate_cs_code
+from javaapp import MAX_ICON_BYTES
 
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
@@ -35,8 +35,8 @@ FILES.mkdir(exist_ok=True)
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
-GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-java-apk.yml")
-               or "build-java-apk.yml").strip()
+GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-csharp-apk.yml")
+               or "build-csharp-apk.yml").strip()
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 
 # អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
@@ -98,11 +98,12 @@ def save_job(meta: dict) -> None:
 STEP_SECONDS = {
     "Set up job": 5,
     "Checkout": 6,
+    "Set up .NET 8": 18,
     "Set up JDK 17": 14,
+    "Install Android workload": 75,
     "Android SDK": 30,
-    "Set up Gradle": 18,
     "Signature key": 4,
-    "Build APK (Java)": 130,
+    "Build APK (C#)": 150,
     "Collect APK": 4,
     "Upload artifact": 8,
     "Publish release": 9,
@@ -110,11 +111,12 @@ STEP_SECONDS = {
 STEP_KH = {
     "Set up job": "រៀបចំ runner",
     "Checkout": "ទាញកូដ",
+    "Set up .NET 8": "ដំឡើង .NET 8 SDK",
     "Set up JDK 17": "ដំឡើង JDK 17",
+    "Install Android workload": "ដំឡើង .NET Android workload",
     "Android SDK": "ដំឡើង Android SDK",
-    "Set up Gradle": "ដំឡើង Gradle",
     "Signature key": "ពិនិត្យ key សម្រាប់ sign",
-    "Build APK (Java)": "Build APK (compile Java → Android)",
+    "Build APK (C#)": "Build APK (compile C# → Android)",
     "Collect APK": "ប្រមូល APK",
     "Upload artifact": "ផ្ទុកឡើង artifact",
     "Publish release": "បង្កើត release",
@@ -251,7 +253,7 @@ def gh() -> GitHub:
 def files_from_form(form, uploads=None) -> tuple:
     """(title, package, files) ពី form របស់ទំព័រដើម (បូក logo បើបាន upload)។"""
     title, package = validate_common(form.get("title", ""), form.get("package", ""))
-    code = validate_java_code(form.get("java_code", ""))
+    code = validate_cs_code(form.get("cs_code", ""))
     icon = None
     upload = uploads.get("icon") if uploads else None
     if upload is not None and (upload.filename or "").strip():
@@ -260,7 +262,7 @@ def files_from_form(form, uploads=None) -> tuple:
             icon = None
         elif len(icon) > MAX_ICON_BYTES:
             raise ValueError("រូប logo ធំពេក (អតិបរមា 5 MB)")
-    return title, package, java_project_files(title, package, code, icon)
+    return title, package, cs_project_files(title, package, code, icon)
 
 
 def create_job(title: str, package: str, files: dict) -> dict:
@@ -341,7 +343,7 @@ def refresh_job(meta: dict) -> dict:
         if run.get("conclusion") == "success":
             meta["status"] = "done"
             meta["apk_url"] = (f"https://github.com/{GH_REPO}/releases/download/"
-                               f"{meta['tag']}/app-debug.apk")
+                               f"{meta['tag']}/app.apk")
             meta["progress"] = {"percent": 100, "step": "", "steps": [], "eta": 0}
         else:
             meta["status"] = "error"
@@ -360,7 +362,7 @@ def refresh_job(meta: dict) -> dict:
 def home():
     return render_template(
         "index.html",
-        default_java=DEFAULT_JAVA_SOURCE,
+        default_cs=DEFAULT_CS_SOURCE,
         default_title="My App",
         default_package="org.pyapp.demo",
         gh_ready=bool(GH_REPO and GH_TOKEN),

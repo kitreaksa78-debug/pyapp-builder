@@ -1,31 +1,32 @@
 # PyApp Builder
 
-សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរកូដ **Java** ក្នុង browser
+សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរកូដ **C#** ក្នុង browser
 រួចចុច **Build APK**។
 
 ## របៀបដំណើរការ
-1. សាយ Flask បង្កើត project Android native (Gradle) ពីកូដ `MainActivity.java` របស់អ្នក
+1. សាយ Flask បង្កើត project **.NET for Android** (`net8.0-android`) ពីកូដ `MainActivity.cs`
    រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API (មិនត្រូវការ `git` ក្នុង server)។
-2. Workflow [`.github/workflows/build-java-apk.yml`](.github/workflows/build-java-apk.yml) រត់លើ
-   GitHub Actions៖ JDK 17 + Android SDK 34 + `gradle assembleDebug` (~១.៥–៣ នាទី)។
+2. Workflow [`.github/workflows/build-csharp-apk.yml`](.github/workflows/build-csharp-apk.yml) រត់លើ
+   GitHub Actions៖ .NET 8 SDK + `android` workload + JDK 17 + Android SDK 34 + `dotnet publish` (~៤–៦ នាទី)។
 3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក។
 4. ទំព័រ job បង្ហាញ **% ពិតប្រាកដ** គណនាពីជំហានរបស់ GitHub (`conclusion` + `started_at`)។
 
 ## Project ដែលបង្កើត
 | ឯកសារ | តួនាទី |
 |---|---|
-| `app/src/main/java/<pkg>/MainActivity.java` | កូដរបស់អ្នក (package បញ្ចូលស្វ័យប្រវត្តិ) |
-| `app/src/main/AndroidManifest.xml` | launcher activity + `INTERNET` permission |
-| `app/src/main/res/values/strings.xml` | ឈ្មោះ app |
-| `app/build.gradle` · `build.gradle` · `settings.gradle` | AGP 8.5.2 · Gradle 8.7 · JDK 17 · compileSdk 34 · minSdk 21 |
+| `MainActivity.cs` | កូដរបស់អ្នក (`class MainActivity`, `[Activity]` បង្កើត manifest entry) |
+| `App.csproj` | .NET 8 Android · ApplicationId · signing key ថេរ (`signing/debug.p12`) |
+| `AndroidManifest.xml` | permissions + `<application>` (activity បង្កើតដោយ `[Activity]`) |
+| `Resources/values/strings.xml` | ឈ្មោះ app |
+| `Resources/mipmap-*/ic_launcher.png` | icon គ្រប់ density (បើបាន upload logo) |
 
-> UI សង់ដោយកូដ Java (`android.app.Activity`) — គ្មាន AndroidX/Python runtime
-> ដូច្នេះ APK តូច (~10 KB) ហើយបើកដើរភ្លាម។
+> UI សង់ដោយកូដ C# (`Android.App.Activity`) — គ្មាន MAUI/Xamarin.Forms
+> ដូច្នេះ build លឿន ហើយ .NET runtime ត្រូវបាន package ចូល APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
 
 ## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
 ```bash
 pip install -r requirements.txt
-export GH_REPO=owner/repo     # repo មាន .github/workflows/build-java-apk.yml
+export GH_REPO=owner/repo     # repo មាន .github/workflows/build-csharp-apk.yml
 export GH_TOKEN=ghp_xxx       # token មានសិទ្ធិ repo + workflow
 python app.py                 # http://localhost:8000
 ```
@@ -36,7 +37,7 @@ python app.py                 # http://localhost:8000
 ## API
 | Method | Path | ការងារ |
 |---|---|---|
-| GET | `/` | ទំព័រសរសេរកូដ Java + build APK |
+| GET | `/` | ទំព័រសរសេរកូដ C# + ផ្ទាំងមើល app + build APK |
 | GET | `/nano?f=<file>` | និពន្ធកូដបែប nano (គ្រប់ភាសា) |
 | GET | `/api/files` | បញ្ជី file ដែលបានរក្សាទុក |
 | GET / POST | `/api/files/<name>` | អាន / រក្សាទុក file |

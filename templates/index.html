@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PyApp Builder — សរសេរ Java បង្កើត APK</title>
+<title>PyApp Builder — សរសេរ C# បង្កើត APK</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --line:#26303d; --fg:#e6edf3; --dim:#8b949e;
@@ -12,7 +12,7 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);
        font-family:system-ui,-apple-system,"Noto Sans Khmer","Segoe UI",Roboto,sans-serif;line-height:1.6}
-  .wrap{max-width:980px;margin:0 auto;padding:28px 18px 64px}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 18px 64px}
   h1{font-size:26px;margin:0 0 6px}
   .lead{color:var(--dim);margin:0 0 22px;font-size:15px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
@@ -37,12 +37,45 @@
   ol{padding-left:20px;color:var(--dim);font-size:14px}
   ol b{color:var(--fg)}
   .flash{background:#3d1d1d;border:1px solid #6e2b28;color:#ffb4ae}
+
+  /* ---- two columns ---- */
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+  @media (max-width:900px){ .layout{grid-template-columns:minmax(0,1fr)} }
+
+  /* ---- live app preview ---- */
+  .pvcard{position:sticky;top:18px}
+  .pvhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .pvhead b{font-size:15px}
+  .phone{background:#05080d;border:1px solid var(--line);border-radius:26px;padding:10px;
+         box-shadow:0 18px 44px rgba(0,0,0,.5)}
+  .pstatus{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);padding:2px 12px 4px}
+  .pbar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  .pbar .pico{width:24px;height:24px;border-radius:8px;background:var(--accent);color:#fff;
+              display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
+              overflow:hidden;flex:0 0 24px}
+  .pbar .pico img{width:100%;height:100%;object-fit:cover}
+  .pbar .ptitle{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+                text-overflow:ellipsis}
+  .pscreen{height:420px;background:#0b0f16;display:flex;flex-direction:column;
+           align-items:center;justify-content:center;text-align:center;padding:18px;position:relative;
+           overflow:hidden}
+  .pscreen iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+  .pscreen .mock{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .pscreen .mock .mtitle{font-size:15px;font-weight:700}
+  .pscreen .mock .mpkg{font-size:11px;color:var(--dim);word-break:break-all}
+  .pscreen .mock .mbtn{margin-top:12px;background:var(--accent);color:#fff;border-radius:10px;
+                       padding:9px 18px;font-size:13px;font-weight:600}
+  .pnav{display:flex;justify-content:space-around;align-items:center;padding:8px 0 2px}
+  .pnav .dot{width:6px;height:6px;border-radius:50%;background:#2b3542}
+  .pvurl{display:flex;gap:8px;margin-top:10px}
+  .pvurl input{flex:1;min-width:0}
+  .pvurl button{padding:0 14px;font-size:13px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>PyApp Builder</h1>
-  <p class="lead">សរសេរ app ដោយ <b>Java</b> ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
+  <p class="lead">សរសេរ app ដោយ <b>C#</b> (.NET for Android) ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
 
   {% if not gh_ready %}
   <div class="card flash">
@@ -52,98 +85,216 @@
   </div>
   {% endif %}
 
-  <form class="card" method="post" action="/build" id="buildForm" enctype="multipart/form-data">
-    <div class="row">
-      <div>
-        <label>ឈ្មោះ app</label>
-        <input type="text" name="title" value="{{ default_title }}" maxlength="48" required>
-      </div>
-      <div>
-        <label>Package name</label>
-        <input type="text" name="package" value="{{ default_package }}" required>
+  <div class="layout">
+    <div>
+      <form class="card" method="post" action="/build" id="buildForm" enctype="multipart/form-data">
+        <div class="row">
+          <div>
+            <label>ឈ្មោះ app</label>
+            <input type="text" name="title" id="titleInput" value="{{ default_title }}" maxlength="48" required>
+          </div>
+          <div>
+            <label>Package name</label>
+            <input type="text" name="package" id="pkgInput" value="{{ default_package }}" required>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <label>Logo / Icon (ជាជម្រើស — PNG ឬ JPG)</label>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <input type="file" name="icon" id="iconInput"
+                   accept="image/png,image/jpeg,image/webp"
+                   style="flex:1;min-width:200px;background:#0b1017;color:var(--fg);
+                          border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px">
+            <img id="iconPreview" alt="logo"
+                 style="display:none;width:56px;height:56px;border-radius:14px;
+                        object-fit:cover;border:1px solid var(--line);background:#0b1017">
+            <button class="ghost" type="button" id="iconClear"
+                    style="display:none;padding:8px 14px;font-size:13px">✕ លុប logo</button>
+          </div>
+          <p class="note" style="margin:6px 0 0">
+            រូបត្រូវកាត់ជាការ៉េដោយស្វ័យប្រវត្តិ ហើយបង្កើត icon គ្រប់ទំហំ (48 – 192 px) ។
+            បើគ្មាន logo ទេ app ប្រើ icon លំនាំដើមរបស់ Android។
+          </p>
+        </div>
+
+        <div style="margin-top:16px">
+          <label>MainActivity.cs (សរសេរកូដ C# — កែបានសេរី)</label>
+          <textarea name="cs_code" id="codeInput" spellcheck="false">{{ default_cs }}</textarea>
+          <p class="note" style="margin:6px 0 0">
+            ត្រូវរក្សា <code>class MainActivity</code> — បើគ្មាន <code>[Activity(...)]</code> ទេ
+            server បន្ថែមឲ្យស្វ័យប្រវត្តិ។ Package បញ្ចូលពីប្រអប់ «Package name»។
+          </p>
+        </div>
+
+        <div class="btns">
+          <button class="primary" type="submit">▶ Build APK</button>
+          <button class="ghost" type="submit" formaction="/project.zip" formnovalidate>⬇ ទាញយក project (ZIP)</button>
+        </div>
+        <p class="note" style="margin-bottom:0">
+          ស្ថានភាព build៖
+          {% if gh_ready %}<span class="pill ok">GitHub Actions · {{ repo }}</span>
+          {% else %}<span class="pill bad">មិនទាន់កំណត់</span>{% endif %}
+        </p>
+      </form>
+
+      <div class="card">
+        <b>របៀបប្រើ</b>
+        <ol>
+          <li>សរសេរកូដ <b>C#</b> ក្នុងប្រអប់ <code>MainActivity.cs</code></li>
+          <li>ចុច <b>Build APK</b> → រង់ចាំ ~៤–៦ នាទី (.NET + Android SDK)</li>
+          <li>ចុច <b>ទាញយក APK</b> → ដំឡើងលើទូរស័ព្ទ (ត្រូវបើក «Install unknown apps»)</li>
+        </ol>
+        <p class="note">app ប្រើ <code>Android.App.Activity</code> + <code>WebView</code> សង់ UI ដោយកូដ C#
+          — គ្មាន runtime .NET ត្រូវដំឡើងបន្ថែម ព្រោះ .NET ត្រូវបាន package ចូល APK ស្រាប់។</p>
       </div>
     </div>
 
-    <div style="margin-top:16px">
-      <label>Logo / Icon (ជាជម្រើស — PNG ឬ JPG)</label>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <input type="file" name="icon" id="iconInput"
-               accept="image/png,image/jpeg,image/webp"
-               style="flex:1;min-width:200px;background:#0b1017;color:var(--fg);
-                      border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px">
-        <img id="iconPreview" alt="logo"
-             style="display:none;width:56px;height:56px;border-radius:14px;
-                    object-fit:cover;border:1px solid var(--line);background:#0b1017">
-        <button class="ghost" type="button" id="iconClear"
-                style="display:none;padding:8px 14px;font-size:13px">✕ លុប logo</button>
+    <aside class="pvcard">
+      <div class="pvhead">
+        <b>ផ្ទាំងមើល app</b>
+        <span class="pill">live</span>
       </div>
-      <p class="note" style="margin:6px 0 0">
-        រូបត្រូវកាត់ជាការ៉េដោយស្វ័យប្រវត្តិ ហើយបង្កើត icon គ្រប់ទំហំ (48 – 192 px) ។
-        បើគ្មាន logo ទេ app ប្រើ icon លំនាំដើមរបស់ Android។
+      <div class="phone">
+        <div class="pstatus"><span id="pvClock">9:41</span><span>▮▮▮ ⌁</span></div>
+        <div class="pbar">
+          <span class="pico" id="pvIcon">A</span>
+          <span class="ptitle" id="pvName">My App</span>
+        </div>
+        <div class="pscreen" id="pvScreen"></div>
+        <div class="pnav"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      </div>
+      <div class="pvurl">
+        <input type="text" id="urlInput" placeholder="https://example.com (URL សម្រាប់មើល)" spellcheck="false">
+        <button class="ghost" type="button" id="urlApply">→ ដាក់ក្នុងកូដ</button>
+      </div>
+      <p class="note" id="pvNote" style="margin:8px 0 0">
+        វាយ URL ដើម្បីមើលគេហទំព័រពិតក្នុងទូរស័ព្ទ។ បើទំនេរ ផ្ទាំងនេះបង្ហាញគំរូ app។
       </p>
-    </div>
-
-    <div style="margin-top:16px">
-      <label>MainActivity.java (សរសេរកូដ Java — កែបានសេរី)</label>
-      <textarea name="java_code" spellcheck="false">{{ default_java }}</textarea>
-      <p class="note" style="margin:6px 0 0">
-        Package បញ្ចូលស្វ័យប្រវត្តិពីប្រអប់ «Package name» — មិនត្រូវសរសេរ <code>package ...;</code> ខ្លួនឯងទេ។
-        ត្រូវរក្សា <code>class MainActivity</code>។
-      </p>
-    </div>
-
-    <div class="btns">
-      <button class="primary" type="submit">▶ Build APK</button>
-      <button class="ghost" type="submit" formaction="/project.zip" formnovalidate>⬇ ទាញយក project (ZIP)</button>
-    </div>
-    <p class="note" style="margin-bottom:0">
-      ស្ថានភាព build៖
-      {% if gh_ready %}<span class="pill ok">GitHub Actions · {{ repo }}</span>
-      {% else %}<span class="pill bad">មិនទាន់កំណត់</span>{% endif %}
-    </p>
-  </form>
-
-  <div class="card">
-    <b>របៀបប្រើ</b>
-    <ol>
-      <li>សរសេរកូដ <b>Java</b> ក្នុងប្រអប់ <code>MainActivity.java</code></li>
-      <li>ចុច <b>Build APK</b> → រង់ចាំ ~២–៣ នាទី (Gradle compile Java)</li>
-      <li>ចុច <b>ទាញយក APK</b> → ដំឡើងលើទូរស័ព្ទ (ត្រូវបើក «Install unknown apps»)</li>
-    </ol>
-    <p class="note">app ប្រើ <code>android.app.Activity</code> សង់ UI ដោយកូដ — គ្មាន runtime បន្ថែម
-      ដូច្នេះបើកដើរភ្លាម ហើយហៅ API បាន (មាន <code>INTERNET</code> permission រួចហើយ)។</p>
+    </aside>
   </div>
 </div>
 <script>
 (function () {
-  const input = document.getElementById('iconInput');
-  if (!input) return;
-  const preview = document.getElementById('iconPreview');
-  const clear = document.getElementById('iconClear');
-  const form = document.getElementById('buildForm');
+  const $ = (id) => document.getElementById(id);
+  const iconInput = $('iconInput'), iconPreview = $('iconPreview'), iconClear = $('iconClear');
+  const titleInput = $('titleInput'), pkgInput = $('pkgInput'), codeInput = $('codeInput');
+  const urlInput = $('urlInput'), urlApply = $('urlApply');
+  const pvName = $('pvName'), pvIcon = $('pvIcon'), pvScreen = $('pvScreen'), pvNote = $('pvNote');
 
-  input.addEventListener('change', function () {
-    const f = input.files && input.files[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) {
-      alert('រូប logo ធំពេក (អតិបរមា 5 MB)');
-      input.value = '';
-      return;
+  let iconUrl = '';
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  function normUrl(raw) {
+    let v = (raw || '').trim();
+    if (!v) return '';
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    try {
+      const u = new URL(v);
+      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+    } catch (e) { return ''; }
+  }
+
+  function renderPreview() {
+    const title = (titleInput && titleInput.value.trim()) || 'App របស់ខ្ញុំ';
+    const pkg = (pkgInput && pkgInput.value.trim()) || 'com.example.app';
+    pvName.textContent = title;
+
+    // icon (រូបដែល upload ឬអក្សរដំបូង)
+    if (iconUrl) {
+      pvIcon.innerHTML = '<img alt="" src="' + iconUrl + '">';
+    } else {
+      pvIcon.textContent = title.charAt(0).toUpperCase();
     }
-    preview.src = URL.createObjectURL(f);
-    preview.style.display = 'block';
-    clear.style.display = 'inline-block';
-  });
 
-  clear.addEventListener('click', function () {
-    input.value = '';
-    preview.removeAttribute('src');
-    preview.style.display = 'none';
-    clear.style.display = 'none';
-  });
+    const url = normUrl(urlInput && urlInput.value);
+    if (url) {
+      pvScreen.innerHTML = '<iframe title="app preview" src="' + esc(url) + '" ' +
+        'referrerpolicy="no-referrer" loading="lazy" ' +
+        'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>';
+      pvNote.innerHTML = 'កំពុងបង្ហាញ <code>' + esc(url) + '</code> — ' +
+        '<a href="' + esc(url) + '" target="_blank" rel="noopener">បើកក្នុង tab ថ្មី</a>' +
+        ' (បើទទេ គេហទំព័រនោះបិទ iframe)។';
+    } else {
+      pvScreen.innerHTML =
+        '<div class="mock">' +
+          '<div class="mtitle">' + esc(title) + '</div>' +
+          '<div class="mpkg">' + esc(pkg) + '</div>' +
+          '<div class="mbtn">បើក app</div>' +
+        '</div>';
+      pvNote.textContent = (urlInput && urlInput.value.trim())
+        ? 'URL មិនត្រឹមត្រូវ — ប្រើ http:// ឬ https://'
+        : 'វាយ URL ដើម្បីមើលគេហទំព័រពិតក្នុងទូរស័ព្ទ។ បើទំនេរ ផ្ទាំងនេះបង្ហាញគំរូ app។';
+    }
+  }
 
-  // ចុច ZIP → ត្រូវរក្សា logo ដែរ (form ដូចគ្នា)
-  if (form) form.addEventListener('submit', function () {});
+  // ---- icon ----
+  if (iconInput) {
+    iconInput.addEventListener('change', function () {
+      const f = iconInput.files && iconInput.files[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) {
+        alert('រូប logo ធំពេក (អតិបរមា 5 MB)');
+        iconInput.value = '';
+        return;
+      }
+      iconUrl = URL.createObjectURL(f);
+      iconPreview.src = iconUrl;
+      iconPreview.style.display = 'block';
+      iconClear.style.display = 'inline-block';
+      renderPreview();
+    });
+
+    iconClear.addEventListener('click', function () {
+      iconInput.value = '';
+      iconUrl = '';
+      iconPreview.removeAttribute('src');
+      iconPreview.style.display = 'none';
+      iconClear.style.display = 'none';
+      renderPreview();
+    });
+  }
+
+  // ---- url → code ----
+  if (urlApply) {
+    urlApply.addEventListener('click', function () {
+      const url = normUrl(urlInput.value);
+      if (!url) { alert('URL មិនត្រឹមត្រូវ — ឧ. https://example.com'); return; }
+      const re = /HomeUrl\s*=\s*"[^"]*"/;
+      if (!re.test(codeInput.value)) {
+        alert('រកមិនឃើញ HomeUrl ក្នុងកូដ — សរសេរ URL ដោយខ្លួនឯងក្នុងកូដ');
+        return;
+      }
+      codeInput.value = codeInput.value.replace(re, 'HomeUrl = "' + url + '"');
+      urlInput.value = url;
+      renderPreview();
+    });
+  }
+
+  [titleInput, pkgInput].forEach(function (el) {
+    if (el) el.addEventListener('input', renderPreview);
+  });
+  if (urlInput) {
+    let t = null;
+    urlInput.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(renderPreview, 500);   // កុំ load iframe រាល់អក្សរ
+    });
+    urlInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); renderPreview(); }
+    });
+  }
+
+  // ម៉ោងតូចក្នុង status bar
+  const clock = $('pvClock');
+  if (clock) {
+    const d = new Date();
+    clock.textContent = d.getHours().toString().padStart(2, '0') + ':' +
+                        d.getMinutes().toString().padStart(2, '0');
+  }
+
+  renderPreview();
 })();
 </script>
 </body>

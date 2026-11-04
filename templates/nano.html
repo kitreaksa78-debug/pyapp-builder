@@ -85,7 +85,7 @@
   <input id="pkg" placeholder="package (org.pyapp.demo)" value="org.pyapp.demo"
          style="background:#0b0f14;color:#d7e2ee;border:1px solid var(--line);
                 border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px">
-  <span style="color:#7d8b9a;font-size:12px">file .java តែប៉ុណ្ណោះដែល build បាន</span>
+  <span style="color:#7d8b9a;font-size:12px">file .cs (C#) តែប៉ុណ្ណោះដែល build បាន</span>
 </div>
 
 <div class="editor">
@@ -113,9 +113,9 @@
     <tr><td>^G</td><td>បិទ/បើកជំនួយនេះ</td></tr>
   </table>
   <p style="color:#7d8b9a;font-size:12.5px">
-    សរសេរបានគ្រប់ភាសា៖ Python (.py), C (.c), C++ (.cpp), Java (.java), HTML (.html),
+    សរសេរបានគ្រប់ភាសា៖ Python (.py), C (.c), C++ (.cpp), C# (.cs), HTML (.html),
     JavaScript (.js), PHP (.php), Bash (.sh), JSON, CSS, SQL …<br>
-    បើ file ជា <b>.java</b> → ចុច <b>Build APK</b> ដើម្បីបង្កើត APK ភ្លាម។
+    បើ file ជា <b>.cs</b> → ចុច <b>Build APK</b> ដើម្បីបង្កើត APK ភ្លាម។
   </p>
 </div>
 
@@ -158,9 +158,9 @@ function refreshMeta() {
   gutter.textContent = g;
   linesTag.textContent = lines + ' បន្ទាត់ · ' + pretty(area.value.length);
   langTag.textContent = LANGS[ext()] || (ext() ? ext().toUpperCase() : 'code');
-  const isJava = ext() === 'java';
-  buildBtn.style.display = isJava ? 'inline-block' : 'none';
-  buildBox.style.display = isJava ? 'flex' : 'none';
+  const isCs = ext() === 'cs';
+  buildBtn.style.display = isCs ? 'inline-block' : 'none';
+  buildBox.style.display = isCs ? 'flex' : 'none';
 }
 
 function markDirty(state) {
@@ -207,7 +207,7 @@ function buildApk() {
   };
   add('title', document.getElementById('appTitle').value || 'My App');
   add('package', document.getElementById('pkg').value || 'org.pyapp.demo');
-  add('java_code', area.value);
+  add('cs_code', area.value);
   document.body.appendChild(form);
   form.submit();
 }
