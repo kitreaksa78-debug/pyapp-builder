@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from javaapp import launcher_icons, xml_escape
+from androidutil import launcher_icons, xml_escape
 
 from kotlinapp import kotlin_project_files
 

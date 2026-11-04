@@ -7,7 +7,7 @@ UI សរសេរដោយ JavaScript/CSS ដាក់ក្នុង `app/src/
 """
 from __future__ import annotations
 
-from javaapp import MAX_ICON_BYTES, launcher_icons, xml_escape
+from androidutil import MAX_ICON_BYTES, launcher_icons, xml_escape
 
 MAIN_ACTIVITY = '''package @@PKG@@
 

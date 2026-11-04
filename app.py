@@ -25,7 +25,7 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
                    url_for)
 from werkzeug.exceptions import HTTPException
 
-from javaapp import MAX_ICON_BYTES
+from androidutil import MAX_ICON_BYTES
 from webapp import (DEFAULT_CSS_SOURCE, DEFAULT_JS_SOURCE, build_app_html,
                     validate_css, validate_js, web_project_files)
 
@@ -385,7 +385,7 @@ def home():
 
 @app.post("/api/preview")
 def api_preview():
-    """HTML សម្រាប់ផ្ទាំងមើល — ដូចគ្នាបេះបិទនឹង `Assets/www/index.html` ក្នុង APK។"""
+    """HTML សម្រាប់ផ្ទាំងមើល — ដូចគ្នាបេះបិទនឹង `app/src/main/assets/www/index.html` ក្នុង APK។"""
     data = request.get_json(silent=True) or {}
     title = str(data.get("title") or "App")[:48]
     try:
