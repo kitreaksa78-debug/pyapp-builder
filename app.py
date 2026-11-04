@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app **C# (.NET for Android)**។
+"""PyApp Builder — សាយសរសេរដោយ Python សម្រាប់បង្កើត APK ពី app **JavaScript**។
 
-អ្នកសរសេរ (ឬកែ) `MainActivity.cs` ក្នុងទំព័រ រួចចុច «Build APK»។
-ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions (.NET SDK + Android SDK)
-ព្រោះ hosting ឥតគិតថ្លៃមិនអាចដំឡើង .NET/Android SDK បានទេ។
+អ្នកសរសេរ UI ដោយ JavaScript + CSS ក្នុងទំព័រ (ផ្ទាំងមើល render ពីកូដផ្ទាល់)
+រួចចុច «Build APK»។ ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions
+(.NET WebView wrapper + Android SDK) ព្រោះ hosting ឥតគិតថ្លៃ build APK ខ្លួនឯងមិនបានទេ។
 """
 from __future__ import annotations
 
@@ -25,8 +25,10 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
                    url_for)
 from werkzeug.exceptions import HTTPException
 
-from csapp import DEFAULT_CS_SOURCE, cs_project_files, validate_cs_code
+from csapp import cs_project_files, validate_cs_code
 from javaapp import MAX_ICON_BYTES
+from webapp import (DEFAULT_CSS_SOURCE, DEFAULT_JS_SOURCE, build_app_html,
+                    validate_css, validate_js, web_project_files)
 
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
@@ -253,9 +255,10 @@ def gh() -> GitHub:
 
 # ---------------------------------------------------------------- job flow
 def files_from_form(form, uploads=None) -> tuple:
-    """(title, package, files) ពី form របស់ទំព័រដើម (បូក logo បើបាន upload)។"""
+    """(title, package, files) ពី form របស់ទំព័រដើម (JavaScript + logo បើបាន upload)។"""
     title, package = validate_common(form.get("title", ""), form.get("package", ""))
-    code = validate_cs_code(form.get("cs_code", ""))
+    js = validate_js(form.get("app_js", ""))
+    css = validate_css(form.get("app_css", ""))
     icon = None
     upload = uploads.get("icon") if uploads else None
     if upload is not None and (upload.filename or "").strip():
@@ -264,7 +267,7 @@ def files_from_form(form, uploads=None) -> tuple:
             icon = None
         elif len(icon) > MAX_ICON_BYTES:
             raise ValueError("រូប logo ធំពេក (អតិបរមា 5 MB)")
-    return title, package, cs_project_files(title, package, code, icon)
+    return title, package, web_project_files(title, package, js, css, icon)
 
 
 def create_job(title: str, package: str, files: dict) -> dict:
@@ -374,12 +377,29 @@ def dashboard():
 def home():
     return render_template(
         "index.html",
-        default_cs=DEFAULT_CS_SOURCE,
+        default_js=DEFAULT_JS_SOURCE,
+        default_css=DEFAULT_CSS_SOURCE,
         default_title="My App",
         default_package="org.pyapp.demo",
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
     )
+
+
+@app.post("/api/preview")
+def api_preview():
+    """HTML សម្រាប់ផ្ទាំងមើល — ដូចគ្នាបេះបិទនឹង `Assets/www/index.html` ក្នុង APK។"""
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title") or "App")[:48]
+    try:
+        js = validate_js(data.get("js", ""))
+        css = validate_css(data.get("css", ""))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    resp = make_response(build_app_html(title, js, css))
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.post("/build")

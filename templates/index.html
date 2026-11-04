@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PyApp Builder — សរសេរ C# បង្កើត APK</title>
+<title>PyApp Builder — សរសេរ JavaScript បង្កើត APK</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --line:#26303d; --fg:#e6edf3; --dim:#8b949e;
@@ -22,6 +22,7 @@
   input[type=text]{font-family:inherit}
   textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:420px;
        resize:vertical;line-height:1.5}
+  textarea.short{min-height:180px}
   .row{display:flex;gap:14px;flex-wrap:wrap}
   .row>div{flex:1 1 260px}
   .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
@@ -37,9 +38,15 @@
   ol{padding-left:20px;color:var(--dim);font-size:14px}
   ol b{color:var(--fg)}
   .flash{background:#3d1d1d;border:1px solid #6e2b28;color:#ffb4ae}
+  details.cssbox{margin-top:16px;border:1px solid var(--line);border-radius:10px;background:#0f141b}
+  details.cssbox summary{cursor:pointer;padding:11px 14px;font-size:13px;color:var(--dim);
+        list-style:none;display:flex;justify-content:space-between;align-items:center}
+  details.cssbox summary::-webkit-details-marker{display:none}
+  details.cssbox[open] summary{border-bottom:1px solid var(--line)}
+  details.cssbox .inner{padding:12px}
 
   /* ---- two columns ---- */
-  .layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
   @media (max-width:900px){ .layout{grid-template-columns:minmax(0,1fr)} }
 
   /* ---- live app preview ---- */
@@ -56,30 +63,23 @@
   .pbar .pico img{width:100%;height:100%;object-fit:cover}
   .pbar .ptitle{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;
                 text-overflow:ellipsis}
-  .pscreen{height:420px;background:#0b0f16;display:flex;flex-direction:column;
-           align-items:center;justify-content:center;text-align:center;padding:18px;position:relative;
-           overflow:hidden}
+  .pscreen{height:470px;background:#0b0f16;position:relative;overflow:hidden;border-radius:14px}
   .pscreen iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
-  .pscreen .mock{display:flex;flex-direction:column;align-items:center;gap:6px}
-  .pscreen .mock .mtitle{font-size:15px;font-weight:700}
-  .pscreen .mock .mpkg{font-size:11px;color:var(--dim);word-break:break-all}
-  .pscreen .mock .mbtn{margin-top:12px;background:var(--accent);color:#fff;border-radius:10px;
-                       padding:9px 18px;font-size:13px;font-weight:600}
+  .pscreen .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                  text-align:center;padding:18px;color:var(--dim);font-size:13px}
   .pnav{display:flex;justify-content:space-around;align-items:center;padding:8px 0 2px}
   .pnav .dot{width:6px;height:6px;border-radius:50%;background:#2b3542}
-  .pvurl{display:flex;gap:8px;margin-top:10px}
-  .pvurl input{flex:1;min-width:0}
-  .pvurl button{padding:0 14px;font-size:13px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>PyApp Builder</h1>
-  <p class="lead">សរសេរ app ដោយ <b>C#</b> (.NET for Android) ក្នុងប្រអប់ខាងក្រោម រួចចុច <b>Build APK</b> — ទទួលបាន file <code>.apk</code> ដំឡើងលើ Android។</p>
+  <p class="lead">សរសេរ app ដោយ <b>JavaScript</b> (+ CSS) ក្នុងប្រអប់ខាងក្រោម — ផ្ទាំងមើលខាងស្តាំ
+    បង្ហាញ <b>រូបរាង app ពិត</b> ចេញពីកូដនោះផ្ទាល់។ ពេលពេញចិត្ត ចុច <b>Build APK</b>។</p>
 
   {% if not gh_ready %}
   <div class="card flash">
-    <b>Server មិនទាន់កំណត់ GH_REPO / GH_TOKEN</b> — អ្នកនៅតែអាចសរសេរកូដ និង
+    <b>Server មិនទាន់កំណត់ GH_REPO / GH_TOKEN</b> — អ្នកនៅតែអាចសរសេរកូដ មើល preview និង
     <b>ទាញយក project ជា ZIP</b> ដើម្បី build ខ្លួនឯង។ ដើម្បីឲ្យសាយ build APK ដោយស្វ័យប្រវត្តិ
     ត្រូវដាក់ env <code>GH_REPO=owner/repo</code> និង <code>GH_TOKEN</code> (token មានសិទ្ធិ <code>repo</code> + <code>workflow</code>)។
   </div>
@@ -119,13 +119,21 @@
         </div>
 
         <div style="margin-top:16px">
-          <label>MainActivity.cs (សរសេរកូដ C# — កែបានសេរី)</label>
-          <textarea name="cs_code" id="codeInput" spellcheck="false">{{ default_cs }}</textarea>
+          <label>app.js (សរសេរកូដ JavaScript — កែបានសេរី)</label>
+          <textarea name="app_js" id="jsInput" spellcheck="false"
+                    placeholder="// UI របស់ app — បង្ហាញក្នុង #app">{{ default_js }}</textarea>
           <p class="note" style="margin:6px 0 0">
-            ត្រូវរក្សា <code>class MainActivity</code> — បើគ្មាន <code>[Activity(...)]</code> ទេ
-            server បន្ថែមឲ្យស្វ័យប្រវត្តិ។ Package បញ្ចូលពីប្រអប់ «Package name»។
+            កូដនេះរត់ក្នុង <code>&lt;div id="app"&gt;</code> ដូច browser ធម្មតា —
+            អាចប្រើ DOM, event, <code>innerHTML</code>… ផ្ទាំងមើលខាងស្តាំបង្ហាញលទ្ធផលភ្លាមៗ។
           </p>
         </div>
+
+        <details class="cssbox">
+          <summary><span>style.css (CSS — ជាជម្រើស)</span><span class="note">កែរចនាប័ទ្ម</span></summary>
+          <div class="inner">
+            <textarea name="app_css" id="cssInput" class="short" spellcheck="false">{{ default_css }}</textarea>
+          </div>
+        </details>
 
         <div class="btns">
           <button class="primary" type="submit">▶ Build APK</button>
@@ -141,19 +149,19 @@
       <div class="card">
         <b>របៀបប្រើ</b>
         <ol>
-          <li>សរសេរកូដ <b>C#</b> ក្នុងប្រអប់ <code>MainActivity.cs</code></li>
-          <li>ចុច <b>Build APK</b> → រង់ចាំ ~៤–៦ នាទី (.NET + Android SDK)</li>
-          <li>ចុច <b>ទាញយក APK</b> → ដំឡើងលើទូរស័ព្ទ (ត្រូវបើក «Install unknown apps»)</li>
+          <li>សរសេរកូដ <b>JavaScript</b> ក្នុង <code>app.js</code> (និង CSS បើចង់)</li>
+          <li>មើល <b>ផ្ទាំង app</b> ខាងស្តាំ — render ពីកូដផ្ទាល់ (កែហើយឃើញភ្លាម)</li>
+          <li>ចុច <b>Build APK</b> → រង់ចាំ ~២–៤ នាទី → ទាញយក APK ដំឡើងលើ Android</li>
         </ol>
-        <p class="note">app ប្រើ <code>Android.App.Activity</code> + <code>WebView</code> សង់ UI ដោយកូដ C#
-          — គ្មាន runtime .NET ត្រូវដំឡើងបន្ថែម ព្រោះ .NET ត្រូវបាន package ចូល APK ស្រាប់។</p>
+        <p class="note">APK វេចខ្ចប់ UI ជា <code>Assets/www/index.html</code> ហើយបើកដោយ WebView —
+          ដំណើរការ <b>offline</b> គ្មានត្រូវការ internet ឬ runtime បន្ថែម។</p>
       </div>
     </div>
 
     <aside class="pvcard">
       <div class="pvhead">
         <b>ផ្ទាំងមើល app</b>
-        <span class="pill">live</span>
+        <span class="pill ok" id="pvState">live</span>
       </div>
       <div class="phone">
         <div class="pstatus"><span id="pvClock">9:41</span><span>▮▮▮ ⌁</span></div>
@@ -161,15 +169,13 @@
           <span class="pico" id="pvIcon">A</span>
           <span class="ptitle" id="pvName">My App</span>
         </div>
-        <div class="pscreen" id="pvScreen"></div>
+        <div class="pscreen" id="pvScreen">
+          <div class="empty">កំពុង render app ពីកូដ…</div>
+        </div>
         <div class="pnav"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
       </div>
-      <div class="pvurl">
-        <input type="text" id="urlInput" placeholder="https://example.com (URL សម្រាប់មើល)" spellcheck="false">
-        <button class="ghost" type="button" id="urlApply">→ ដាក់ក្នុងកូដ</button>
-      </div>
       <p class="note" id="pvNote" style="margin:8px 0 0">
-        វាយ URL ដើម្បីមើលគេហទំព័រពិតក្នុងទូរស័ព្ទ។ បើទំនេរ ផ្ទាំងនេះបង្ហាញគំរូ app។
+        ផ្ទាំងនេះគឺ UI ពិតដែលរត់ចេញពីកូដរបស់អ្នក — ដូចគ្នានឹងក្នុង APK។
       </p>
     </aside>
   </div>
@@ -178,55 +184,102 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const iconInput = $('iconInput'), iconPreview = $('iconPreview'), iconClear = $('iconClear');
-  const titleInput = $('titleInput'), pkgInput = $('pkgInput'), codeInput = $('codeInput');
-  const urlInput = $('urlInput'), urlApply = $('urlApply');
-  const pvName = $('pvName'), pvIcon = $('pvIcon'), pvScreen = $('pvScreen'), pvNote = $('pvNote');
+  const titleInput = $('titleInput'), pkgInput = $('pkgInput');
+  const jsInput = $('jsInput'), cssInput = $('cssInput');
+  const pvName = $('pvName'), pvIcon = $('pvIcon'), pvScreen = $('pvScreen');
+  const pvNote = $('pvNote'), pvState = $('pvState');
 
   let iconUrl = '';
+  let seq = 0;
+  let timer = null;
+  let lastHtml = '';
 
-  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  const frame = document.createElement('iframe');
+  frame.title = 'app preview';
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups');
+  frame.setAttribute('referrerpolicy', 'no-referrer');
 
-  function normUrl(raw) {
-    let v = (raw || '').trim();
-    if (!v) return '';
-    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
-    try {
-      const u = new URL(v);
-      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
-    } catch (e) { return ''; }
+  function setNote(text, bad) {
+    pvNote.textContent = text;
+    pvNote.style.color = bad ? 'var(--bad)' : '';
   }
 
-  function renderPreview() {
-    const title = (titleInput && titleInput.value.trim()) || 'App របស់ខ្ញុំ';
-    const pkg = (pkgInput && pkgInput.value.trim()) || 'com.example.app';
-    pvName.textContent = title;
+  function setState(text, ok) {
+    pvState.textContent = text;
+    pvState.className = 'pill ' + (ok ? 'ok' : 'bad');
+  }
 
-    // icon (រូបដែល upload ឬអក្សរដំបូង)
+  function header() {
+    const title = (titleInput && titleInput.value.trim()) || 'App របស់ខ្ញុំ';
+    pvName.textContent = title;
     if (iconUrl) {
       pvIcon.innerHTML = '<img alt="" src="' + iconUrl + '">';
     } else {
       pvIcon.textContent = title.charAt(0).toUpperCase();
     }
+    return title;
+  }
 
-    const url = normUrl(urlInput && urlInput.value);
-    if (url) {
-      pvScreen.innerHTML = '<iframe title="app preview" src="' + esc(url) + '" ' +
-        'referrerpolicy="no-referrer" loading="lazy" ' +
-        'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>';
-      pvNote.innerHTML = 'កំពុងបង្ហាញ <code>' + esc(url) + '</code> — ' +
-        '<a href="' + esc(url) + '" target="_blank" rel="noopener">បើកក្នុង tab ថ្មី</a>' +
-        ' (បើទទេ គេហទំព័រនោះបិទ iframe)។';
-    } else {
-      pvScreen.innerHTML =
-        '<div class="mock">' +
-          '<div class="mtitle">' + esc(title) + '</div>' +
-          '<div class="mpkg">' + esc(pkg) + '</div>' +
-          '<div class="mbtn">បើក app</div>' +
-        '</div>';
-      pvNote.textContent = (urlInput && urlInput.value.trim())
-        ? 'URL មិនត្រឹមត្រូវ — ប្រើ http:// ឬ https://'
-        : 'វាយ URL ដើម្បីមើលគេហទំព័រពិតក្នុងទូរស័ព្ទ។ បើទំនេរ ផ្ទាំងនេះបង្ហាញគំរូ app។';
+  function syntaxError(code) {
+    try { new Function(code); return ''; }
+    catch (e) { return (e && e.message) || String(e); }
+  }
+
+  async function renderPreview() {
+    const title = header();
+    const js = jsInput ? jsInput.value : '';
+    const css = cssInput ? cssInput.value : '';
+
+    if (!js.trim()) {
+      pvScreen.innerHTML = '<div class="empty">សរសេរកូដ JavaScript ដើម្បីមើល app</div>';
+      setState('ទទេ', false);
+      setNote('ប្រអប់ app.js ទទេ — សរសេរ UI មួយយ៉ាងតិច។', true);
+      return;
     }
+    const bad = syntaxError(js);
+    if (bad) {
+      setState('កូដខុស', false);
+      setNote('JavaScript syntax error: ' + bad, true);
+      return;
+    }
+
+    const mine = ++seq;
+    setState('កំពុង render…', true);
+    try {
+      const res = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, js: js, css: css })
+      });
+      const text = await res.text();
+      if (mine !== seq) return;
+      if (!res.ok) {
+        let msg = 'Preview បរាជ័យ';
+        try { msg = JSON.parse(text).error || msg; } catch (e) {}
+        setState('កូដខុស', false);
+        setNote(msg, true);
+        return;
+      }
+      if (!frame.isConnected) {
+        pvScreen.innerHTML = '';
+        pvScreen.appendChild(frame);
+      }
+      if (text !== lastHtml) {
+        frame.srcdoc = text;
+        lastHtml = text;
+      }
+      setState('live', true);
+      setNote('ផ្ទាំងនេះគឺ UI ពិតដែលរត់ចេញពីកូដរបស់អ្នក — ដូចគ្នានឹងក្នុង APK។');
+    } catch (e) {
+      if (mine !== seq) return;
+      setState('ដាច់', false);
+      setNote('Preview: ' + ((e && e.message) || e), true);
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(renderPreview, 450);
   }
 
   // ---- icon ----
@@ -243,7 +296,7 @@
       iconPreview.src = iconUrl;
       iconPreview.style.display = 'block';
       iconClear.style.display = 'inline-block';
-      renderPreview();
+      header();
     });
 
     iconClear.addEventListener('click', function () {
@@ -252,41 +305,28 @@
       iconPreview.removeAttribute('src');
       iconPreview.style.display = 'none';
       iconClear.style.display = 'none';
-      renderPreview();
-    });
-  }
-
-  // ---- url → code ----
-  if (urlApply) {
-    urlApply.addEventListener('click', function () {
-      const url = normUrl(urlInput.value);
-      if (!url) { alert('URL មិនត្រឹមត្រូវ — ឧ. https://example.com'); return; }
-      const re = /HomeUrl\s*=\s*"[^"]*"/;
-      if (!re.test(codeInput.value)) {
-        alert('រកមិនឃើញ HomeUrl ក្នុងកូដ — សរសេរ URL ដោយខ្លួនឯងក្នុងកូដ');
-        return;
-      }
-      codeInput.value = codeInput.value.replace(re, 'HomeUrl = "' + url + '"');
-      urlInput.value = url;
-      renderPreview();
+      header();
     });
   }
 
   [titleInput, pkgInput].forEach(function (el) {
-    if (el) el.addEventListener('input', renderPreview);
+    if (el) el.addEventListener('input', schedule);
   });
-  if (urlInput) {
-    let t = null;
-    urlInput.addEventListener('input', function () {
-      clearTimeout(t);
-      t = setTimeout(renderPreview, 500);   // កុំ load iframe រាល់អក្សរ
-    });
-    urlInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); renderPreview(); }
+  [jsInput, cssInput].forEach(function (el) {
+    if (el) el.addEventListener('input', schedule);
+  });
+  if (jsInput) {
+    // Tab បញ្ចូល space ពីរ ជំនួសការចាកចេញពីប្រអប់
+    jsInput.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab' || e.shiftKey) return;
+      e.preventDefault();
+      const s = jsInput.selectionStart, t = jsInput.selectionEnd;
+      jsInput.value = jsInput.value.slice(0, s) + '  ' + jsInput.value.slice(t);
+      jsInput.selectionStart = jsInput.selectionEnd = s + 2;
+      schedule();
     });
   }
 
-  // ម៉ោងតូចក្នុង status bar
   const clock = $('pvClock');
   if (clock) {
     const d = new Date();
@@ -294,6 +334,7 @@
                         d.getMinutes().toString().padStart(2, '0');
   }
 
+  header();
   renderPreview();
 })();
 </script>

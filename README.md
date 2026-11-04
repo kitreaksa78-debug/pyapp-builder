@@ -1,11 +1,12 @@
 # PyApp Builder
 
-សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរកូដ **C#** ក្នុង browser
-រួចចុច **Build APK**។
+សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរ UI ដោយ **JavaScript + CSS**
+ក្នុង browser (ផ្ទាំងមើល render ពីកូដផ្ទាល់) រួចចុច **Build APK**។
 
 ## របៀបដំណើរការ
-1. សាយ Flask បង្កើត project **.NET for Android** (`net10.0-android`) ពីកូដ `MainActivity.cs`
-   រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API (មិនត្រូវការ `git` ក្នុង server)។
+1. សាយ Flask វេចខ្ចប់ UI (JavaScript + CSS) ជា `Assets/www/index.html` ក្នុង project
+   **.NET for Android** (`net10.0-android`) រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API
+   (មិនត្រូវការ `git` ក្នុង server)។
 2. Workflow [`.github/workflows/build-csharp-apk.yml`](.github/workflows/build-csharp-apk.yml) រត់លើ
    GitHub Actions៖ .NET 10 SDK + `android` workload + JDK 17 + Android SDK 36 + `dotnet publish` (~៤–៦ នាទី)។
 3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក។
@@ -14,14 +15,15 @@
 ## Project ដែលបង្កើត
 | ឯកសារ | តួនាទី |
 |---|---|
-| `MainActivity.cs` | កូដរបស់អ្នក (`class MainActivity`, `[Activity]` បង្កើត manifest entry) |
+| `Assets/www/index.html` | **app របស់អ្នក** — HTML ដែលបង្កើតពី `app.js` + `style.css` |
+| `MainActivity.cs` | WebView បើក `file:///android_asset/www/index.html` (offline) |
 | `App.csproj` | .NET 8 Android · ApplicationId · signing key ថេរ (`signing/debug.p12`) |
 | `AndroidManifest.xml` | permissions + `<application>` (activity បង្កើតដោយ `[Activity]`) |
 | `Resources/values/strings.xml` | ឈ្មោះ app |
 | `Resources/mipmap-*/ic_launcher.png` | icon គ្រប់ density (បើបាន upload logo) |
 
-> UI សង់ដោយកូដ C# (`Android.App.Activity`) — គ្មាន MAUI/Xamarin.Forms
-> ដូច្នេះ build លឿន ហើយ .NET runtime ត្រូវបាន package ចូល APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
+> UI សង់ដោយ **JavaScript** ក្នុង WebView — ដំណើរការ offline (asset ក្នុង APK)
+> ហើយ .NET runtime ត្រូវបាន package ចូល APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
 
 ## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
 ```bash
@@ -37,7 +39,8 @@ python app.py                 # http://localhost:8000
 ## API
 | Method | Path | ការងារ |
 |---|---|---|
-| GET | `/` | ទំព័រសរសេរកូដ C# + ផ្ទាំងមើល app + build APK |
+| GET | `/builder` | ទំព័រសរសេរកូដ JavaScript + ផ្ទាំងមើល app ពីកូដ + build APK |
+| POST | `/api/preview` | HTML សម្រាប់ផ្ទាំងមើល (ដូច asset ក្នុង APK) |
 | GET | `/nano?f=<file>` | និពន្ធកូដបែប nano (គ្រប់ភាសា) |
 | GET | `/api/files` | បញ្ជី file ដែលបានរក្សាទុក |
 | GET / POST | `/api/files/<name>` | អាន / រក្សាទុក file |
@@ -55,7 +58,7 @@ python app.py                 # http://localhost:8000
 
 ## AppForge dashboard (React SPA)
 - `/` → **AppForge** dashboard (បង្ហាញ preview + file tree + Monaco) — built assets នៅ `static/dashboard/`
-- `/builder` → form C# ដើម (សរសេរ `MainActivity.cs` ដោយដៃ + upload icon)
+- `/builder` → JS app builder (សរសេរ `app.js` + CSS, preview render ពីកូដ, upload icon)
 - `POST /api/build` (JSON: `title`, `package`, `cs_code`) → `{id, status_url, download_url}` — បៃតុង
   **Build Project** ក្នុង dashboard ហៅ endpoint នេះ រួច poll `/api/jobs/<id>` រហូត APK រួចរាល់
 - Source របស់ dashboard (React + Vite + Tailwind + Monaco) នៅ `appforge/` —

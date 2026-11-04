@@ -85,7 +85,7 @@
   <input id="pkg" placeholder="package (org.pyapp.demo)" value="org.pyapp.demo"
          style="background:#0b0f14;color:#d7e2ee;border:1px solid var(--line);
                 border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px">
-  <span style="color:#7d8b9a;font-size:12px">file .cs (C#) តែប៉ុណ្ណោះដែល build បាន</span>
+  <span style="color:#7d8b9a;font-size:12px">file JavaScript (.js) តែប៉ុណ្ណោះដែល build ជា app បាន</span>
 </div>
 
 <div class="editor">
@@ -207,7 +207,7 @@ function buildApk() {
   };
   add('title', document.getElementById('appTitle').value || 'My App');
   add('package', document.getElementById('pkg').value || 'org.pyapp.demo');
-  add('cs_code', area.value);
+  add('app_js', area.value);
   document.body.appendChild(form);
   form.submit();
 }
