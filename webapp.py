@@ -74,12 +74,16 @@ DEFAULT_CSS_SOURCE = '''/* style.css — រចនាប័ទ្ម app (CSS �
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+html { font-size: 17px; }
+
 html, body {
   margin: 0;
   height: 100%;
   background: var(--bg);
   color: var(--fg);
   font-family: system-ui, -apple-system, "Noto Sans Khmer", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.55;
 }
 
 #app { display: flex; flex-direction: column; min-height: 100%; }
@@ -90,11 +94,11 @@ html, body {
   padding: 22px 18px 26px;
   border-radius: 0 0 26px 26px;
 }
-.hero h1 { margin: 10px 0 4px; font-size: 24px; }
-.hero p { margin: 0; opacity: .9; font-size: 14px; }
+.hero h1 { margin: 10px 0 4px; font-size: 30px; }
+.hero p { margin: 0; opacity: .92; font-size: 16px; }
 .badge {
-  display: inline-block; font-size: 11px; font-weight: 700;
-  background: rgba(255,255,255,.22); padding: 4px 9px; border-radius: 999px;
+  display: inline-block; font-size: 12px; font-weight: 700;
+  background: rgba(255,255,255,.22); padding: 5px 11px; border-radius: 999px;
 }
 
 .body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -106,9 +110,9 @@ html, body {
   padding: 16px;
   box-shadow: 0 6px 18px rgba(19,26,38,.05);
 }
-.card h2 { margin: 0 0 8px; font-size: 15px; }
-.card p { margin: 0 0 12px; color: var(--dim); font-size: 14px; }
-.card p b { color: var(--accent); font-size: 16px; }
+.card h2 { margin: 0 0 8px; font-size: 19px; }
+.card p { margin: 0 0 12px; color: var(--dim); font-size: 16px; }
+.card p b { color: var(--accent); font-size: 20px; }
 
 .btn {
   width: 100%;
@@ -116,13 +120,13 @@ html, body {
   border-radius: 12px;
   background: var(--accent);
   color: #fff;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
-  padding: 13px 16px;
+  padding: 15px 16px;
 }
 .btn:active { transform: scale(.985); }
 
-.list { margin: 0; padding-left: 20px; color: var(--fg); font-size: 14px; }
+.list { margin: 0; padding-left: 20px; color: var(--fg); font-size: 16px; }
 .list li { margin: 6px 0; }
 
 .tabs {
@@ -130,8 +134,8 @@ html, body {
   justify-content: space-around;
   border-top: 1px solid var(--line);
   background: var(--card);
-  padding: 12px 0;
-  font-size: 13px;
+  padding: 13px 0;
+  font-size: 15px;
   color: var(--dim);
 }
 .tabs .on { color: var(--accent); font-weight: 700; }
