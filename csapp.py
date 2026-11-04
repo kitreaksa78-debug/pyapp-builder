@@ -207,7 +207,7 @@ README = '''# @@TITLE@@ (C# · .NET for Android)
 App Android native បង្កើតដោយ PyApp Builder — សរសេរដោយ **C#**។
 
 - package: `@@PKG@@`
-- minSdk 21 · targetSdk 34 (net8.0-android)
+- minSdk 21 · targetSdk 36 (net10.0-android)
 - កូដ app៖ `MainActivity.cs` (class `MainActivity`, `[Activity]` attribute បង្កើត manifest entry)
 
 ## Build APK ដោយខ្លួនឯង
