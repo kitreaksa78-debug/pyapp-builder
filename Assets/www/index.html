@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>JS Demo</title>
+<style>*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+#app{min-height:100%}
+#js-error{
+  position:fixed;inset:auto 12px 12px 12px;z-index:9999;
+  background:#2b1013;color:#ffd7d2;border:1px solid #ff6b5e;border-radius:12px;
+  padding:12px 14px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;
+  max-height:55%;overflow:auto;display:none;
+}
+body{margin:0</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="js-error"></div>
+<script>
+(function () {
+  var box = document.getElementById('js-error');
+  function show(msg) {
+    box.style.display = 'block';
+    box.textContent = 'JavaScript error:\n' + msg;
+  }
+  window.addEventListener('error', function (e) {
+    show((e.message || 'unknown error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    show(String(e.reason && e.reason.message || e.reason || 'promise rejected'));
+  });
+})();
+</script>
+<script>
+try {
+const app = document.getElementById('app')
+} catch (err) {
+  var b = document.getElementById('js-error');
+  b.style.display = 'block';
+  b.textContent = 'JavaScript error:\n' + (err && err.message || err);
+}
+</script>
+</body>
+</html>
