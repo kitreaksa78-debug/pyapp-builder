@@ -52,3 +52,11 @@ python app.py                 # http://localhost:8000
 ## សុវត្ថិភាព
 - `GH_TOKEN` ជា secret របស់ server — កុំដាក់ក្នុង code ឬ commit។
 - កូដរបស់អ្នក build ក្នុង GitHub Actions និងរត់តែលើទូរស័ព្ទរបស់អ្នក។
+
+## AppForge dashboard (React SPA)
+- `/` → **AppForge** dashboard (បង្ហាញ preview + file tree + Monaco) — built assets នៅ `static/dashboard/`
+- `/builder` → form C# ដើម (សរសេរ `MainActivity.cs` ដោយដៃ + upload icon)
+- `POST /api/build` (JSON: `title`, `package`, `cs_code`) → `{id, status_url, download_url}` — បៃតុង
+  **Build Project** ក្នុង dashboard ហៅ endpoint នេះ រួច poll `/api/jobs/<id>` រហូត APK រួចរាល់
+- Source របស់ dashboard (React + Vite + Tailwind + Monaco) នៅ `appforge/` —
+  rebuild: `cd appforge && npm install && npm run build && cp -r dist/. ../pyapp-builder/static/dashboard/`

@@ -20,8 +20,9 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import (Flask, abort, jsonify, redirect, render_template, request,
-                   send_file, url_for)
+from flask import (Flask, abort, jsonify, make_response, redirect,
+                   render_template, request, send_file, send_from_directory,
+                   url_for)
 from werkzeug.exceptions import HTTPException
 
 from csapp import DEFAULT_CS_SOURCE, cs_project_files, validate_cs_code
@@ -32,6 +33,7 @@ JOBS = ROOT / "jobs"
 JOBS.mkdir(exist_ok=True)
 FILES = ROOT / "files"
 FILES.mkdir(exist_ok=True)
+SPA_DIR = ROOT / "static" / "dashboard"
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
@@ -359,6 +361,16 @@ def refresh_job(meta: dict) -> dict:
 
 # ---------------------------------------------------------------- routes
 @app.get("/")
+def dashboard():
+    """AppForge dashboard (React SPA build) — បើគ្មាន build ទេ ត្រឡប់ទៅ form ចាស់។"""
+    if not (SPA_DIR / "index.html").is_file():
+        return redirect(url_for("home"))
+    resp = make_response(send_from_directory(SPA_DIR, "index.html"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.get("/builder")
 def home():
     return render_template(
         "index.html",
@@ -375,6 +387,27 @@ def build():
     title, package, files = files_from_form(request.form, request.files)
     meta = create_job(title, package, files)
     return redirect(url_for("job_page", job_id=meta["id"]))
+
+
+@app.post("/api/build")
+def api_build():
+    """JSON build endpoint សម្រាប់ dashboard (AppForge) — ត្រឡប់ job id + link។"""
+    data = request.get_json(silent=True) or {}
+    try:
+        title, package = validate_common(data.get("title", ""), data.get("package", ""))
+        code = validate_cs_code(data.get("cs_code", ""))
+        meta = create_job(title, package, cs_project_files(title, package, code))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({
+        "id": meta["id"],
+        "status": meta["status"],
+        "error": meta["error"],
+        "title": meta["title"],
+        "job_url": url_for("job_page", job_id=meta["id"]),
+        "status_url": url_for("job_status", job_id=meta["id"]),
+        "download_url": url_for("download", job_id=meta["id"]),
+    }), 201
 
 
 @app.get("/nano")

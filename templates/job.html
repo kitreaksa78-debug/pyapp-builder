@@ -81,7 +81,7 @@
       <a class="btn primary" href="{{ job.apk_url or ('/dl/' ~ job.id) }}">⬇ ទាញយក APK</a>
       {% endif %}
       {% if job.run_url %}<a class="btn ghost" href="{{ job.run_url }}" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>{% endif %}
-      <a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>
+      <a class="btn ghost" href="/builder">← ត្រឡប់ទៅកែកូដ</a>
     </div>
     <p class="meta">% គណនាពីជំហានពិតរបស់ GitHub Actions។ Build ≈ ៤–៦ នាទី។</p>
   </div>
@@ -124,7 +124,7 @@ async function tick(){
       fillEl.classList.add('ok');
       let html = '<a class="btn primary" href="' + esc(j.apk_url || ('/dl/' + jobId)) + '">⬇ ទាញយក APK</a>';
       if (j.run_url) html += '<a class="btn ghost" href="' + esc(j.run_url) + '" target="_blank" rel="noopener">មើល log ក្នុង GitHub</a>';
-      html += '<a class="btn ghost" href="/">← ត្រឡប់ទៅកែកូដ</a>';
+      html += '<a class="btn ghost" href="/builder">← ត្រឡប់ទៅកែកូដ</a>';
       actions.innerHTML = html;
       return;
     }
