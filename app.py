@@ -372,7 +372,7 @@ def dashboard():
 
 @app.get("/builder")
 def home():
-    return render_template(
+    resp = make_response(render_template(
         "index.html",
         default_js=DEFAULT_JS_SOURCE,
         default_css=DEFAULT_CSS_SOURCE,
@@ -380,7 +380,10 @@ def home():
         default_package="org.pyapp.demo",
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
-    )
+    ))
+    # កុំឲ្យ browser cache ទំព័រចាស់ — កូដ builder ផ្លាស់ប្តូរញឹកញាប់
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.post("/api/preview")
