@@ -2,15 +2,15 @@
 """បង្កើត app Android ពី **JavaScript + CSS**។
 
 អ្នកប្រើសរសេរ UI ដោយ JavaScript (DOM ធម្មតា) — server វេចខ្ចប់វាជា
-`Assets/www/index.html` ហើយ MainActivity (C# WebView) បើក file នោះ
-ដោយផ្ទាល់ (offline, គ្មាន internet)។ ផ្ទាំង preview ក្នុងសាយប្រើ
-HTML ដូចគ្នាបេះបិទ ⇒ អ្វីដែលឃើញគឺជា app ពិត។
+`app/src/main/assets/www/index.html` ហើយ MainActivity.kt (Kotlin WebView)
+បើក file នោះដោយផ្ទាល់ (offline, គ្មាន internet)។ ផ្ទាំង preview ក្នុងសាយ
+ប្រើ HTML ដូចគ្នាបេះបិទ ⇒ អ្វីដែលឃើញគឺជា app ពិត។
 """
 from __future__ import annotations
 
 from javaapp import launcher_icons, xml_escape
 
-from csapp import (CSPROJ, GITIGNORE, MANIFEST, STRINGS)
+from kotlinapp import kotlin_project_files
 
 MAX_JS = 120_000
 MAX_CSS = 60_000
@@ -183,7 +183,7 @@ def _style_safe(code: str) -> str:
 
 
 def build_app_html(title: str, js: str, css: str = "", dark: bool = False) -> str:
-    """HTML តែមួយ — ប្រើទាំងផ្ទាំង preview និង `Assets/www/index.html` ក្នុង APK។"""
+    """HTML តែមួយ — ប្រើទាំងផ្ទាំង preview និង `app/src/main/assets/www/index.html` ក្នុង APK។"""
     safe_title = xml_escape(title or "App")
     error_hook = '''<div id="js-error"></div>
 <script>
@@ -219,112 +219,9 @@ def build_app_html(title: str, js: str, css: str = "", dark: bool = False) -> st
     )
 
 
-WEB_ACTIVITY = '''using Android.App;
-using Android.Graphics;
-using Android.OS;
-using Android.Views;
-using Android.Webkit;
-
-namespace PyApp
-{
-    /// <summary>
-    /// App Android សាងសង់ដោយ JavaScript — WebView បើក UI ក្នុង
-    /// Assets/www/index.html (offline, មិនត្រូវការ internet)។
-    /// </summary>
-    [Activity(Label = "@string/app_name", MainLauncher = true, Exported = true,
-              Theme = "@android:style/Theme.DeviceDefault.Light.NoActionBar")]
-    public class MainActivity : Activity
-    {
-        private WebView _web;
-
-        protected override void OnCreate(Bundle savedInstanceState)
-        {
-            base.OnCreate(savedInstanceState);
-
-            var bar = Window;                       // status bar ច្បាស់លើ app ភ្លឺ
-            bar.SetStatusBarColor(Color.ParseColor("#FFFFFF"));
-            bar.SetNavigationBarColor(Color.ParseColor("#FFFFFF"));
-
-            _web = new WebView(this);
-            WebSettings settings = _web.Settings;
-            settings.JavaScriptEnabled = true;
-            settings.DomStorageEnabled = true;
-            settings.AllowFileAccess = true;
-            settings.SetSupportZoom(false);
-            settings.BuiltInZoomControls = false;
-            settings.MediaPlaybackRequiresUserGesture = false;
-
-            _web.SetWebViewClient(new WebViewClient());
-            _web.SetWebChromeClient(new WebChromeClient());
-            _web.LoadUrl("file:///android_asset/www/index.html");
-
-            SetContentView(_web);
-        }
-
-        public override void OnBackPressed()
-        {
-            if (_web != null && _web.CanGoBack())
-            {
-                _web.GoBack();
-                return;
-            }
-            base.OnBackPressed();
-        }
-    }
-}
-'''
-
-WEB_README = '''# @@TITLE@@ (JavaScript · WebView)
-
-App Android បង្កើតដោយ PyApp Builder — UI សរសេរដោយ **JavaScript + CSS**។
-
-- package: `@@PKG@@`
-- UI៖ `Assets/www/index.html` (បង្កើតដោយស្វ័យប្រវត្តិពី `app.js` + `style.css`)
-- `MainActivity.cs`៖ WebView បើក `file:///android_asset/www/index.html` — offline
-
-## កែ UI
-
-កែកូដ JavaScript/CSS ក្នុងទំព័រ builder ហើយ Build ម្តងទៀត។
-
-## Build APK ដោយខ្លួនឯង
-
-```bash
-dotnet workload install android
-dotnet publish -f net10.0-android -c Release -p:AndroidPackageFormat=apk
-# APK: bin/Release/net10.0-android/publish/*-Signed.apk
-```
-'''
-
-
 def web_project_files(title: str, package: str, js: str, css: str = "",
                       icon: bytes | None = None,
                       version: str = "1.0", build: str = "1") -> dict:
-    """Project .NET Android ដែលដាក់ JavaScript app ជា asset ក្នុង APK។"""
-    package = package.strip()
-    js = validate_js(js)
-    css = validate_css(css)
-    icons = launcher_icons(icon) if icon else {}
-
-    icon_attr = ""
-    if icons:
-        icon_attr = ('        android:icon="@mipmap/ic_launcher"\n'
-                     '        android:roundIcon="@mipmap/ic_launcher_round"\n')
-
-    files = {
-        "App.csproj": (CSPROJ.replace("@@PKG@@", package)
-                       .replace("@@VERSION@@", xml_escape(version))
-                       .replace("@@BUILD@@", str(build))),
-        "AndroidManifest.xml": (MANIFEST.replace("@@PKG@@", package)
-                                .replace("@@ICON@@", icon_attr)),
-        "MainActivity.cs": WEB_ACTIVITY,
-        "Assets/www/index.html": build_app_html(title, js, css),
-        "Assets/www/app.js": js,
-        "Assets/www/style.css": css,
-        "Resources/values/strings.xml": STRINGS.replace("@@TITLE@@", xml_escape(title)),
-        ".gitignore": GITIGNORE,
-        "README.md": (WEB_README.replace("@@TITLE@@", title)
-                      .replace("@@PKG@@", package)),
-    }
-    for path, blob in icons.items():
-        files[path.replace("app/src/main/res/", "Resources/")] = blob
-    return files
+    """Project Kotlin ដែលដាក់ JavaScript app ជា asset ក្នុង APK។"""
+    return kotlin_project_files(title, package, js, css, icon=icon,
+                                version=version, build=build)

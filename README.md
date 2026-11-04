@@ -4,31 +4,32 @@
 ក្នុង browser (ផ្ទាំងមើល render ពីកូដផ្ទាល់) រួចចុច **Build APK**។
 
 ## របៀបដំណើរការ
-1. សាយ Flask វេចខ្ចប់ UI (JavaScript + CSS) ជា `Assets/www/index.html` ក្នុង project
-   **.NET for Android** (`net10.0-android`) រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API
+1. សាយ Flask វេចខ្ចប់ UI (JavaScript + CSS) ជា `app/src/main/assets/www/index.html` ក្នុង project
+   **Kotlin + Gradle** រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API
    (មិនត្រូវការ `git` ក្នុង server)។
-2. Workflow [`.github/workflows/build-csharp-apk.yml`](.github/workflows/build-csharp-apk.yml) រត់លើ
-   GitHub Actions៖ .NET 10 SDK + `android` workload + JDK 17 + Android SDK 36 + `dotnet publish` (~៤–៦ នាទី)។
+2. Workflow [`.github/workflows/build-kotlin-apk.yml`](.github/workflows/build-kotlin-apk.yml) រត់លើ
+   GitHub Actions៖ JDK 17 + Android SDK 34 + Gradle 8.7 + Kotlin 1.9 + `gradle assembleDebug` (~៣–៥ នាទី)។
 3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក។
 4. ទំព័រ job បង្ហាញ **% ពិតប្រាកដ** គណនាពីជំហានរបស់ GitHub (`conclusion` + `started_at`)។
 
 ## Project ដែលបង្កើត
 | ឯកសារ | តួនាទី |
 |---|---|
-| `Assets/www/index.html` | **app របស់អ្នក** — HTML ដែលបង្កើតពី `app.js` + `style.css` |
-| `MainActivity.cs` | WebView បើក `file:///android_asset/www/index.html` (offline) |
-| `App.csproj` | .NET 8 Android · ApplicationId · signing key ថេរ (`signing/debug.p12`) |
-| `AndroidManifest.xml` | permissions + `<application>` (activity បង្កើតដោយ `[Activity]`) |
-| `Resources/values/strings.xml` | ឈ្មោះ app |
-| `Resources/mipmap-*/ic_launcher.png` | icon គ្រប់ density (បើបាន upload logo) |
+| `app/src/main/assets/www/index.html` | **app របស់អ្នក** — HTML ដែលបង្កើតពី `app.js` + `style.css` |
+| `app/src/main/java/<pkg>/MainActivity.kt` | WebView (Kotlin) បើក `file:///android_asset/www/index.html` (offline) |
+| `app/build.gradle.kts` | AGP 8.5 · Kotlin 1.9 · applicationId · signing key ថេរ (`signing/debug.p12`) |
+| `build.gradle.kts`, `settings.gradle.kts` | Gradle project + plugin repositories |
+| `app/src/main/AndroidManifest.xml` | permissions + `<activity .MainActivity>` (LAUNCHER) |
+| `app/src/main/res/values/strings.xml` | ឈ្មោះ app |
+| `app/src/main/res/mipmap-*/ic_launcher.png` | icon គ្រប់ density (បើបាន upload logo) |
 
-> UI សង់ដោយ **JavaScript** ក្នុង WebView — ដំណើរការ offline (asset ក្នុង APK)
-> ហើយ .NET runtime ត្រូវបាន package ចូល APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
+> UI សង់ដោយ **JavaScript** ក្នុង WebView — ដំណើរការ offline (asset ក្នុង APK)។
+> Kotlin compiler បញ្ចូល runtime ទៅ APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
 
 ## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
 ```bash
 pip install -r requirements.txt
-export GH_REPO=owner/repo     # repo មាន .github/workflows/build-csharp-apk.yml
+export GH_REPO=owner/repo     # repo មាន .github/workflows/build-kotlin-apk.yml
 export GH_TOKEN=ghp_xxx       # token មានសិទ្ធិ repo + workflow
 python app.py                 # http://localhost:8000
 ```
@@ -57,9 +58,9 @@ python app.py                 # http://localhost:8000
 - កូដរបស់អ្នក build ក្នុង GitHub Actions និងរត់តែលើទូរស័ព្ទរបស់អ្នក។
 
 ## AppForge dashboard (React SPA)
-- `/` → **AppForge** dashboard (បង្ហាញ preview + file tree + Monaco) — built assets នៅ `static/dashboard/`
+- `/` → **AppForge** dashboard (preview + file tree + Monaco) — built assets នៅ `static/dashboard/`
 - `/builder` → JS app builder (សរសេរ `app.js` + CSS, preview render ពីកូដ, upload icon)
-- `POST /api/build` (JSON: `title`, `package`, `cs_code`) → `{id, status_url, download_url}` — បៃតុង
+- `POST /api/build` (JSON: `title`, `package`, `app_js`, `app_css`) → `{id, status_url, download_url}` — ប៊ូតុង
   **Build Project** ក្នុង dashboard ហៅ endpoint នេះ រួច poll `/api/jobs/<id>` រហូត APK រួចរាល់
 - Source របស់ dashboard (React + Vite + Tailwind + Monaco) នៅ `appforge/` —
   rebuild: `cd appforge && npm install && npm run build && cp -r dist/. ../pyapp-builder/static/dashboard/`

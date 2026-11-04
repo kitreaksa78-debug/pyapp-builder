@@ -3,7 +3,7 @@
 
 អ្នកសរសេរ UI ដោយ JavaScript + CSS ក្នុងទំព័រ (ផ្ទាំងមើល render ពីកូដផ្ទាល់)
 រួចចុច «Build APK»។ ការ build ពិតប្រាកដធ្វើឡើងដោយ GitHub Actions
-(.NET WebView wrapper + Android SDK) ព្រោះ hosting ឥតគិតថ្លៃ build APK ខ្លួនឯងមិនបានទេ។
+(Kotlin WebView wrapper + Android SDK) ព្រោះ hosting ឥតគិតថ្លៃ build APK ខ្លួនឯងមិនបានទេ។
 """
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
                    url_for)
 from werkzeug.exceptions import HTTPException
 
-from csapp import cs_project_files, validate_cs_code
 from javaapp import MAX_ICON_BYTES
 from webapp import (DEFAULT_CSS_SOURCE, DEFAULT_JS_SOURCE, build_app_html,
                     validate_css, validate_js, web_project_files)
@@ -39,8 +38,8 @@ SPA_DIR = ROOT / "static" / "dashboard"
 
 GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
-GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-csharp-apk.yml")
-               or "build-csharp-apk.yml").strip()
+GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-kotlin-apk.yml")
+               or "build-kotlin-apk.yml").strip()
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 
 # អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
@@ -102,12 +101,11 @@ def save_job(meta: dict) -> None:
 STEP_SECONDS = {
     "Set up job": 5,
     "Checkout": 6,
-    "Set up .NET 10": 18,
     "Set up JDK 17": 14,
-    "Install Android workload": 75,
     "Android SDK": 30,
+    "Set up Gradle": 20,
     "Signature key": 4,
-    "Build APK (C#)": 150,
+    "Build APK (Kotlin)": 130,
     "Collect APK": 4,
     "Upload artifact": 8,
     "Publish release": 9,
@@ -115,12 +113,11 @@ STEP_SECONDS = {
 STEP_KH = {
     "Set up job": "រៀបចំ runner",
     "Checkout": "ទាញកូដ",
-    "Set up .NET 10": "ដំឡើង .NET 10 SDK",
     "Set up JDK 17": "ដំឡើង JDK 17",
-    "Install Android workload": "ដំឡើង .NET Android workload",
     "Android SDK": "ដំឡើង Android SDK",
+    "Set up Gradle": "ដំឡើង Gradle",
     "Signature key": "ពិនិត្យ key សម្រាប់ sign",
-    "Build APK (C#)": "Build APK (compile C# → Android)",
+    "Build APK (Kotlin)": "Build APK (compile Kotlin → Android)",
     "Collect APK": "ប្រមូល APK",
     "Upload artifact": "ផ្ទុកឡើង artifact",
     "Publish release": "បង្កើត release",
@@ -421,17 +418,12 @@ def api_build():
         build_no = str(data.get("build") or "").strip()
         if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
             build_no = "1"
-        # dashboard បញ្ជូន JavaScript (engine តែមួយនឹង /builder); C# នៅរក្សាសម្រាប់ client ចាស់
-        if not (str(data.get("app_js") or "").strip()
-                or str(data.get("cs_code") or "").strip()):
+        # UI ជា JavaScript (engine តែមួយនឹង /builder) — វេចខ្ចប់ដោយ WebView Kotlin
+        if not str(data.get("app_js") or "").strip():
             raise ValueError("កូដ app ទទួល — សរសេរ app_js (JavaScript)")
-        if str(data.get("app_js") or "").strip():
-            files = web_project_files(title, package, validate_js(data.get("app_js")),
-                                      validate_css(data.get("app_css") or ""),
-                                      version=version, build=build_no)
-        else:
-            code = validate_cs_code(data.get("cs_code", ""))
-            files = cs_project_files(title, package, code, version=version, build=build_no)
+        files = web_project_files(title, package, validate_js(data.get("app_js")),
+                                  validate_css(data.get("app_css") or ""),
+                                  version=version, build=build_no)
         meta = create_job(title, package, files)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
