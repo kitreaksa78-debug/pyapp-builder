@@ -1,0 +1,1 @@
+document.getElementById('app').innerHTML='<h2 style="font-family:sans-serif">Icon OK</h2>';
