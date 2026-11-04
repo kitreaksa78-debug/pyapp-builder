@@ -396,7 +396,14 @@ def api_build():
     try:
         title, package = validate_common(data.get("title", ""), data.get("package", ""))
         code = validate_cs_code(data.get("cs_code", ""))
-        meta = create_job(title, package, cs_project_files(title, package, code))
+        version = str(data.get("version") or "").strip()
+        if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
+            version = "1.0"
+        build_no = str(data.get("build") or "").strip()
+        if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
+            build_no = "1"
+        meta = create_job(title, package, cs_project_files(
+            title, package, code, version=version, build=build_no))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({
