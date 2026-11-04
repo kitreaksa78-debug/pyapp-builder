@@ -131,12 +131,14 @@
         </div>
 
         <div style="margin-top:16px">
-          <label>app.js (សរសេរកូដ JavaScript — កែបានសេរី)</label>
+          <label>app.js — UI របស់ app (JavaScript)</label>
           <textarea name="app_js" id="jsInput" spellcheck="false"
                     placeholder="// UI របស់ app — បង្ហាញក្នុង #app">{{ default_js }}</textarea>
           <p class="note" style="margin:6px 0 0">
-            កូដនេះរត់ក្នុង <code>&lt;div id="app"&gt;</code> ដូច browser ធម្មតា —
-            អាចប្រើ DOM, event, <code>innerHTML</code>… ផ្ទាំងមើលខាងស្តាំបង្ហាញលទ្ធផលភ្លាមៗ។
+            កូដនេះក្លាយជា <code>app/src/main/assets/www/app.js</code> ក្នុង APK ហើយរត់ក្នុង
+            <code>&lt;div id="app"&gt;</code> ដូច browser ធម្មតា — អាចប្រើ DOM, event,
+            <code>innerHTML</code>… ផ្ទាំងមើលខាងស្តាំបង្ហាញលទ្ធផលភ្លាមៗ។
+            កូដត្រូវរក្សាទុកក្នុង browser ស្វ័យប្រវត្តិ (refresh មិនបាត់)។
           </p>
         </div>
 
@@ -150,6 +152,7 @@
         <div class="btns">
           <button class="primary" type="submit">▶ Build APK</button>
           <button class="ghost" type="submit" formaction="/project.zip" formnovalidate>⬇ ទាញយក project (ZIP)</button>
+          <button class="ghost" type="button" id="draftClear">↺ លុបសេចក្តីព្រាង</button>
         </div>
         <p class="note" style="margin-bottom:0">
           ស្ថានភាព build៖
@@ -294,8 +297,48 @@
   }
 
   function schedule() {
+    saveDraft();
     clearTimeout(timer);
     timer = setTimeout(renderPreview, 450);
+  }
+
+  // ---- រក្សាទុកសេចក្តីព្រាងក្នុង browser (refresh មិនបាត់កូដ) ----
+  const DRAFT_KEY = 'pyapp:draft:v1';
+  function saveDraft() {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        title: titleInput ? titleInput.value : '',
+        pkg: pkgInput ? pkgInput.value : '',
+        js: jsInput ? jsInput.value : '',
+        css: cssInput ? cssInput.value : ''
+      }));
+    } catch (e) {}
+  }
+
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d || typeof d.js !== 'string' || !d.js.trim()) return;
+      if (titleInput && d.title) titleInput.value = d.title;
+      if (pkgInput && d.pkg) pkgInput.value = d.pkg;
+      if (jsInput) jsInput.value = d.js;
+      if (cssInput && typeof d.css === 'string') cssInput.value = d.css;
+      setNote('បានស្តារកូដពីការរក្សាទុកក្នុង browser (ចុច «↺ លុបសេចក្តីព្រាង» ដើម្បីចាប់ផ្តើមឡើងវិញ)។');
+    } catch (e) {}
+  }
+
+  const draftClear = $('draftClear');
+  if (draftClear) {
+    draftClear.addEventListener('click', function () {
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+      if (jsInput) jsInput.value = jsInput.defaultValue;
+      if (cssInput) cssInput.value = cssInput.defaultValue;
+      header();
+      renderPreview();
+      setNote('បានលុបសេចក្តីព្រាង — ត្រឡប់ទៅកូដគំរូដើម។');
+    });
   }
 
   // ---- icon ----
@@ -365,6 +408,7 @@
                         d.getMinutes().toString().padStart(2, '0');
   }
 
+  loadDraft();
   header();
   renderPreview();
 })();
