@@ -1,7 +1,4 @@
-__pycache__/
-*.pyc
-jobs/
-venv/
-.env
-files/
-.test/
+bin/
+obj/
+*.user
+.vs/
