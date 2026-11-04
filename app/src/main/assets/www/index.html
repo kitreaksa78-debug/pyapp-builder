@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>My App</title>
+<style>*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+#app{min-height:100%}
+#js-error{
+  position:fixed;inset:auto 12px 12px 12px;z-index:9999;
+  background:#2b1013;color:#ffd7d2;border:1px solid #ff6b5e;border-radius:12px;
+  padding:12px 14px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;
+  max-height:55%;overflow:auto;display:none;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #f3f6fc;
+  --card: #ffffff;
+  --text: #17243b;
+  --muted: #8491a7;
+  --blue: #3768ed;
+  --line: #e8edf5;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: .3s;
+}
+
+body.dark {
+  --bg: #101827;
+  --card: #1c293b;
+  --text: #f1f5ff;
+  --muted: #a0aec3;
+  --line: #344155;
+}
+
+#app {
+  min-height: 100vh;
+  padding-bottom: 85px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  background: var(--card);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: #e7edff;
+  border-radius: 15px;
+  font-size: 25px;
+}
+
+.brand h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+small {
+  color: var(--muted);
+}
+
+.theme {
+  border: 0;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 20px;
+}
+
+.content {
+  padding: 20px 17px;
+}
+
+.welcome {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: 27px;
+  margin: 5px 0;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status {
+  margin: 25px 0;
+  padding: 25px 18px;
+  text-align: center;
+  border-radius: 22px;
+  color: white;
+  background: linear-gradient(135deg, #2458d9, #668bff);
+  box-shadow: 0 12px 25px #3768ed35;
+}
+
+.shield {
+  font-size: 48px;
+}
+
+.status h2 {
+  font-size: 19px;
+}
+
+.status p {
+  font-size: 13px;
+  opacity: .85;
+}
+
+.online {
+  display: inline-block;
+  background: #ffffff25;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-size: 11px;
+}
+
+h3 {
+  font-size: 17px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+}
+
+.action {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 18px 12px;
+  border-radius: 17px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.action:active {
+  transform: scale(.97);
+}
+
+.action span {
+  font-size: 29px;
+}
+
+.action b {
+  font-size: 14px;
+}
+
+.action small {
+  font-size: 11px;
+}
+
+.card {
+  margin-top: 17px;
+  padding: 17px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 17px;
+}
+
+.card p {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.green {
+  color: #16a36a;
+}
+
+.bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 5px;
+}
+
+.bottom span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.bottom small {
+  font-size: 10px;
+}
+
+.bottom .selected {
+  color: var(--blue);
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="js-error"></div>
+<script>
+(function () {
+  var box = document.getElementById('js-error');
+  function show(msg) {
+    box.style.display = 'block';
+    box.textContent = 'JavaScript error:\n' + msg;
+  }
+  window.addEventListener('error', function (e) {
+    show((e.message || 'unknown error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    show(String(e.reason && e.reason.message || e.reason || 'promise rejected'));
+  });
+})();
+</script>
+<script>
+try {
+
+const app = document.getElementById('app');
+
+app.innerHTML = `
+  <header class="top">
+    <div class="brand">
+      <div class="logo">🛡️</div>
+      <div>
+        <h2>SecureGuard</h2>
+        <small>Mobile Security Center</small>
+      </div>
+    </div>
+    <button class="theme" id="theme">☾</button>
+  </header>
+
+  <main class="content">
+    <p class="welcome">សួស្តី! 👋</p>
+    <h1>Security Dashboard</h1>
+    <p class="muted">គ្រប់គ្រងសុវត្ថិភាពឧបករណ៍របស់អ្នក</p>
+
+    <section class="status">
+      <div class="shield">🛡️</div>
+      <h2 id="status">Your Device is Protected</h2>
+      <p>ប្រព័ន្ធត្រួតពិនិត្យរួចរាល់</p>
+      <span class="online">● SYSTEM READY</span>
+    </section>
+
+    <h3>Quick Actions</h3>
+    <div class="grid">
+      <button class="action" id="scan">
+        <span>🔍</span>
+        <b>Security Scan</b>
+        <small>ពិនិត្យសុវត្ថិភាព</small>
+      </button>
+
+      <button class="action" id="device">
+        <span>📱</span>
+        <b>My Device</b>
+        <small>ព័ត៌មានឧបករណ៍</small>
+      </button>
+
+      <button class="action" id="network">
+        <span>🌐</span>
+        <b>Network</b>
+        <small>ស្ថានភាពបណ្ដាញ</small>
+      </button>
+
+      <button class="action" id="privacy">
+        <span>🔐</span>
+        <b>Privacy</b>
+        <small>ការការពារឯកជនភាព</small>
+      </button>
+    </div>
+
+    <section class="card">
+      <h3>Security Activity</h3>
+      <div id="activity">
+        <p>🟢 App initialized successfully</p>
+        <p>🟢 Security dashboard ready</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>System Information</h3>
+      <p>Application <b>SecureGuard</b></p>
+      <p>Version <b>1.0.0</b></p>
+      <p>Protection <b class="green">Enabled</b></p>
+    </section>
+  </main>
+
+  <nav class="bottom">
+    <span class="selected">🏠<small>Home</small></span>
+    <span id="navscan">🔍<small>Scan</small></span>
+    <span id="navdevice">📱<small>Device</small></span>
+    <span id="navsettings">⚙️<small>Settings</small></span>
+  </nav>
+`;
+
+const activity = document.getElementById('activity');
+
+function log(message) {
+  const p = document.createElement('p');
+  p.textContent = '🟢 ' + message;
+  activity.prepend(p);
+}
+
+document.getElementById('scan').onclick = () => {
+  document.getElementById('status').textContent =
+    'Security Check Complete';
+  log('Security check completed');
+  alert('ការត្រួតពិនិត្យបានបញ្ចប់!');
+};
+
+document.getElementById('device').onclick = () => {
+  log('Device information opened');
+  alert('នេះជាផ្នែកព័ត៌មានឧបករណ៍');
+};
+
+document.getElementById('network').onclick = () => {
+  log('Network status checked');
+  alert('Network dashboard is ready');
+};
+
+document.getElementById('privacy').onclick = () => {
+  log('Privacy settings opened');
+  alert('Privacy protection settings');
+};
+
+document.getElementById('theme').onclick = () => {
+  document.body.classList.toggle('dark');
+};
+
+document.getElementById('navscan').onclick =
+  () => document.getElementById('scan').click();
+
+document.getElementById('navdevice').onclick =
+  () => document.getElementById('device').click();
+
+document.getElementById('navsettings').onclick =
+  () => document.getElementById('theme').click();
+
+} catch (err) {
+  var b = document.getElementById('js-error');
+  b.style.display = 'block';
+  b.textContent = 'JavaScript error:\n' + (err && err.message || err);
+}
+</script>
+</body>
+</html>

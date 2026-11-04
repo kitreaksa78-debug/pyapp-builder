@@ -1,0 +1,214 @@
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #f3f6fc;
+  --card: #ffffff;
+  --text: #17243b;
+  --muted: #8491a7;
+  --blue: #3768ed;
+  --line: #e8edf5;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: .3s;
+}
+
+body.dark {
+  --bg: #101827;
+  --card: #1c293b;
+  --text: #f1f5ff;
+  --muted: #a0aec3;
+  --line: #344155;
+}
+
+#app {
+  min-height: 100vh;
+  padding-bottom: 85px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  background: var(--card);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: #e7edff;
+  border-radius: 15px;
+  font-size: 25px;
+}
+
+.brand h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+small {
+  color: var(--muted);
+}
+
+.theme {
+  border: 0;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 20px;
+}
+
+.content {
+  padding: 20px 17px;
+}
+
+.welcome {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: 27px;
+  margin: 5px 0;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status {
+  margin: 25px 0;
+  padding: 25px 18px;
+  text-align: center;
+  border-radius: 22px;
+  color: white;
+  background: linear-gradient(135deg, #2458d9, #668bff);
+  box-shadow: 0 12px 25px #3768ed35;
+}
+
+.shield {
+  font-size: 48px;
+}
+
+.status h2 {
+  font-size: 19px;
+}
+
+.status p {
+  font-size: 13px;
+  opacity: .85;
+}
+
+.online {
+  display: inline-block;
+  background: #ffffff25;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-size: 11px;
+}
+
+h3 {
+  font-size: 17px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+}
+
+.action {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 18px 12px;
+  border-radius: 17px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.action:active {
+  transform: scale(.97);
+}
+
+.action span {
+  font-size: 29px;
+}
+
+.action b {
+  font-size: 14px;
+}
+
+.action small {
+  font-size: 11px;
+}
+
+.card {
+  margin-top: 17px;
+  padding: 17px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 17px;
+}
+
+.card p {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.green {
+  color: #16a36a;
+}
+
+.bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-around;
+  padding: 12px 5px;
+}
+
+.bottom span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.bottom small {
+  font-size: 10px;
+}
+
+.bottom .selected {
+  color: var(--blue);
+  font-weight: bold;
+}
