@@ -422,6 +422,9 @@ def api_build():
         if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
             build_no = "1"
         # dashboard បញ្ជូន JavaScript (engine តែមួយនឹង /builder); C# នៅរក្សាសម្រាប់ client ចាស់
+        if not (str(data.get("app_js") or "").strip()
+                or str(data.get("cs_code") or "").strip()):
+            raise ValueError("កូដ app ទទួល — សរសេរ app_js (JavaScript)")
         if str(data.get("app_js") or "").strip():
             files = web_project_files(title, package, validate_js(data.get("app_js")),
                                       validate_css(data.get("app_css") or ""),
