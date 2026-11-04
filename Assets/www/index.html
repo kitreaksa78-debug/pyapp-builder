@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>My App</title>
+<style>*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+#app{min-height:100%}
+#js-error{
+  position:fixed;inset:auto 12px 12px 12px;z-index:9999;
+  background:#2b1013;color:#ffd7d2;border:1px solid #ff6b5e;border-radius:12px;
+  padding:12px 14px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;
+  max-height:55%;overflow:auto;display:none;
+}
+/* style.css — រចនាប័ទ្ម app (CSS ធម្មតា) */
+:root {
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --fg: #131a26;
+  --dim: #66718a;
+  --accent: #2f6df6;
+  --line: #e3e8f2;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Noto Sans Khmer", Roboto, sans-serif;
+}
+
+#app { display: flex; flex-direction: column; min-height: 100%; }
+
+.hero {
+  background: linear-gradient(135deg, var(--accent), #6f9bff);
+  color: #fff;
+  padding: 22px 18px 26px;
+  border-radius: 0 0 26px 26px;
+}
+.hero h1 { margin: 10px 0 4px; font-size: 24px; }
+.hero p { margin: 0; opacity: .9; font-size: 14px; }
+.badge {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,.22); padding: 4px 9px; border-radius: 999px;
+}
+
+.body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(19,26,38,.05);
+}
+.card h2 { margin: 0 0 8px; font-size: 15px; }
+.card p { margin: 0 0 12px; color: var(--dim); font-size: 14px; }
+.card p b { color: var(--accent); font-size: 16px; }
+
+.btn {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 13px 16px;
+}
+.btn:active { transform: scale(.985); }
+
+.list { margin: 0; padding-left: 20px; color: var(--fg); font-size: 14px; }
+.list li { margin: 6px 0; }
+
+.tabs {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--dim);
+}
+.tabs .on { color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="js-error"></div>
+<script>
+(function () {
+  var box = document.getElementById('js-error');
+  function show(msg) {
+    box.style.display = 'block';
+    box.textContent = 'JavaScript error:\n' + msg;
+  }
+  window.addEventListener('error', function (e) {
+    show((e.message || 'unknown error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    show(String(e.reason && e.reason.message || e.reason || 'promise rejected'));
+  });
+})();
+</script>
+<script>
+try {
+// app.js — UI របស់ app សរសេរដោយ JavaScript
+// បង្ហាញក្នុង <div id="app"> — ដំណើរការក្នុង WebView ដូច browser ធម្មតា។
+
+const app = document.getElementById('app');
+
+app.innerHTML = `
+  <header class="hero">
+    <span class="badge">JS</span>
+    <h1>សួស្តី 👋</h1>
+    <p>app នេះបង្កើតដោយ JavaScript</p>
+  </header>
+
+  <main class="body">
+    <section class="card">
+      <h2>សាកល្បងចុច</h2>
+      <p>អ្នកបានចុច <b id="count">0</b> ដង</p>
+      <button id="tap" class="btn">ចុចទីនេះ</button>
+    </section>
+
+    <section class="card">
+      <h2>បញ្ជីការងារ</h2>
+      <ul id="list" class="list">
+        <li>សរសេរ UI ដោយ JS</li>
+        <li>មើលផ្ទាំង preview</li>
+        <li>ចុច Build APK</li>
+      </ul>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <span class="on">ដើម</span><span>ស្វែងរក</span><span>ខ្ញុំ</span>
+  </nav>
+`;
+
+let count = 0;
+const counter = document.getElementById('count');
+
+document.getElementById('tap').addEventListener('click', () => {
+  count += 1;
+  counter.textContent = count;
+  document.getElementById('list').insertAdjacentHTML(
+    'beforeend',
+    '<li>ចុចលើកទី ' + count + '</li>'
+  );
+});
+
+} catch (err) {
+  var b = document.getElementById('js-error');
+  b.style.display = 'block';
+  b.textContent = 'JavaScript error:\n' + (err && err.message || err);
+}
+</script>
+</body>
+</html>
