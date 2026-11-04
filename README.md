@@ -4,10 +4,10 @@
 រួចចុច **Build APK**។
 
 ## របៀបដំណើរការ
-1. សាយ Flask បង្កើត project **.NET for Android** (`net8.0-android`) ពីកូដ `MainActivity.cs`
+1. សាយ Flask បង្កើត project **.NET for Android** (`net10.0-android`) ពីកូដ `MainActivity.cs`
    រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API (មិនត្រូវការ `git` ក្នុង server)។
 2. Workflow [`.github/workflows/build-csharp-apk.yml`](.github/workflows/build-csharp-apk.yml) រត់លើ
-   GitHub Actions៖ .NET 8 SDK + `android` workload + JDK 17 + Android SDK 34 + `dotnet publish` (~៤–៦ នាទី)។
+   GitHub Actions៖ .NET 10 SDK + `android` workload + JDK 17 + Android SDK 36 + `dotnet publish` (~៤–៦ នាទី)។
 3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក។
 4. ទំព័រ job បង្ហាញ **% ពិតប្រាកដ** គណនាពីជំហានរបស់ GitHub (`conclusion` + `started_at`)។
 

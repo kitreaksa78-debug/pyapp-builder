@@ -164,7 +164,7 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 CSPROJ = '''<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0-android</TargetFramework>
+    <TargetFramework>net10.0-android</TargetFramework>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
     <OutputType>Exe</OutputType>
     <RootNamespace>@@PKG@@</RootNamespace>
@@ -215,8 +215,8 @@ App Android native បង្កើតដោយ PyApp Builder — សរសេរ
 ```bash
 # ត្រូវការ .NET 8 SDK + Android SDK + JDK 17
 dotnet workload install android
-dotnet publish -f net8.0-android -c Release -p:AndroidPackageFormat=apk
-# APK: bin/Release/net8.0-android/publish/*-Signed.apk
+dotnet publish -f net10.0-android -c Release -p:AndroidPackageFormat=apk
+# APK: bin/Release/net10.0-android/publish/*-Signed.apk
 ```
 '''
 

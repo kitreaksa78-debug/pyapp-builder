@@ -98,7 +98,7 @@ def save_job(meta: dict) -> None:
 STEP_SECONDS = {
     "Set up job": 5,
     "Checkout": 6,
-    "Set up .NET 8": 18,
+    "Set up .NET 10": 18,
     "Set up JDK 17": 14,
     "Install Android workload": 75,
     "Android SDK": 30,
@@ -111,7 +111,7 @@ STEP_SECONDS = {
 STEP_KH = {
     "Set up job": "រៀបចំ runner",
     "Checkout": "ទាញកូដ",
-    "Set up .NET 8": "ដំឡើង .NET 8 SDK",
+    "Set up .NET 10": "ដំឡើង .NET 10 SDK",
     "Set up JDK 17": "ដំឡើង JDK 17",
     "Install Android workload": "ដំឡើង .NET Android workload",
     "Android SDK": "ដំឡើង Android SDK",
