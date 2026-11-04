@@ -1,54 +1,16 @@
-# PyApp Builder
+# CS App (C# · .NET for Android)
 
-សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរកូដ **C#** ក្នុង browser
-រួចចុច **Build APK**។
+App Android native បង្កើតដោយ PyApp Builder — សរសេរដោយ **C#**។
 
-## របៀបដំណើរការ
-1. សាយ Flask បង្កើត project **.NET for Android** (`net8.0-android`) ពីកូដ `MainActivity.cs`
-   រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API (មិនត្រូវការ `git` ក្នុង server)។
-2. Workflow [`.github/workflows/build-csharp-apk.yml`](.github/workflows/build-csharp-apk.yml) រត់លើ
-   GitHub Actions៖ .NET 8 SDK + `android` workload + JDK 17 + Android SDK 34 + `dotnet publish` (~៤–៦ នាទី)។
-3. APK ចេញជា **release** `apk-<job>` → សាយផ្តល់ link ទាញយក។
-4. ទំព័រ job បង្ហាញ **% ពិតប្រាកដ** គណនាពីជំហានរបស់ GitHub (`conclusion` + `started_at`)។
+- package: `org.pyapp.csapp`
+- minSdk 21 · targetSdk 34 (net8.0-android)
+- កូដ app៖ `MainActivity.cs` (class `MainActivity`, `[Activity]` attribute បង្កើត manifest entry)
 
-## Project ដែលបង្កើត
-| ឯកសារ | តួនាទី |
-|---|---|
-| `MainActivity.cs` | កូដរបស់អ្នក (`class MainActivity`, `[Activity]` បង្កើត manifest entry) |
-| `App.csproj` | .NET 8 Android · ApplicationId · signing key ថេរ (`signing/debug.p12`) |
-| `AndroidManifest.xml` | permissions + `<application>` (activity បង្កើតដោយ `[Activity]`) |
-| `Resources/values/strings.xml` | ឈ្មោះ app |
-| `Resources/mipmap-*/ic_launcher.png` | icon គ្រប់ density (បើបាន upload logo) |
+## Build APK ដោយខ្លួនឯង
 
-> UI សង់ដោយកូដ C# (`Android.App.Activity`) — គ្មាន MAUI/Xamarin.Forms
-> ដូច្នេះ build លឿន ហើយ .NET runtime ត្រូវបាន package ចូល APK ស្រាប់ (មិនត្រូវដំឡើងបន្ថែម)។
-
-## រត់ក្នុងម៉ាស៊ីនរបស់អ្នក
 ```bash
-pip install -r requirements.txt
-export GH_REPO=owner/repo     # repo មាន .github/workflows/build-csharp-apk.yml
-export GH_TOKEN=ghp_xxx       # token មានសិទ្ធិ repo + workflow
-python app.py                 # http://localhost:8000
+# ត្រូវការ .NET 8 SDK + Android SDK + JDK 17
+dotnet workload install android
+dotnet publish -f net8.0-android -c Release -p:AndroidPackageFormat=apk
+# APK: bin/Release/net8.0-android/publish/*-Signed.apk
 ```
-
-## Deploy លើ Render
-`render.yaml` មានរួច — start `gunicorn app:app`។ កំណត់ env `GH_REPO`, `GH_TOKEN`។
-
-## API
-| Method | Path | ការងារ |
-|---|---|---|
-| GET | `/` | ទំព័រសរសេរកូដ C# + ផ្ទាំងមើល app + build APK |
-| GET | `/nano?f=<file>` | និពន្ធកូដបែប nano (គ្រប់ភាសា) |
-| GET | `/api/files` | បញ្ជី file ដែលបានរក្សាទុក |
-| GET / POST | `/api/files/<name>` | អាន / រក្សាទុក file |
-| GET | `/files/<name>/download` | ទាញយក file |
-| POST | `/build` | បង្កើត job រួច dispatch workflow |
-| POST | `/project.zip` | ទាញយក project ជា ZIP |
-| GET | `/j/<id>` | ទំព័រស្ថានភាព + % |
-| GET | `/api/jobs/<id>` | JSON ស្ថានភាព + `progress` (percent / step / eta / steps) |
-| GET | `/dl/<id>` | ទាញយក APK |
-| GET | `/api/health` | health check |
-
-## សុវត្ថិភាព
-- `GH_TOKEN` ជា secret របស់ server — កុំដាក់ក្នុង code ឬ commit។
-- កូដរបស់អ្នក build ក្នុង GitHub Actions និងរត់តែលើទូរស័ព្ទរបស់អ្នក។
