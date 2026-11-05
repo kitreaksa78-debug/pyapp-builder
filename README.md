@@ -3,6 +3,31 @@
 សាយ **Python (Flask)** សម្រាប់បង្កើត **APK** ដំឡើងលើ Android — សរសេរ UI ដោយ **JavaScript + CSS**
 ក្នុង browser (ផ្ទាំងមើល render ពីកូដផ្ទាល់) រួចចុច **Build APK**។
 
+## PyApp IDE (`/ide`)
+
+IDE ពេញលេញក្នុង browser (VS Code style) សម្រាប់ project Android៖
+
+- **File explorer** — បង្កើត file/folder, rename, delete, upload, import ZIP, ទាញយក file, export ZIP
+  (folder ត្រូវបានរក្សាទុកក្នុង IndexedDB រួមនឹង file ⇒ refresh មិនបាត់)
+- **Editor** — Monaco (CDN) មាន syntax highlighting, autocomplete, multi-tab, search/replace,
+  line numbers; បើ CDN មិនអាចផ្ទុកបាន ប្រើ textarea fallback
+- **Live preview** — បញ្ចូល `index.html`, CSS, JS, រូបភាពក្នុង project ចូល iframe sandbox,
+  បង្ហាញ JavaScript error, មាន desktop/mobile mode និង refresh
+- **Build APK** — ជ្រើស app type **WebView / Native Kotlin / Native Java**, ឈ្មោះ, package,
+  version name/code, icon (upload ឬ icon generator), permissions, orientation, online/offline
+- **Build progress** — % ពីជំហាន GitHub, log ពី workflow (បើបរាជ័យ), link APK និង GitHub run,
+  ប្រវត្តិ build (local) និង `/api/ide/builds` (server 20 ចុងក្រោយ)
+- **Themes** dark/light, **ភាសា** ខ្មែរ/English, font size, word wrap, autosave
+
+> Project file រក្សាទុកក្នុង **browser របស់អ្នក** (IndexedDB) — server គ្រាន់តែ build/export
+> ដូច្នេះ project មិនលាយជាមួយអ្នកប្រើផ្សេង ហើយ Render restart មិនបាត់កូដ។
+
+### Native mode
+- `MainActivity.kt` ឬ `MainActivity.java` ក្នុង project ត្រូវ compile ដោយ Gradle ពិត (Kotlin 1.9 / Java 17)
+- package ក្នុង source ត្រូវផ្លាស់ទៅ package របស់ app ស្វ័យប្រវត្តិ ដើម្បីឲ្យ
+  manifest `.MainActivity` ដំណើរការ
+- បើគ្មាន source ទេ សាយបង្កើត `MainActivity` គំរូ (Android Views, គ្មាន WebView) ជូន
+
 ## របៀបដំណើរការ
 1. សាយ Flask វេចខ្ចប់ UI (JavaScript + CSS) ជា `app/src/main/assets/www/index.html` ក្នុង project
    **Kotlin + Gradle** រួច push ទៅ branch `build/<job>` តាម GitHub Git Data API
@@ -40,6 +65,13 @@ python app.py                 # http://localhost:8000
 ## API
 | Method | Path | ការងារ |
 |---|---|---|
+| GET | `/ide` | **PyApp IDE** — explorer, Monaco, preview, build panel |
+| POST | `/api/ide/build` | JSON `{title, package, mode, version, build, permissions, orientation, online, icon, files}` → job |
+| POST | `/api/ide/zip` | ZIP ពី project files (`{name, files}`) |
+| POST | `/api/ide/import` | upload ZIP → files (safe extract, បដិសេធ traversal) |
+| GET | `/api/ide/info` | modes / permissions / limits |
+| GET | `/api/ide/builds` | build 20 ចុងក្រោយ |
+| GET | `/api/jobs/<id>/logs` | log ពី GitHub Actions run |
 | GET | `/builder` | ទំព័រសរសេរកូដ JavaScript + ផ្ទាំងមើល app ពីកូដ + build APK |
 | POST | `/api/preview` | HTML សម្រាប់ផ្ទាំងមើល (ដូច asset ក្នុង APK) |
 | GET | `/nano?f=<file>` | និពន្ធកូដបែប nano (គ្រប់ភាសា) |
@@ -55,6 +87,8 @@ python app.py                 # http://localhost:8000
 
 ## សុវត្ថិភាព
 - `GH_TOKEN` ជា secret របស់ server — កុំដាក់ក្នុង code ឬ commit។
+- IDE API ពិនិត្យ path (គ្មាន `..`, គ្មាន absolute), ប្រភេទ file, ទំហំ (5 MB/file · 30 MB/project)
+  និងបើក ZIP ដោយបដិសេធ member ដែលរត់ចេញក្រៅ folder។
 - កូដរបស់អ្នក build ក្នុង GitHub Actions និងរត់តែលើទូរស័ព្ទរបស់អ្នក។
 
 ## AppForge dashboard (React SPA)
