@@ -361,28 +361,37 @@ def refresh_job(meta: dict) -> dict:
 
 
 # ---------------------------------------------------------------- routes
+def _ide_asset_version():
+    """mtime របស់ ide.css/js — បញ្ចូល ?v= ដើម្បីកុំឲ្យ browser ប្រើ CSS/JS ចាស់។"""
+    latest = 0
+    for name in ("ide.css", "ide.js"):
+        try:
+            latest = max(latest, int((ROOT / "static" / "ide" / name).stat().st_mtime))
+        except OSError:
+            pass
+    return latest
+
+
 @app.get("/")
-def dashboard():
-    """AppForge dashboard (React SPA build) — បើគ្មាន build ទេ ត្រឡប់ទៅ form ចាស់។"""
-    if not (SPA_DIR / "index.html").is_file():
-        return redirect(url_for("home"))
-    resp = make_response(send_from_directory(SPA_DIR, "index.html"))
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
-
-
 @app.get("/ide")
 def ide_page():
-    """IDE ពេញលេញ — file explorer, Monaco, preview, APK build។"""
+    """ទំព័រដើម = IDE ពេញលេញ — file explorer, Monaco, preview, APK build។"""
     resp = make_response(render_template(
         "ide.html",
         default_title="My App",
         default_package="org.pyapp.demo",
         gh_ready=bool(GH_REPO and GH_TOKEN),
         repo=GH_REPO,
+        v=_ide_asset_version(),
     ))
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.get("/dashboard")
+def dashboard():
+    """Dashboard ចាស់ — បញ្ជូនទៅ builder ចាស់ (រក្សាតែ route ចាស់)។"""
+    return redirect(url_for("home"))
 
 
 @app.get("/builder")
