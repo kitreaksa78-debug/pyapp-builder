@@ -10,6 +10,7 @@ Gradle + Android SDK compile ក្នុង GitHub Actions (IP ថ្ងៃន�
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 
 from androidutil import MAX_ICON_BYTES, launcher_icons, xml_escape
 
@@ -29,6 +30,9 @@ PERMISSIONS = {
     "POST_NOTIFICATIONS": "ជូនដំណឹង",
     "WAKE_LOCK": "បើកអេក្រង់",
     "FLASHLIGHT": "ពិល",
+    "SYSTEM_ALERT_WINDOW": "បង្ហាញលើ app ផ្សេង",
+    "FOREGROUND_SERVICE": "service ខាងក្រោយ",
+    "FOREGROUND_SERVICE_SPECIAL_USE": "service ប្រភេទពិសេស",
 }
 ORIENTATIONS = {"unspecified": "", "portrait": "portrait", "landscape": "landscape",
                 "sensor": "sensor"}
@@ -262,7 +266,7 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
+@@APP_EXTRA@@    </application>
 
 </manifest>
 '''
@@ -376,16 +380,74 @@ PACKAGE_RE = re.compile(r"^[ \t]*package[ \t]+([A-Za-z_][\w.]*)[ \t]*;?[ \t]*$",
 MAIN_CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
 
 
-def _permission_blocks(perms, online: bool) -> str:
-    lines = []
+ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+# component ដែលអនុញ្ញាតឲ្យ project ប្រកាសខ្លួនឯងក្នុង <application>
+APP_EXTRA_TAGS = {"service", "receiver", "provider", "meta-data", "activity-alias"}
+
+
+def _user_manifest(files: dict) -> tuple[list[str], str]:
+    """អាន `AndroidManifest.xml` របស់ project → (permissions, application children)។
+
+    IDE បង្កើត manifest ដោយស្វ័យប្រវត្តិ ដូច្នេះ project ដែលត្រូវការ `<service>`
+    (ឧ. overlay) ឬ permission ពិសេស អាចដាក់ manifest ខ្លួនឯងក្នុង project ហើយ
+    builder បញ្ចូលតែអ្វីដែលចាំបាច់ — label/icon/launcher នៅដើមដដែល។
+    """
+    text = None
+    for path in sorted(files, key=len):
+        if path.rsplit("/", 1)[-1] == "AndroidManifest.xml":
+            content = files[path]
+            if isinstance(content, str) and "<manifest" in content:
+                text = content
+                break
+    if text is None:
+        return [], ""
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise ValueError(f"AndroidManifest.xml ខូច: {exc}") from exc
+    if root.tag != "manifest":
+        raise ValueError("AndroidManifest.xml ត្រូវមាន root <manifest>")
+
+    perms = []
+    for el in root:
+        if el.tag in ("uses-permission", "uses-permission-sdk-23"):
+            name = el.get(ANDROID_NS + "name")
+            if name:
+                perms.append(name)
+
+    blocks = []
+    app = root.find("application")
+    if app is not None:
+        for el in app:
+            if el.tag not in APP_EXTRA_TAGS:
+                continue
+            name = el.get(ANDROID_NS + "name") or ""
+            # launcher activity ត្រូវបានបង្កើតដោយ builder — មិនបញ្ចូលម្តងទៀត
+            if el.tag.startswith("activity") and name.endswith("MainActivity"):
+                continue
+            ET.indent(el, space="    ")
+            xml = ET.tostring(el, encoding="unicode").strip()
+            xml = xml.replace(' xmlns:android="http://schemas.android.com/apk/res/android"', "")
+            blocks.append("\n".join("        " + ln for ln in xml.splitlines()))
+    return perms, ("\n".join(blocks) + "\n" if blocks else "")
+
+
+def _permission_blocks(perms, online: bool, extra=()) -> str:
+    names = []
     if online:
-        lines.append('    <uses-permission android:name="android.permission.INTERNET" />')
-    lines.append('    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />')
+        names.append("android.permission.INTERNET")
+    names.append("android.permission.ACCESS_NETWORK_STATE")
     for name in perms:
-        if name == "INTERNET":
+        if name != "INTERNET" and name in PERMISSIONS:
+            names.append(f"android.permission.{name}")
+    names.extend(n for n in extra if n)
+    seen, lines = set(), []
+    for name in names:
+        if name in seen:
             continue
-        if name in PERMISSIONS:
-            lines.append(f'    <uses-permission android:name="android.permission.{name}" />')
+        seen.add(name)
+        lines.append(f'    <uses-permission android:name="{name}" />')
     return "\n".join(lines) + "\n"
 
 
@@ -411,6 +473,7 @@ def android_project_files(title: str, package: str, mode: str,
         orientation = "unspecified"
     permissions = [p for p in (permissions or ()) if p in PERMISSIONS]
     icons = launcher_icons(icon) if icon else {}
+    manifest_perms, app_extra = _user_manifest(files or {})
 
     path = package.replace(".", "/")
     src = {}
@@ -453,7 +516,9 @@ def android_project_files(title: str, package: str, mode: str,
                                  .replace("@@VERSION@@", xml_escape(version))
                                  .replace("@@BUILD@@", str(build))),
         "app/src/main/AndroidManifest.xml": (MANIFEST
-            .replace("@@PERMISSIONS@@", _permission_blocks(permissions, online))
+            .replace("@@PERMISSIONS@@", _permission_blocks(permissions, online,
+                                                           manifest_perms))
+            .replace("@@APP_EXTRA@@", app_extra)
             .replace("@@ICON@@", icon_attr)
             .replace("@@CLEARTEXT@@",
                      '        android:usesCleartextTraffic="true"\n' if online else "")
