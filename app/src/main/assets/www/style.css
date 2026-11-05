@@ -1,0 +1,9 @@
+:root{--accent:#388bfd;--bg:#f4f6fb;--fg:#131a26}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,"Noto Sans Khmer",sans-serif;background:var(--bg);color:var(--fg)}
+.hero{background:linear-gradient(135deg,var(--accent),#6f9bff);color:#fff;padding:26px 20px}
+.hero h1{margin:0 0 6px;font-size:28px}
+.hero p{margin:0;opacity:.9}
+main{padding:16px}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 6px 18px #131a2612}
+button{width:100%;border:0;border-radius:12px;padding:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:600}
