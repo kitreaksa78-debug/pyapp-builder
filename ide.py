@@ -297,6 +297,23 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
             return jsonify({"error": str(exc)}), 400
         return jsonify({"files": encode_files(files), "count": len(files)})
 
+    @bp.get("/api/ide/builds")
+    def ide_builds():
+        from app import JOBS  # noqa: WPS433 — ចៀសវាង circular import
+        items = []
+        for d in JOBS.iterdir():
+            f = d / "meta.json"
+            if not f.is_file():
+                continue
+            try:
+                m = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            items.append({k: m.get(k) for k in ("id", "title", "package", "status",
+                                                 "created", "error", "run_url")})
+        items.sort(key=lambda x: x.get("created") or 0, reverse=True)
+        return jsonify({"builds": items[:20]})
+
     @bp.get("/api/jobs/<job_id>/logs")
     def job_logs(job_id: str):
         from app import load_job  # noqa: WPS433 — ចៀសវាង circular import ពេលចាប់ផ្តើម
