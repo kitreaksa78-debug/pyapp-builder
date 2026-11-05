@@ -26,6 +26,7 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
 from werkzeug.exceptions import HTTPException
 
 from androidutil import MAX_ICON_BYTES
+from ide import create_blueprint as ide_blueprint
 from webapp import (DEFAULT_CSS_SOURCE, DEFAULT_JS_SOURCE, build_app_html,
                     validate_css, validate_js, web_project_files)
 
@@ -370,6 +371,20 @@ def dashboard():
     return resp
 
 
+@app.get("/ide")
+def ide_page():
+    """IDE ពេញលេញ — file explorer, Monaco, preview, APK build។"""
+    resp = make_response(render_template(
+        "ide.html",
+        default_title="My App",
+        default_package="org.pyapp.demo",
+        gh_ready=bool(GH_REPO and GH_TOKEN),
+        repo=GH_REPO,
+    ))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.get("/builder")
 def home():
     resp = make_response(render_template(
@@ -544,6 +559,9 @@ def download(job_id: str):
     if meta["status"] != "done":
         abort(409, description="APK មិនទាន់រួចរាល់")
     return redirect(meta.get("apk_url") or release_asset_url(job_id))
+
+
+app.register_blueprint(ide_blueprint(create_job, validate_common, GH_REPO, GH_TOKEN))
 
 
 @app.errorhandler(ValueError)
