@@ -1212,6 +1212,9 @@
       state.files = TPL.webview.files();
     }
     applyTheme(); syncSettings(); applyLang();
+    if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+      $('preview').classList.add('hidden');
+    }
     refreshAll();
     await setupEditor();
     if (!state.active) {
@@ -1222,6 +1225,9 @@
       renderTabs(); renderTree(); renderEditor();
     }
     renderPreview();
+    if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+      $('preview').classList.add('hidden');
+    }
     if (CFG.ghReady === false) status('GH_REPO/GH_TOKEN មិនកំណត់', 'bad');
   }
 
