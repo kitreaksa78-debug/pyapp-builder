@@ -437,7 +437,9 @@ def _permission_blocks(perms, online: bool, extra=()) -> str:
     names = []
     if online:
         names.append("android.permission.INTERNET")
-    names.append("android.permission.ACCESS_NETWORK_STATE")
+    # app ដែលបិទ network មិនត្រូវការ permission នេះទេ — បញ្ចូលតែពេលត្រូវការ
+    if online or "ACCESS_NETWORK_STATE" in perms:
+        names.append("android.permission.ACCESS_NETWORK_STATE")
     for name in perms:
         if name != "INTERNET" and name in PERMISSIONS:
             names.append(f"android.permission.{name}")
