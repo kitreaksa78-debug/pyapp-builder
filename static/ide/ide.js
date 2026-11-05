@@ -37,10 +37,12 @@
       previewEmpty: 'រកមិនឃើញ index.html — បង្កើត index.html ដើម្បីមើល preview',
       replaceProject: 'ជំនួស project ទាំងមូលដោយ ZIP នេះ? (Cancel = បញ្ចូលបន្ថែម)',
       invalidName: 'ឈ្មោះមិនត្រឹមត្រូវ — ប្រើ a-z, 0-9, _, -, / និង .',
-      confirmDel: 'លុបចោល?', copied: 'ចម្លងរួច'
+      confirmDel: 'លុបចោល?', copied: 'ចម្លងរួច',
+      nativeNoPreview: 'Native Kotlin/Java គ្មាន preview — APK បង្ហាញ UI ពិត'
     },
     en: {
       save: 'Save', preview: 'Preview', build: 'Build', explorer: 'EXPLORER',
+      nativeNoPreview: 'Native Kotlin/Java has no browser preview — the APK shows the real UI',
       exportZip: 'Export project (ZIP)', newProject: 'New project',
       appName: 'App name', verName: 'Version name', verCode: 'Version code',
       appType: 'App type', orientation: 'Orientation', network: 'Network',
@@ -871,7 +873,7 @@
       if (id === 'bCode') { state.build.code = parseInt($('bCode').value, 10) || 1; }
       if (id === 'bMode') {
         state.build.mode = $('bMode').value;
-        if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
+        syncPreviewMode();
       }
       if (id === 'bOrient') { state.build.orient = $('bOrient').value; }
       if (id === 'bOnline') { state.build.online = $('bOnline').value === '1'; }
@@ -1162,7 +1164,18 @@
     $('scrim').classList.toggle('on');
   };
   $('scrim').onclick = closeSidebar;
+  /* Native projects គ្មាន HTML ⇒ preview មិនអាចប្រើ (បិទប៊ូតុងហើយលាក់ panel) */
+  function syncPreviewMode() {
+    var web = state.build.mode === 'webview';
+    var btn = $('pvToggle');
+    btn.disabled = !web;
+    btn.title = web ? t('preview') + ' (Ctrl+J)' : t('nativeNoPreview');
+    if (!web) $('preview').classList.add('hidden');
+  }
+  window.syncPreviewMode = syncPreviewMode;
+
   $('pvToggle').onclick = function () {
+    if (state.build.mode !== 'webview') { toast(t('nativeNoPreview')); return; }
     $('preview').classList.toggle('hidden');
     renderPreview();
   };
@@ -1218,7 +1231,7 @@
     if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
       $('preview').classList.add('hidden');
     }
-    if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
+    syncPreviewMode();
     refreshAll();
     await setupEditor();
     if (!state.active) {
@@ -1232,7 +1245,7 @@
     if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
       $('preview').classList.add('hidden');
     }
-    if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
+    syncPreviewMode();
     if (CFG.ghReady === false) status('GH_REPO/GH_TOKEN មិនកំណត់', 'bad');
   }
 
