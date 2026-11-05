@@ -372,7 +372,7 @@ out/
 .idea/
 '''
 
-PACKAGE_RE = re.compile(r"^\s*package\s+([A-Za-z_][\w.]*)\s*;?", re.MULTILINE)
+PACKAGE_RE = re.compile(r"^[ \t]*package[ \t]+([A-Za-z_][\w.]*)[ \t]*;?[ \t]*$", re.MULTILINE)
 MAIN_CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
 
 
