@@ -224,7 +224,7 @@ def _logs_for(run_url: str, repo: str, token: str) -> dict:
     except zipfile.BadZipFile:
         text.append(blob.decode("utf-8", "replace"))
     joined = "\n".join(text)
-    return {"logs": joined[-20000:], "note": ""}
+    return {"logs": joined[-60000:], "note": ""}
 
 
 def create_blueprint(create_job, validate_common, repo: str, token: str):
