@@ -14,6 +14,7 @@ html[data-theme="light"] {
   --sel: #0969da1a; --hover: #eaeef2;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg); color: var(--fg); overflow: hidden;

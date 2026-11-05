@@ -869,7 +869,10 @@
       if (id === 'bPkg') { state.pkg = $('bPkg').value.trim(); }
       if (id === 'bVer') { state.build.ver = $('bVer').value.trim() || '1.0'; }
       if (id === 'bCode') { state.build.code = parseInt($('bCode').value, 10) || 1; }
-      if (id === 'bMode') { state.build.mode = $('bMode').value; }
+      if (id === 'bMode') {
+        state.build.mode = $('bMode').value;
+        if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
+      }
       if (id === 'bOrient') { state.build.orient = $('bOrient').value; }
       if (id === 'bOnline') { state.build.online = $('bOnline').value === '1'; }
       persist(); renderProjectName();
@@ -1215,6 +1218,7 @@
     if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
       $('preview').classList.add('hidden');
     }
+    if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
     refreshAll();
     await setupEditor();
     if (!state.active) {
@@ -1228,6 +1232,7 @@
     if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
       $('preview').classList.add('hidden');
     }
+    if (state.build.mode !== 'webview') $('preview').classList.add('hidden');
     if (CFG.ghReady === false) status('GH_REPO/GH_TOKEN មិនកំណត់', 'bad');
   }
 
