@@ -433,9 +433,11 @@ def android_project_files(title: str, package: str, mode: str,
             picks[f"MainActivity{ext}"] = default.replace("@@PKG@@", package)
         sources = {}
         for n, c in picks.items():
-            pkg = _source_package(c, package)
             filename = n.rsplit("/", 1)[-1]
-            sources[f"app/src/main/java/{pkg.replace('.', '/')}/{filename}"] = c
+            # package ត្រូវដូច applicationId ដើម្បីឲ្យ manifest `.MainActivity` ដំណើរការ
+            body = (PACKAGE_RE.sub("package " + package, c, count=1)
+                    if PACKAGE_RE.search(c) else "package " + package + "\n\n" + c)
+            sources[f"app/src/main/java/{path}/{filename}"] = body
 
     icon_attr = ""
     if icons:
