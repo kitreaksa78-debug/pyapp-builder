@@ -7,12 +7,23 @@ APK ពិតកើតចេញពី GitHub Actions ដែលរត់ JDK + An
 from __future__ import annotations
 
 import io
+import json
 import re
+import tempfile
+import time
+import uuid
 import zipfile
+from pathlib import Path
 
 MAX_ZIP_BYTES = 40 * 1024 * 1024          # file .zip ដែល upload
 MAX_UNZIPPED_BYTES = 150 * 1024 * 1024    # ទំហំសរុបពេលពន្លា
 MAX_FILES = 4000
+LIST_LIMIT = 2000                          # file ដែលបង្ហាញក្នុងផ្ទាំង (អ្នកប្រើពិនិត្យមុន build)
+
+# ZIP ដែលពិនិត្យរួច រក្សាទុកបណ្តោះអាសន្ន ដើម្បីកុំឲ្យអ្នកប្រើ upload ម្តងទៀតពេលចុច Build
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "pyapp-zipbuild"
+UPLOAD_TTL = 30 * 60
+_TOKEN_RE = re.compile(r"^[a-f0-9]{16}$")
 
 # folder ទាំងនេះមិនចាំបាច់សម្រាប់ build — កាត់ចេញដើម្បីរហ័ស និងសុវត្ថិភាព
 SKIP_DIRS = {".git", ".gradle", ".idea", "build", "out", "node_modules",
@@ -164,5 +175,59 @@ def inspect_zip(data: bytes) -> dict:
     }
     package = app_id if re.match(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$",
                                  app_id or "") else "org.pyapp.zipbuild"
+    listing = sorted(({"path": p, "size": len(c)} for p, c in files.items()),
+                     key=lambda e: e["path"])
     return {"files": files, "package": package, "summary": summary,
-            "problems": problems, "root": root}
+            "problems": problems, "root": root,
+            "list": listing[:LIST_LIMIT], "list_total": len(listing)}
+
+
+# ---------------------------------------------------------------- upload cache
+def _cleanup() -> None:
+    """លុប ZIP ដែលផុតកំណត់ (មិនទុក file អ្នកប្រើយូរពេក)។"""
+    now = time.time()
+    try:
+        for entry in UPLOAD_DIR.glob("*"):
+            try:
+                if now - entry.stat().st_mtime > UPLOAD_TTL:
+                    entry.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def save_upload(data: bytes, name: str = "") -> str:
+    """រក្សា ZIP ពេលពិនិត្យរួច → token សម្រាប់ build ក្រោយ (គ្មាន upload ទីពីរ)។"""
+    _cleanup()
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    token = uuid.uuid4().hex[:16]
+    (UPLOAD_DIR / (token + ".json")).write_text(
+        json.dumps({"name": name or "app.zip", "size": len(data),
+                    "time": time.time()}), encoding="utf-8")
+    (UPLOAD_DIR / (token + ".zip")).write_bytes(data)
+    return token
+
+
+def load_upload(token: str) -> tuple[bytes, str]:
+    """(data, filename) ពី token — ZipError បើផុតកំណត់ ឬបាត់។"""
+    token = (token or "").strip()
+    if not _TOKEN_RE.match(token):
+        raise ZipError("upload មិនត្រឹមត្រូវ — សូម upload ZIP ម្តងទៀត")
+    zpath = UPLOAD_DIR / (token + ".zip")
+    jpath = UPLOAD_DIR / (token + ".json")
+    if not zpath.is_file():
+        raise ZipError("ZIP ដែល upload ផុតកំណត់ — សូម upload ម្តងទៀត")
+    try:
+        if time.time() - zpath.stat().st_mtime > UPLOAD_TTL:
+            zpath.unlink(missing_ok=True)
+            jpath.unlink(missing_ok=True)
+            raise ZipError("ZIP ដែល upload ផុតកំណត់ — សូម upload ម្តងទៀត")
+    except OSError:
+        pass
+    name = "app.zip"
+    try:
+        name = json.loads(jpath.read_text(encoding="utf-8")).get("name") or name
+    except (OSError, ValueError):
+        pass
+    return zpath.read_bytes(), name

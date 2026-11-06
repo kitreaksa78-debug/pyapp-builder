@@ -149,6 +149,92 @@ else:
     eq(good.status_code, 503, 'គ្មាន GH_TOKEN → 503 (build ក្នុង cloud មិនអាចធ្វើ)')
     ok('GH_REPO' in (good.get_json() or {}).get('error', ''), 'សារបញ្ជាក់ GH_REPO/GH_TOKEN')
 
+print('== endpoint /api/zip/inspect (បង្ហាញឯកសារមុន build) ==')
+ins = client.post('/api/zip/inspect',
+                  data={'zip': (io.BytesIO(make_zip(FLAT)), 'demo.zip')},
+                  content_type='multipart/form-data')
+ij = ins.get_json() or {}
+eq(ins.status_code, 200, 'ZIP ត្រឹមត្រូវ → 200')
+ok(ij.get('ok') is True, 'ok=true')
+ok(bool(ij.get('upload_id')), 'ត្រឡប់ upload_id (build ដោយមិន upload ម្តងទៀត)')
+ok(len(ij.get('list') or []) >= 5, 'បញ្ជីឯកសារពេញលេញ')
+ok(all(set(e) == {'path', 'size'} for e in ij['list']), 'ធាតុនីមួយៗមាន path + size')
+ok('app/src/main/AndroidManifest.xml' in [e['path'] for e in ij['list']], 'បញ្ជីមាន manifest')
+eq(ij.get('name'), 'demo.zip', 'ឈ្មោះ file សម្រាប់ title')
+badins = client.post('/api/zip/inspect',
+                     data={'zip': (io.BytesIO(make_zip({'a.txt': 'x'})), 'bad.zip')},
+                     content_type='multipart/form-data')
+eq(badins.status_code, 400, 'ZIP ខ្វះ Gradle → 400')
+ok(bool((badins.get_json() or {}).get('problems')), 'បង្ហាញបញ្ហាទាំងអស់')
+ok(not (badins.get_json() or {}).get('upload_id'), 'ZIP ខូច → គ្មាន upload_id')
+
+print('== upload cache (inspect → build) ==')
+token = zipbuild.save_upload(make_zip(FLAT), 'demo.zip')
+data, name = zipbuild.load_upload(token)
+eq(name, 'demo.zip', 'load_upload ត្រឡប់ឈ្មោះ')
+ok(len(data) > 0, 'load_upload ត្រឡប់ ZIP')
+try:
+    zipbuild.load_upload('../../etc/passwd')
+    ok(False, 'token មិនត្រឹមត្រូវ → ZipError')
+except zipbuild.ZipError:
+    ok(True, 'token មិនត្រឹមត្រូវ → ZipError')
+try:
+    zipbuild.load_upload('0' * 16)
+    ok(False, 'token បាត់ → ZipError')
+except zipbuild.ZipError:
+    ok(True, 'token បាត់ → ZipError')
+b2 = client.post('/api/zip/build', data={'upload_id': token},
+                 content_type='multipart/form-data')
+eq(b2.status_code, 503 if not gh_ready else 201, 'build ពី upload_id ដំណើរការ')
+exp = client.post('/api/zip/build', data={'upload_id': 'f' * 16},
+                  content_type='multipart/form-data')
+eq(exp.status_code, 410, 'upload ផុតកំណត់ → 410 (UI upload ម្តងទៀត)')
+ok((exp.get_json() or {}).get('expired') is True, 'flag expired')
+
+print('== push_branch clean (គ្មាន file repo មេលាយ) ==')
+
+
+class FakeGH(web.GitHub):
+    def __init__(self):
+        self.repo = 'o/r'
+        self.calls = []
+        self.tree = None
+
+    def call(self, path, method='GET', body=None):
+        self.calls.append((path, method))
+        if '/git/ref/heads/' in path:
+            return {'object': {'sha': 'BASE'}}
+        if '/git/commits/' in path and method == 'GET':
+            return {'tree': {'sha': 'TREE'}}
+        if 'recursive=1' in path:
+            return {'tree': [
+                {'path': '.github/workflows/build-zip-apk.yml', 'type': 'blob',
+                 'mode': '100644', 'sha': 'WF'},
+                {'path': 'settings.gradle.kts', 'type': 'blob', 'mode': '100644',
+                 'sha': 'STALE'},
+                {'path': 'app', 'type': 'tree', 'mode': '040000', 'sha': 'SUBTREE'},
+            ]}
+        if path.endswith('/git/trees') and method == 'POST':
+            self.tree = body
+            return {'sha': 'NEWTREE'}
+        if path.endswith('/git/commits') and method == 'POST':
+            return {'sha': 'COMMIT'}
+        return {}
+
+
+fake = FakeGH()
+fake.push_branch('build/x', {'settings.gradle': 'rootProject.name = "x"',
+                            'app/build.gradle': 'x'}, 'm', clean=True)
+paths = [e['path'] for e in (fake.tree or {}).get('tree', [])]
+ok('base_tree' not in (fake.tree or {}), 'clean → គ្មាន base_tree')
+ok('.github/workflows/build-zip-apk.yml' in paths, 'clean → workflow នៅជាប់')
+ok('settings.gradle.kts' not in paths, 'clean → គ្មាន settings.gradle.kts ចាស់របស់ repo')
+ok('settings.gradle' in paths, 'clean → file របស់អ្នកប្រើមាន')
+ok('app' not in paths, 'clean → app/ របស់ repo (Flask) មិនលាយ')
+fake2 = FakeGH()
+fake2.push_branch('build/y', {'a.txt': 'x'}, 'm')
+ok('base_tree' in (fake2.tree or {}), 'ធម្មតា → base_tree នៅដូចដើម')
+
 print('== workflow សម្រាប់ ZIP ==')
 wf = open(os.path.join(ROOT, '.github/workflows/build-zip-apk.yml'), encoding='utf-8').read()
 ok('assembleDebug' in wf, 'workflow រត់ assembleDebug')

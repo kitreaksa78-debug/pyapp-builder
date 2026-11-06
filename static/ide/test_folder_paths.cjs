@@ -149,6 +149,14 @@ const ideHtml = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'i
 ok(ideHtml.indexOf('id="zipApkBtn"') > 0, 'toolbar មានប៊ូតុង ZIP→APK');
 ok(src.indexOf("$('zipApkBtn').onclick = zipApk") > 0, 'ប៊ូតុងភ្ជាប់ zipApk()');
 ok(src.indexOf("fetch('/api/zip/build'") > 0, 'upload ទៅ /api/zip/build');
+ok(src.indexOf("fetch('/api/zip/inspect'") > 0, 'inspect ដំបូង → /api/zip/inspect');
+ok(src.indexOf("$('z2aBuild').onclick = startBuild") > 0, 'ប៊ូតុង «Build APK» ដាច់ដោយឡែក');
+ok(src.indexOf("$('z2aBuildRow').hidden = false") > 0, 'Build លេចឡើងក្រោយពិនិត្យ file');
+ok(src.indexOf("body.append('upload_id', uploadId)") > 0, 'build ប្រើ upload_id (មិន upload ទ្វេ)');
+ok(src.indexOf("res.code === 410") > 0, 'upload ផុតកំណត់ → upload ម្តងទៀតស្វ័យប្រវត្តិ');
+ok(src.indexOf('function z2aFiles(') > 0 && src.indexOf("$('z2aFiles')") > 0,
+  'បង្ហាញបញ្ជីឯកសារក្នុង modal');
+ok(src.indexOf('What went wrong') > 0, 'ដកស្រង់មូលហេតុ build បរាជ័យពី log');
 ok(src.indexOf("'/api/jobs/' + id + '/log'") > 0, 'ទាញ build log ពី job');
 ok(src.indexOf("'/api/jobs/' + id") > 0, 'poll status របស់ job');
 ok(src.indexOf("dl.href = '/dl/' + id") > 0, 'ប៊ូតុងទាញយក /dl/<id>');

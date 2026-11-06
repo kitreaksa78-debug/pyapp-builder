@@ -162,10 +162,21 @@ class GitHub:
             raw = resp.read()
         return json.loads(raw) if raw else {}
 
-    def push_branch(self, branch: str, files: dict, message: str) -> str:
+    def push_branch(self, branch: str, files: dict, message: str,
+                    *, clean: bool = False) -> str:
+        """បង្កើត branch សម្រាប់ build។ `clean=True` → គ្មាន file របស់ repo មេ
+        (លើកលែង `.github/` ដែល workflow ត្រូវការ) — project អ្នកប្រើស្អាត
+        មិនលាយ settings.gradle/build.gradle ចាស់របស់ repo។"""
         base = self.call(f"/repos/{self.repo}/git/ref/heads/{GH_BRANCH}")["object"]["sha"]
         base_commit = self.call(f"/repos/{self.repo}/git/commits/{base}")
         entries = []
+        if clean:
+            tree = self.call(
+                f"/repos/{self.repo}/git/trees/{base_commit['tree']['sha']}?recursive=1")
+            for e in tree.get("tree", []):
+                if e.get("type") == "blob" and e["path"].startswith(".github/"):
+                    entries.append({"path": e["path"], "mode": e["mode"],
+                                    "type": "blob", "sha": e["sha"]})
         for path, content in files.items():
             if isinstance(content, (bytes, bytearray)):
                 # រូបភាព (logo) → ត្រូវបង្កើត blob ជា base64
@@ -179,7 +190,7 @@ class GitHub:
                 entries.append({"path": path, "mode": "100644", "type": "blob",
                                 "content": content})
         tree = self.call(f"/repos/{self.repo}/git/trees", "POST", {
-            "base_tree": base_commit["tree"]["sha"],
+            **({"base_tree": base_commit["tree"]["sha"]} if not clean else {}),
             "tree": entries,
         })
         commit = self.call(f"/repos/{self.repo}/git/commits", "POST", {
@@ -278,7 +289,7 @@ def files_from_form(form, uploads=None) -> tuple:
 
 def create_job(title: str, package: str, files: dict,
                artifact: str = "apk", *, kind: str = "app",
-               workflow: str = "") -> dict:
+               workflow: str = "", clean: bool = False) -> dict:
     job_id = secrets.token_hex(6)
     tag = "apk-" + job_id
     artifact = (artifact or "apk").strip().lower()
@@ -323,7 +334,7 @@ def create_job(title: str, package: str, files: dict,
 
     try:
         client = gh()
-        client.push_branch(meta["branch"], files, f"Build {title} ({tag})")
+        client.push_branch(meta["branch"], files, f"Build {title} ({tag})", clean=clean)
         client.dispatch(meta["branch"], tag, meta["workflow"])
         meta["status"] = "building"
         meta["status_note"] = "បញ្ជូនទៅ GitHub Actions រួច — កំពុងតម្រៀបជួរ…"
@@ -579,18 +590,56 @@ def job_status(job_id: str):
 
 
 # ---------------------------------------------------------------- ZIP → APK
-@app.post("/api/zip/build")
-def zip_build():
-    """ទទួល Android project ZIP → ពិនិត្យ → បញ្ជូនទៅ GitHub Actions (JDK+SDK+Gradle)។"""
+def _zip_upload():
+    """យក ZIP ពី multipart ឬពី upload_id ដែលពិនិត្យរួច (គ្មាន upload ទីពីរ)។
+    ត្រឡប់ (data, filename, error_response)។"""
     upload = request.files.get("zip")
+    token = (request.form.get("upload_id") or "").strip()
+    if token and upload is None:
+        try:
+            data, name = zipbuild.load_upload(token)
+        except zipbuild.ZipError as exc:
+            return None, "", (jsonify({"ok": False, "step": "upload", "expired": True,
+                                       "error": str(exc)}), 410)
+        return data, name, None
     if upload is None or not (upload.filename or "").strip():
-        return jsonify({"ok": False, "step": "upload",
-                        "error": "សូមជ្រើសរើស file .zip របស់ Android project"}), 400
+        return None, "", (jsonify({"ok": False, "step": "upload",
+                                   "error": "សូមជ្រើសរើស file .zip របស់ Android project"}), 400)
     data = upload.read(zipbuild.MAX_ZIP_BYTES + 1)
     if len(data) > zipbuild.MAX_ZIP_BYTES:
-        return jsonify({"ok": False, "step": "upload",
-                        "error": "ZIP ធំពេក (អតិបរមា %d MB)"
-                                 % (zipbuild.MAX_ZIP_BYTES // (1024 * 1024))}), 400
+        return None, "", (jsonify({"ok": False, "step": "upload",
+                                   "error": "ZIP ធំពេក (អតិបរមា %d MB)"
+                                            % (zipbuild.MAX_ZIP_BYTES // (1024 * 1024))}), 400)
+    return data, (upload.filename or "app.zip").rsplit("/", 1)[-1], None
+
+
+@app.post("/api/zip/inspect")
+def zip_inspect():
+    """ពន្លា + ពិនិត្យ ZIP ហើយបង្ហាញបញ្ជី file ទាំងអស់ — អ្នកប្រើមើលរួចទើបចុច Build APK។"""
+    data, name, err = _zip_upload()
+    if err:
+        return err
+    try:
+        info = zipbuild.inspect_zip(data)
+    except zipbuild.ZipError as exc:
+        return jsonify({"ok": False, "step": "validate", "error": str(exc)}), 400
+    body = {"ok": not info["problems"], "step": "validate", "name": name,
+            "problems": info["problems"], "info": info["summary"],
+            "list": info["list"], "list_total": info["list_total"]}
+    if info["problems"]:
+        body["error"] = info["problems"][0]
+        return jsonify(body), 400
+    # ពិនិត្យរួច → រក្សា ZIP ទុក ដើម្បី Build ដោយមិន upload ម្តងទៀត
+    body["upload_id"] = zipbuild.save_upload(data, name)
+    return jsonify(body)
+
+
+@app.post("/api/zip/build")
+def zip_build():
+    """Android project ZIP (ឬ upload_id) → បញ្ជូនទៅ GitHub Actions (JDK+SDK+Gradle)។"""
+    data, name, err = _zip_upload()
+    if err:
+        return err
     try:
         info = zipbuild.inspect_zip(data)
     except zipbuild.ZipError as exc:
@@ -603,12 +652,11 @@ def zip_build():
         return jsonify({"ok": False, "step": "build", "info": info["summary"],
                         "error": ("Server មិនបានកំណត់ GH_REPO / GH_TOKEN — "
                                   "build ក្នុង cloud មិនអាចធ្វើបានទេ។")}), 503
-    title = (upload.filename or "app.zip").rsplit("/", 1)[-1]
-    title = re.sub(r"\.zip$", "", title, flags=re.I).strip() or "My App"
+    title = re.sub(r"\.zip$", "", name, flags=re.I).strip() or "My App"
     if not NAME_RE.match(title):
         title = "Android App"
     meta = create_job(title[:48], info["package"], info["files"], artifact="apk",
-                      kind="zip", workflow=GH_WORKFLOW_ZIP)
+                      kind="zip", workflow=GH_WORKFLOW_ZIP, clean=True)
     ok = meta["status"] != "error"
     return jsonify({"ok": ok, "step": "build", "id": meta["id"],
                     "status": meta["status"], "error": meta["error"],
