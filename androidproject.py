@@ -256,11 +256,11 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 @@ICON@@        android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-@@CLEARTEXT@@        android:theme="@android:style/Theme.Material.NoActionBar">
+@@CLEARTEXT@@        android:theme="@@THEME@@">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-@@ORIENTATION@@            android:theme="@android:style/Theme.Material.NoActionBar">
+@@ORIENTATION@@            android:theme="@@THEME@@">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -297,7 +297,7 @@ include(":app")
 '''
 
 GRADLE_PROPS = '''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-android.useAndroidX=false
+android.useAndroidX=@@USE_ANDROIDX@@
 android.nonTransitiveRClass=true
 kotlin.code.style=official
 '''
@@ -359,7 +359,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
         jvmTarget = "17"
     }
 }
-'''
+@@DEPENDENCIES@@'''
 
 STRINGS = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -505,6 +505,23 @@ def android_project_files(title: str, package: str, mode: str,
                     if PACKAGE_RE.search(c) else decl + "\n\n" + c)
             sources[f"app/src/main/java/{path}/{filename}"] = body
 
+    # Project ដែលប្រើ AndroidX (AppCompatActivity, NotificationCompat…) ត្រូវការ
+    # dependency + theme ត្រឹមត្រូវ បើមិនដូច្នេះ Kotlin compile បរាជ័យ ឬ crash ពេលបើក app។
+    code = "\n".join(c for c in sources.values() if isinstance(c, str))
+    needs_appcompat = "AppCompatActivity" in code
+    needs_androidx = needs_appcompat or "androidx." in code
+    theme = "@android:style/Theme.Material.NoActionBar"
+    dependencies = ""
+    if needs_appcompat:
+        theme = "@style/Theme.AppCompat.DayNight.NoActionBar"
+        dependencies = ('\ndependencies {\n'
+                        '    implementation("androidx.appcompat:appcompat:1.6.1")\n'
+                        '}\n')
+    elif needs_androidx:
+        dependencies = ('\ndependencies {\n'
+                        '    implementation("androidx.core:core-ktx:1.13.1")\n'
+                        '}\n')
+
     icon_attr = ""
     if icons:
         icon_attr = ('        android:icon="@mipmap/ic_launcher"\n'
@@ -513,15 +530,18 @@ def android_project_files(title: str, package: str, mode: str,
     out = {
         "settings.gradle.kts": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
         "build.gradle.kts": ROOT_GRADLE,
-        "gradle.properties": GRADLE_PROPS,
+        "gradle.properties": GRADLE_PROPS.replace(
+            "@@USE_ANDROIDX@@", "true" if needs_androidx else "false"),
         "app/build.gradle.kts": (APP_GRADLE.replace("@@PKG@@", package)
                                  .replace("@@VERSION@@", xml_escape(version))
-                                 .replace("@@BUILD@@", str(build))),
+                                 .replace("@@BUILD@@", str(build))
+                                 .replace("@@DEPENDENCIES@@", dependencies)),
         "app/src/main/AndroidManifest.xml": (MANIFEST
             .replace("@@PERMISSIONS@@", _permission_blocks(permissions, online,
                                                            manifest_perms))
             .replace("@@APP_EXTRA@@", app_extra)
             .replace("@@ICON@@", icon_attr)
+            .replace("@@THEME@@", theme)
             .replace("@@CLEARTEXT@@",
                      '        android:usesCleartextTraffic="true"\n' if online else "")
             .replace("@@ORIENTATION@@",
