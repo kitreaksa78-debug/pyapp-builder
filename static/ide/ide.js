@@ -4,19 +4,30 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var CFG = window.IDE_CONFIG || {};
-  var TEXT_EXT = ['html','htm','css','js','mjs','json','md','txt','xml','yml','yaml',
-    'gradle','kts','properties','kt','java','py','php','rb','go','rs','c','h','cpp',
-    'cs','swift','sql','sh','svg','toml','ini'];
-  var BINARY_EXT = ['png','jpg','jpeg','webp','gif','ico','bmp','ttf','otf','woff',
-    'woff2','mp3','wav','ogg','mp4','webm','pdf','zip'];
-  var MONACO_LANG = {html:'html',htm:'html',css:'css',js:'javascript',mjs:'javascript',
-    json:'json',md:'markdown',xml:'xml',svg:'xml',kt:'kotlin',kts:'kotlin',java:'java',
-    py:'python',php:'php',yml:'yaml',yaml:'yaml',gradle:'groovy'};
-  var PERMS = [['INTERNET','Internet'],['ACCESS_NETWORK_STATE','Network state'],
-    ['VIBRATE','Vibrate'],['CAMERA','Camera'],['RECORD_AUDIO','Record audio'],
-    ['ACCESS_FINE_LOCATION','GPS location'],['ACCESS_COARSE_LOCATION','Coarse location'],
-    ['READ_EXTERNAL_STORAGE','Read storage'],['WRITE_EXTERNAL_STORAGE','Write storage'],
-    ['POST_NOTIFICATIONS','Notifications'],['WAKE_LOCK','Wake lock'],['FLASHLIGHT','Flashlight']];
+  // បញ្ជីភាសាពេញលេញ — ត្រូវនឹង languages.py ខាង server
+  var TEXT_EXT = ['html','htm','vue','css','scss','js','mjs','cjs','jsx','ts','tsx',
+    'json','json5','md','txt','log','csv','xml','svg','yml','yaml','toml','ini','conf',
+    'env','gitignore','editorconfig','properties','pro','gradle','groovy','kts','kt',
+    'java','py','rb','php','lua','pl','r','go','rs','c','h','cc','cpp','cxx','hpp','hxx',
+    'cs','swift','dart','sql','sh','bash','zsh','bat','cmd','ps1'];
+  var BINARY_EXT = ['png','jpg','jpeg','webp','gif','ico','bmp','tif','tiff','ttf','otf',
+    'woff','woff2','eot','mp3','wav','ogg','m4a','flac','mp4','webm','mkv','3gp','pdf',
+    'zip','jar','apk','aab','so','bin','keystore','jks','p12'];
+  var MONACO_LANG = {
+    html:'html',htm:'html',vue:'html',css:'css',scss:'scss',
+    js:'javascript',mjs:'javascript',cjs:'javascript',jsx:'javascript',
+    ts:'typescript',tsx:'typescript',json:'json',json5:'json',
+    md:'markdown',txt:'plaintext',log:'plaintext',csv:'plaintext',
+    xml:'xml',svg:'xml',yml:'yaml',yaml:'yaml',toml:'ini',ini:'ini',conf:'ini',
+    env:'ini',properties:'ini',gitignore:'plaintext',editorconfig:'ini',
+    gradle:'groovy',groovy:'groovy',kts:'kotlin',kt:'kotlin',java:'java',
+    py:'python',rb:'ruby',php:'php',lua:'lua',pl:'perl',r:'r',go:'go',rs:'rust',
+    c:'c',h:'c',cc:'cpp',cpp:'cpp',cxx:'cpp',hpp:'cpp',hxx:'cpp',
+    cs:'csharp',swift:'swift',dart:'dart',sql:'sql',
+    sh:'shell',bash:'shell',zsh:'shell',bat:'bat',cmd:'bat',ps1:'powershell',
+    pro:'plaintext'
+  };
+  var PERMS = [['INTERNET','Internet'],['ACCESS_NETWORK_STATE','Network state'],['ACCESS_WIFI_STATE','Wi-Fi state'],['CHANGE_WIFI_STATE','Change Wi-Fi'],['CHANGE_NETWORK_STATE','Change network'],['NEARBY_WIFI_DEVICES','Nearby Wi-Fi (API 33+)'],['BLUETOOTH','Bluetooth'],['BLUETOOTH_ADMIN','Bluetooth admin'],['BLUETOOTH_CONNECT','Connect Bluetooth'],['BLUETOOTH_SCAN','Scan Bluetooth'],['BLUETOOTH_ADVERTISE','Advertise Bluetooth'],['ACCESS_FINE_LOCATION','GPS location (fine)'],['ACCESS_COARSE_LOCATION','Coarse location'],['ACCESS_BACKGROUND_LOCATION','Background location'],['CAMERA','Camera'],['RECORD_AUDIO','Record audio'],['READ_EXTERNAL_STORAGE','Read storage'],['WRITE_EXTERNAL_STORAGE','Write storage'],['READ_MEDIA_IMAGES','Read images'],['READ_MEDIA_VIDEO','Read video'],['READ_MEDIA_AUDIO','Read audio'],['MANAGE_EXTERNAL_STORAGE','Manage all storage'],['POST_NOTIFICATIONS','Notifications (API 33+)'],['WAKE_LOCK','Wake lock'],['VIBRATE','Vibrate'],['FLASHLIGHT','Flashlight'],['READ_PHONE_STATE','Phone state'],['READ_PRIVILEGED_PHONE_STATE','Phone state (privileged)'],['CALL_PHONE','Call phone'],['ANSWER_PHONE_CALLS','Answer calls'],['READ_CALL_LOG','Read call log'],['WRITE_CALL_LOG','Write call log'],['ADD_VOICEMAIL','Add voicemail'],['USE_SIP','Use SIP'],['PROCESS_OUTGOING_CALLS','Process outgoing calls'],['READ_SMS','Read SMS'],['SEND_SMS','Send SMS'],['WRITE_SMS','Write SMS'],['READ_CONTACTS','Read contacts'],['WRITE_CONTACTS','Write contacts'],['GET_ACCOUNTS','Get accounts'],['READ_CALENDAR','Read calendar'],['WRITE_CALENDAR','Write calendar'],['SCHEDULE_EXACT_ALARM','Schedule exact alarm'],['USE_EXACT_ALARM','Use exact alarm'],['ACTIVITY_RECOGNITION','Activity recognition'],['BODY_SENSORS','Body sensors'],['BODY_SENSORS_BACKGROUND','Body sensors (bg)'],['NFC','NFC'],['NFC_TRANSACTION_ITEM','NFC transaction'],['NFC_HANDLES','NFC handles'],['REQUEST_IGNORE_BATTERY_OPTIMIZATIONS','Ignore battery optimization'],['FOREGROUND_SERVICE','Foreground service'],['FOREGROUND_SERVICE_CAMERA','FGS Camera'],['FOREGROUND_SERVICE_MICROPHONE','FGS Microphone'],['FOREGROUND_SERVICE_LOCATION','FGS Location'],['FOREGROUND_SERVICE_HEALTH','FGS Health'],['FOREGROUND_SERVICE_MEDIA_PLAYBACK','FGS Media'],['FOREGROUND_SERVICE_PHONE_CALL','FGS Phone call'],['FOREGROUND_SERVICE_SPECIAL_USE','FGS Special use'],['FOREGROUND_SERVICE_DATA_SYNC','FGS Data sync'],['FOREGROUND_SERVICE_CONNECTED_DEVICE','FGS Connected device'],['SYSTEM_ALERT_WINDOW','Show over other apps'],['PACKAGE_USAGE_STATS','Usage stats'],['QUERY_ALL_PACKAGES','Query all packages'],['READ_APP_SERVICES','Read app services'],['REQUEST_INSTALL_PACKAGES','Request install packages'],['BIND_NOTIFICATION_LISTENER_SERVICE','Bind notification listener'],['CaptivePortal','Captive portal'],['INSTALL_LOCATION','Install location'],['INSTALL_PACKAGES','Install packages'],['DELETE_PACKAGES','Delete packages'],['READ_PRIVILEGED_PHONE_STATE','Read privileged phone state']];
 
   var I18N = {
     km: {
@@ -207,15 +218,160 @@
         };
       }
     }
+,
+    hello: {
+      label: 'សួស្តី ពិភព',
+      desc: 'Hello World native',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\nimport android.os.Bundle\nimport android.widget.TextView\n\nclass MainActivity : Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val tv = TextView(this).apply {\n            text = \"សួស្តី ពិភព 👋\"\n            setTextColor(android.graphics.Color.WHITE)\n        }\n        setContentView(tv)\n    }\n}',
+          'README.md': readme('សួស្តី ពិភព')
+        };
+      }
+    },
+    camera: {
+      label: 'Camera App',
+      desc: 'Camera + runtime perms',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.Manifest\nimport android.app.Activity\nimport android.content.pm.PackageManager\nimport android.os.Bundle\nimport android.widget.Toast\nimport androidx.core.app.ActivityCompat\nimport androidx.core.content.ContextCompat\n\nclass MainActivity : Activity() {\n    private val REQUEST_CAMERA = 101\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        setContentView(android.view.View(this))\n        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)\n            != PackageManager.PERMISSION_GRANTED) {\n            ActivityCompat.requestPermissions(this,\n                arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA)\n        } else {\n            Toast.makeText(this, \"Camera ready\", Toast.LENGTH_SHORT).show()\n        }\n    }\n    override fun onRequestPermissionsResult(req: Int, perms: Array<out String>,\n                                            grants: IntArray) {\n        super.onRequestPermissionsResult(req, perms, grants)\n        if (req == REQUEST_CAMERA && grants.getOrNull(0) == PackageManager.PERMISSION_GRANTED) {\n            Toast.makeText(this, \"Camera granted\", Toast.LENGTH_SHORT).show()\n        }\n    }\n}',
+          'README.md': readme('Camera App')
+        };
+      }
+    },
+    bluetooth: {
+      label: 'Bluetooth Scanner',
+      desc: 'Bluetooth scan',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\nimport android.bluetooth.BluetoothAdapter\nimport android.bluetooth.BluetoothManager\nimport android.content.Context\nimport android.os.Bundle\nimport android.widget.Toast\n\nclass MainActivity : Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val bm = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager\n        val bt = bm.adapter\n        setContentView(android.view.View(this))\n        if (bt == null || !bt.isEnabled) {\n            Toast.makeText(this, \"Bluetooth off\", Toast.LENGTH_SHORT).show()\n        } else {\n            Toast.makeText(this, \"Bluetooth on: ${bt.name}\", Toast.LENGTH_SHORT).show()\n        }\n    }\n}',
+          'README.md': readme('Bluetooth Scanner')
+        };
+      }
+    },
+    api_client: {
+      label: 'API Client',
+      desc: 'HTTP GET/POST',
+      files: function () {
+        return {
+          'index.html': '<!doctype html>\n<html lang=\"km\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>API Client</title>\n  <style>\n  :root{--accent:#388bfd;--bg:#f4f6fb;--fg:#131a26}\n  body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);padding:20px}\n  .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px #131a2612}\n  textarea{width:100%;min-height:120px;font:14px/1.5 ui-monospace,Menlo,monospace;border:1px solid #d0d7de;border-radius:8px;padding:10px}\n  button{font:inherit;padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:600}\n  h2{margin:0 0 8px}\n  </style>\n</head>\n<body>\n  <div class=\"card\"><h2>API Client</h2>\n    <textarea id=\"req\">GET https://jsonplaceholder.typicode.com/todos/1\nHeaders:\n  Accept: application/json\n</textarea>\n    <button id=\"go\">Run</button>\n  </div>\n  <div class=\"card\"><h2>Response</h2><pre id=\"resp\" style=\"white-space:pre-wrap;font:13px/1.5 ui-monospace,Menlo,monospace\">-</pre></div>\n  <script>\n  document.getElementById(\"go\").onclick = async () => {\n    var raw = document.getElementById(\"req\").value;\n    var lines = raw.split(\"\\\\n\");\n    var method = \"GET\", url = \"\", headers = {};\n    for (var i = 0; i < lines.length; i++) {\n      var ln = lines[i];\n      if (i === 0) { var p = ln.split(/\\s+/); method = p[0]; url = p[1] || \"\"; }\n      else if (ln.startsWith(\"Headers:\")) { /* skip */ }\n      else if (ln.includes(\":\")) { var k = ln.split(\":\")[0].trim(); var v = ln.slice(k.length+1).trim(); headers[k] = v; }\n    }\n    var out = document.getElementById(\"resp\");\n    try {\n      var r = await fetch(url, {method:method, headers: headers});\n      var txt = await r.text();\n      out.textContent = \"HTTP \" + r.status + \"\\\\n\" + txt.slice(0, 2000);\n    } catch (e) { out.textContent = \"Error: \" + e.message; }\n  };\n  </script>\n</body>\n</html>',
+          'style.css': '',
+          'app.js': '',
+          'README.md': readme('API Client')
+        };
+      }
+    },
+    login: {
+      label: 'Login App',
+      desc: 'Login/register form',
+      files: function () {
+        return {
+          'index.html': '<!doctype html>\n<html lang=\"km\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Login</title>\n  <style>\n  :root{--accent:#388bfd;--bg:#f4f6fb;--fg:#131a26}\nbody{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center;min-height:100%}\n.card{width:100%;max-width:360px;background:#fff;border-radius:16px;padding:22px;box-shadow:0 8px 24px #131a2612}\nh1{text-align:center;margin:0 0 4px;font-size:24px}small{text-align:center;color:#66718a;margin-bottom:16px;display:block}\ninput{width:100%;padding:12px;border:1px solid #d0d7de;border-radius:10px;font:15px/1.4 system-ui;margin-bottom:10px;background:#fff;color:#131a26}\nbutton{width:100%;padding:13px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:600;font-size:16px;margin-top:6px}\n.tab{display:flex;border-bottom:1px solid #d0d7de;margin-bottom:14px}\n.tab button{flex:1;border:0;background:#fff;font:inherit;padding:10px;border-radius:10px 10px 0 0;color:#66718a}\n.tab button.on{background:#fff;color:var(--accent);font-weight:700;border-bottom:2px solid var(--accent)}\n  </style>\n</head>\n<body>\n  <div class=\"card\">\n    <div class=\"tab\" id=\"tabbar\"><button data-tab=\"login\" class=\"on\">Login</button><button data-tab=\"register\">Register</button></div>\n    <h1 id=\"formTitle\">Login</h1><small id=\"formSub\">Email + password</small>\n    <form id=\"form\"></form>\n    <p id=\"msg\" style=\"color:#8b949e;font-size:13px;min-height:18px\"></p>\n  </div>\n  <script>\n(function(){\n  var tab = \"login\";\n  function show(t){\n    tab = t;\n    var bars = document.querySelectorAll(\".tab button\");\n    for (var i=0;i<bars.length;i++){\n      bars[i].classList.toggle(\"on\", bars[i].dataset.tab===t);\n    }\n    document.getElementById(\"formTitle\").textContent = t===\"login\"?\"Login\":\"Register new\";\n    document.getElementById(\"formSub\").textContent = t===\"login\"?\"Email + password\":\"Name + email + password\";\n    var form = document.getElementById(\"form\");\n    form.innerHTML = \"\";\n    var fields;\n    if (t===\"login\"){\n      fields = [\n        [\"input\",\"email\",\"email\",\"email\",\"required\"],\n        [\"input\",\"pass\",\"password\",\"password\",\"required\"],\n        [\"button\",\"submit\",\"Submit\"]\n      ];\n    } else {\n      fields = [\n        [\"input\",\"name\",\"text\",\"Name\",\"required\"],\n        [\"input\",\"email\",\"email\",\"email\",\"required\"],\n        [\"input\",\"pass\",\"password\",\"password\",\"required\"],\n        [\"button\",\"submit\",\"Submit\"]\n      ];\n    }\n    for (var i=0;i<fields.length;i++){\n      var f = fields[i];\n      var el = document.createElement(f[0]);\n      el.id = f[1];\n      el.type = f[0]===\"button\" ? \"submit\" : f[2];\n      if (f[1]!==\"submit\") el.placeholder = f[3];\n      if (f[4]) el.setAttribute(\"required\",\"\");\n      if (f[0]===\"button\") el.textContent = f[3];\n      form.appendChild(el);\n    }\n    document.getElementById(\"msg\").textContent = \"\";\n  }\n  document.querySelectorAll(\".tab button\").forEach(function(b){\n    b.addEventListener(\"click\", function(){show(b.dataset.tab);});\n  });\n  document.getElementById(\"form\").addEventListener(\"submit\", function(e){\n    e.preventDefault();\n    var email = document.getElementById(\"email\").value;\n    var msg = document.getElementById(\"msg\");\n    msg.textContent = \"You submitted \" + (tab===\"login\"?\"login\":\"register\") + \" with \" + email;\n    msg.style.color = \"#2f6df6\";\n  });\n  show(tab);\n})();\n  </script>\n</body>\n</html>',
+          'style.css': '',
+          'app.js': '',
+          'README.md': readme('Login App')
+        };
+      }
+    },
+    database: {
+      label: 'Database App',
+      desc: 'SQLite on device',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\nimport android.database.sqlite.SQLiteDatabase\nimport android.os.Bundle\nimport android.widget.TextView\n\nclass MainActivity : Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val open = SQLiteDatabase.openOrCreateDatabase(\n            java.io.File(filesDir, \"demo.db\"), null)\n        open.execSQL(\"CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, text TEXT)\")\n        open.execSQL(\"INSERT INTO notes (text) VALUES (\'Note #1\')\")\n        open.execSQL(\"INSERT INTO notes (text) VALUES (\'Note #2\')\")\n        val cur = open.rawQuery(\"SELECT id, text FROM notes ORDER BY id\", null)\n        val sb = StringBuilder()\n        sb.append(\"All notes (\").append(cur.count).append(\"):\n\")\n        while (cur.moveToNext()) {\n            sb.append(\"  #\").append(cur.getInt(0)).append(\" \").append(cur.getString(1)).append(\"\n\")\n        }\n        cur.close()\n        open.close()\n        val tv = TextView(this).apply { text = sb.toString() }\n        setContentView(tv)\n    }\n}',
+          'README.md': readme('Database App')
+        };
+      }
+    },
+    notification: {
+      label: 'Notification App',
+      desc: 'Show notification',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.NotificationChannel\nimport android.app.NotificationManager\nimport android.app.PendingIntent\nimport android.content.Intent\nimport android.os.Build\nimport android.os.Bundle\nimport android.widget.Button\nimport android.widget.LinearLayout\nimport androidx.core.app.NotificationCompat\n\nclass MainActivity : android.app.Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val lm = LinearLayout(this).apply {\n            orientation = LinearLayout.VERTICAL\n            setPadding(40, 120, 40, 40)\n        }\n        val btn = Button(this).apply {\n            text = \"Show notification\"\n            setOnClickListener {\n                val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager\n                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {\n                    val ch = NotificationChannel(\"demo\", \"Demo\", NotificationManager.IMPORTANCE_DEFAULT)\n                    nm.createNotificationChannel(ch)\n                }\n                val intent = Intent(this, MainActivity::class.java)\n                val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)\n                val n = NotificationCompat.Builder(this, \"demo\").apply {\n                    setSmallIcon(android.R.drawable.ic_dialog_info)\n                    setContentTitle(\"Hello 👋\")\n                    setContentText(\"Notification from your app\")\n                    setContentIntent(pi)\n                    setAutoCancel(true)\n                }.build()\n                nm.notify(1, n)\n            }\n        }\n        lm.addView(btn)\n        setContentView(lm)\n    }\n}',
+          'README.md': readme('Notification App')
+        };
+      }
+    },
+    multi_screen: {
+      label: 'Multi-screen App',
+      desc: '3 screens + navigation',
+      files: function () {
+        return {
+          'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\nimport android.content.Intent\nimport android.os.Bundle\nimport android.widget.Button\nimport android.widget.LinearLayout\nimport android.widget.TextView\n\nclass MainActivity : Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val root = LinearLayout(this).apply {\n            orientation = LinearLayout.VERTICAL\n            setPadding(24, 80, 24, 24)\n        }\n        root.addView(TextView(this).apply {\n            text = \"Hello 👋\"\n            setPadding(0, 0, 0, 24)\n        })\n        root.addView(Button(this).apply {\n            text = \"Go to Screen 2\"\n            setOnClickListener { startActivity(Intent(this@MainActivity, Screen2::class.java)) }\n        })\n        root.addView(Button(this).apply {\n            text = \"Go to Screen 3\"\n            setOnClickListener { startActivity(Intent(this@MainActivity, Screen3::class.java)) }\n        })\n        setContentView(root)\n    }\n}\n\nclass Screen2 : android.app.Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n        root.addView(TextView(this).apply { text = \"Screen 2\"; setPadding(40, 120, 40, 40) })\n        root.addView(Button(this).apply { text = \"Back\"; setOnClickListener { finish() } })\n        setContentView(root)\n    }\n}\n\nclass Screen3 : android.app.Activity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n        root.addView(TextView(this).apply { text = \"Screen 3\"; setPadding(40, 120, 40, 40) })\n        root.addView(Button(this).apply { text = \"Back\"; setOnClickListener { finish() } })\n        setContentView(root)\n    }\n}',
+          'README.md': readme('Multi-screen App')
+        };
+      }
+    },
+    offline: {
+      label: 'Offline App',
+      desc: 'No internet',
+      files: function () {
+        return {
+          'index.html': '<!doctype html>\n<html lang=\"km\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Offline App</title>\n  <style>\n  body{margin:0;font-family:system-ui,sans-serif;background:#0d1117;color:#e6edf3;display:flex;align-items:center;justify-content:center;min-height:100%}\n.card{text-align:center;padding:24px;border-radius:16px;background:#161b22;width:100%;max-width:340px}\nh1{font-size:26px;margin:0 0 8px;color:#fff}\np{color:#8b949e}\n  </style>\n</head>\n<body>\n  <div class=\"card\">\n    <h1>Offline App</h1>\n    <p>This app works without internet — data stays on device.</p>\n    <p>You can use it anywhere.</p>\n  </div>\n</body>\n</html>',
+          'style.css': '',
+          'app.js': '',
+          'README.md': readme('Offline App')
+        };
+      }
+    },
+  };
+
+  /* ---- templates ថ្មី: C/C++ NDK និង Empty Android ---- */
+  TPL.ndk = {
+    label: 'C/C++ NDK',
+    desc: 'JNI + CMake + Kotlin',
+    files: function () {
+      return {
+        'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\n' +
+          'import android.os.Bundle\nimport android.widget.TextView\n\n' +
+          'class MainActivity : Activity() {\n' +
+          '    // C/C++ នៅ app/src/main/cpp/ → libnativeapp.so\n' +
+          '    private external fun stringFromJNI(): String\n\n' +
+          '    override fun onCreate(savedInstanceState: Bundle?) {\n' +
+          '        super.onCreate(savedInstanceState)\n' +
+          '        val tv = TextView(this).apply {\n' +
+          '            textSize = 18f\n' +
+          '            setPadding(48, 96, 48, 48)\n' +
+          '            text = stringFromJNI()\n        }\n' +
+          '        setContentView(tv)\n    }\n\n' +
+          '    companion object {\n        init {\n' +
+          '            System.loadLibrary("nativeapp")\n        }\n    }\n}\n',
+        'native-lib.cpp': '#include <jni.h>\n#include <string>\n\n' +
+          'extern "C" JNIEXPORT jstring JNICALL\n' +
+          'Java_org_pyapp_demo_MainActivity_stringFromJNI(JNIEnv *env, jobject) {\n' +
+          '    std::string hello = "Hello from C++ / NDK";\n' +
+          '    return env->NewStringUTF(hello.c_str());\n}\n',
+        'CMakeLists.txt': 'cmake_minimum_required(VERSION 3.22.1)\n' +
+          'project("nativeapp")\n\nadd_library(nativeapp SHARED\n        native-lib.cpp)\n\n' +
+          'target_compile_features(nativeapp PUBLIC cxx_std_17)\n\n' +
+          'find_library(log-lib log)\ntarget_link_libraries(nativeapp ${log-lib})\n',
+        'README.md': readme('C/C++ NDK')
+      };
+    }
+  };
+  TPL.empty_android = {
+    label: 'Empty Android',
+    desc: 'Kotlin អប្បបរមា',
+    files: function () {
+      return {
+        'MainActivity.kt': 'package org.pyapp.demo\n\nimport android.app.Activity\n' +
+          'import android.os.Bundle\n\nclass MainActivity : Activity() {\n' +
+          '    override fun onCreate(savedInstanceState: Bundle?) {\n' +
+          '        super.onCreate(savedInstanceState)\n    }\n}\n',
+        'README.md': readme('Empty Android')
+      };
+    }
+
   };
 
   var state = {
     name: 'My App', pkg: 'org.pyapp.demo',
-    files: {}, folders: [], open: [], active: '',
+    files: {}, folders: [], open: [], active: '', selFolder: '',
     settings: {theme: 'dark', lang: 'km', font: 14, wrap: 'on', auto: true},
     icon: '',
     build: {mode: 'webview', ver: '1.0', code: 1, orient: 'unspecified', online: true,
-            perms: ['INTERNET']},
+            artifact: 'both', perms: ['INTERNET']},
     history: []
   };
 
@@ -286,10 +442,89 @@
     el.textContent = msg;
     el.className = cls || '';
   }
+  /* #region folder-paths */
+  // Helper សុទ្ធ (គ្មាន DOM) — តេស្តដោយ static/ide/test_folder_paths.cjs
   function validPath(path) {
-    return /^[A-Za-z0-9_\-][A-Za-z0-9_\-.\/]{0,179}$/.test(path) &&
+    return /^[A-Za-z0-9_.\-][A-Za-z0-9_\-.\/]{0,179}$/.test(path) &&
       path.split('/').every(function (p) { return p && p !== '.' && p !== '..'; });
   }
+  // Helper សុទ្ធ (គ្មាន DOM) — តេស្តដោយ static/ide/test_folder_paths.cjs
+  // ឈ្មោះ file ពីការ upload: space/តួអក្សរហាម → '-' (រក្សាអក្សរខ្មែរ)
+  function safeName(path) {
+    var parts = normFolder(path).split('/'), out = [];
+    var banned = ' \\/:*?"<>|';
+    for (var i = 0; i < parts.length; i++) {
+      var src = parts[i], buf = '';
+      for (var j = 0; j < src.length; j++) {
+        var ch = src.charAt(j);
+        buf += (banned.indexOf(ch) >= 0 || src.charCodeAt(j) < 32) ? '-' : ch;
+      }
+      while (buf.indexOf('--') >= 0) buf = buf.split('--').join('-');
+      while (buf.charAt(0) === '-') buf = buf.slice(1);
+      while (buf.slice(-1) === '-') buf = buf.slice(0, -1);
+      if (buf) out.push(buf);
+    }
+    return out.join('/');
+  }
+  // "a/b//" → "a/b" ; "a\b" → "a/b"
+  function normFolder(path) {
+    var s = String(path == null ? '' : path);
+    s = s.split(String.fromCharCode(92)).join('/').trim();
+    while (s.indexOf('//') >= 0) s = s.split('//').join('/');
+    while (s.charAt(0) === '/') s = s.slice(1);
+    while (s.slice(-1) === '/') s = s.slice(0, -1);
+    return s;
+  }
+  // "app/src/A.kt" → ["app", "app/src"] (folder មេទាំងអស់)
+  function parentFolders(path) {
+    var parts = String(path == null ? '' : path).split('/'), out = [];
+    for (var i = 1; i < parts.length; i++) out.push(parts.slice(0, i).join('/'));
+    return out;
+  }
+  // folder មិនអាចមានឈ្មោះដូច file ដែលមានស្រាប់
+  function folderIssue(files, path) {
+    return (files && files[path] != null) ? 'file' : '';
+  }
+  // ឈ្មោះមិនប៉ះទង្គិច — "a.png" → "a (2).png" (មិនលុប data ចាស់)
+  function uniquePath(files, path) {
+    if (!files || files[path] == null) return path;
+    var slash = path.lastIndexOf('/');
+    var dir = slash >= 0 ? path.slice(0, slash + 1) : '';
+    var base = slash >= 0 ? path.slice(slash + 1) : path;
+    var dot = base.lastIndexOf('.');
+    var stem = dot > 0 ? base.slice(0, dot) : base;
+    var tail = dot > 0 ? base.slice(dot) : '';
+    for (var i = 2; i < 1000; i++) {
+      var cand = dir + stem + ' (' + i + ')' + tail;
+      if (files[cand] == null) return cand;
+    }
+    return dir + stem + '-' + Date.now() + tail;
+  }
+  // ដើមឈើ folder/file សម្រាប់ Project Explorer (pure → តេស្តបាន)
+  // folder ត្រូវបានបង្កើតពី file path ដែរ ដូច្នេះ project ចាស់/import បង្ហាញត្រឹមត្រូវ
+  function buildTree(folders, files) {
+    var root = { dirs: {}, files: [] };
+    (folders || []).forEach(function (f) {
+      var node = root, parts = String(f).split('/');
+      parts.forEach(function (p) {
+        if (!p) return;
+        node.dirs[p] = node.dirs[p] || { dirs: {}, files: [] };
+        node = node.dirs[p];
+      });
+    });
+    Object.keys(files || {}).forEach(function (path) {
+      var node = root, parts = String(path).split('/');
+      parts.forEach(function (p, i) {
+        if (i === parts.length - 1) node.files.push({ name: p, path: path });
+        else {
+          node.dirs[p] = node.dirs[p] || { dirs: {}, files: [] };
+          node = node.dirs[p];
+        }
+      });
+    });
+    return root;
+  }
+  /* #endregion */
 
   /* ---------------- modal ---------------- */
   var modalOk = $('modalOk'), modalCancel = $('modalCancel');
@@ -335,11 +570,18 @@
     state.folders = [];
     state.open = [];
     state.active = '';
+    state.selFolder = '';
     state.name = key === 'webview' ? 'My App' : tpl.label;
-    state.build.mode = key === 'kotlin' ? 'kotlin' : (key === 'java' ? 'java' : 'webview');
-    if (key === 'kotlin' || key === 'java') {
-      var src = key === 'kotlin' ? 'MainActivity.kt' : 'MainActivity.java';
-      state.files[src] = state.files[src].replace('org.pyapp.demo', state.pkg);
+    var nat = {kotlin:'kotlin', java:'java', hello:'kotlin', camera:'kotlin',
+      bluetooth:'kotlin', database:'kotlin', notification:'kotlin', multi_screen:'kotlin',
+      ndk:'ndk', empty_android:'kotlin'};
+    state.build.mode = nat[key] ? nat[key] : 'webview';
+    if (state.build.mode === 'kotlin' || state.build.mode === 'java') {
+      var src = state.build.mode === 'kotlin' ? 'MainActivity.kt' : 'MainActivity.java';
+      if (state.files[src]) state.files[src] = state.files[src].replace('org.pyapp.demo', state.pkg);
+      ['Screen2.kt','Screen3.kt'].forEach(function (f) {
+        if (state.files[f]) state.files[f] = state.files[f].replace('org.pyapp.demo', state.pkg);
+      });
     }
     if (monacoReady) {
       Object.keys(models).forEach(function (k) { try { models[k].dispose(); } catch (e) {} });
@@ -347,33 +589,15 @@
     models = {};
     persist(true);
     refreshAll();
-    openFile(key === 'kotlin' ? 'MainActivity.kt' : (key === 'java' ? 'MainActivity.java' : 'index.html'));
+    var firstFile = (state.build.mode === 'kotlin' || state.build.mode === 'ndk')
+      ? 'MainActivity.kt' :
+      (state.build.mode === 'java' ? 'MainActivity.java' : 'index.html');
+    if (state.files[firstFile]) openFile(firstFile);
+    else { var keys = Object.keys(state.files).sort(); if (keys[0]) openFile(keys[0]); }
     renderPreview();
-  }
-
-  /* ---------------- tree ---------------- */
+  }  /* ---------------- tree ---------------- */
   var collapsed = {};
-  function treeModel() {
-    var root = { dirs: {}, files: [] };
-    state.folders.forEach(function (f) {
-      var node = root, parts = f.split('/');
-      parts.forEach(function (p) {
-        node.dirs[p] = node.dirs[p] || { dirs: {}, files: [] };
-        node = node.dirs[p];
-      });
-    });
-    Object.keys(state.files).forEach(function (path) {
-      var node = root, parts = path.split('/');
-      parts.forEach(function (p, i) {
-        if (i === parts.length - 1) node.files.push({ name: p, path: path });
-        else {
-          node.dirs[p] = node.dirs[p] || { dirs: {}, files: [] };
-          node = node.dirs[p];
-        }
-      });
-    });
-    return root;
-  }
+  function treeModel() { return buildTree(state.folders, state.files); }
   function renderTree() {
     var host = $('tree');
     host.innerHTML = '';
@@ -383,15 +607,24 @@
       Object.keys(node.dirs).sort().forEach(function (name) {
         var path = base ? base + '/' + name : name;
         var row = document.createElement('div');
-        row.className = 'row indent-' + Math.min(depth + 1, 6);
-        row.innerHTML = '<span class="ic">' + (collapsed[path] ? '▸' : '▾') + '</span>' +
-          '<span class="ic">📁</span><span class="nm">' + esc(name) +
-          '</span><button class="more" title="menu">⋮</button>';
+        row.className = 'row indent-' + Math.min(depth + 1, 6) +
+          (state.selFolder === path ? ' active' : '');
+        row.title = path;
+        row.innerHTML = '<span class="ic chev">' + (collapsed[path] ? '▸' : '▾') + '</span>' +
+          '<span class="ic">' + (collapsed[path] ? '📁' : '📂') + '</span><span class="nm">' +
+          esc(name) + '</span><button class="more" title="menu">⋮</button>';
         row.onclick = function (e) {
           if (e.target.classList.contains('more')) {
             e.stopPropagation(); folderMenu(path); return;
           }
-          collapsed[path] = !collapsed[path];
+          if (e.target.classList.contains('chev')) {
+            collapsed[path] = !collapsed[path];
+            renderTree();
+            return;
+          }
+          // ជ្រើស folder → file/folder ថ្មីនឹងចូលទីនេះ
+          state.selFolder = (state.selFolder === path ? '' : path);
+          collapsed[path] = false;
           renderTree();
         };
         row.oncontextmenu = function (e) { e.preventDefault(); folderMenu(path); };
@@ -403,6 +636,7 @@
           var row = document.createElement('div');
           row.className = 'row indent-' + Math.min(depth + 1, 6) +
             (state.active === f.path ? ' active' : '');
+          row.title = f.path;
           var icon = /\.(png|jpe?g|webp|gif|ico)$/i.test(f.name) ? '🖼' :
             /\.(kt)$/i.test(f.name) ? '🟣' : /\.(java)$/i.test(f.name) ? '☕' :
             /\.(html?)$/i.test(f.name) ? '🌐' : /\.(css)$/i.test(f.name) ? '🎨' :
@@ -466,14 +700,35 @@
       if (!next || next === path) return;
       if (!validPath(next)) return toast(t('invalidName'), true);
       if (isFolder) {
-        var idx = state.folders.indexOf(path);
-        if (idx >= 0) state.folders.splice(idx, 1, next);
+        var renamed = normFolder(next);
+        if (!renamed || renamed === path) return;
+        if (!validPath(renamed)) return toast(t('invalidName'), true);
+        if (folderIssue(state.files, renamed)) return toast('File មានរួចហើយ', true);
+        var prefix = path + '/';
+        // ប្តូរឈ្មោះ folder + folder កូនទាំងអស់
+        state.folders = state.folders.map(function (f) {
+          if (f === path) return renamed;
+          if (f.indexOf(prefix) === 0) return renamed + f.slice(path.length);
+          return f;
+        }).filter(function (f, i, arr) { return arr.indexOf(f) === i; });
+        // ប្តូរ path file ទាំងអស់ក្នុង folder (រក្សាទិន្នន័យ)
         Object.keys(state.files).forEach(function (p) {
-          if (p === path || p.indexOf(path + '/') === 0) {
-            state.files[next + p.slice(path.length)] = state.files[p];
+          if (p.indexOf(prefix) === 0) {
+            state.files[renamed + p.slice(path.length)] = state.files[p];
             delete state.files[p];
           }
         });
+        // tab ដែលបើក និង file សកម្ម
+        state.open = state.open.map(function (p) {
+          return p.indexOf(prefix) === 0 ? renamed + p.slice(path.length) : p;
+        });
+        if (state.active.indexOf(prefix) === 0) {
+          state.active = renamed + state.active.slice(path.length);
+        }
+        if (state.selFolder === path) state.selFolder = renamed;
+        else if (state.selFolder.indexOf(prefix) === 0) {
+          state.selFolder = renamed + state.selFolder.slice(path.length);
+        }
       } else {
         if (state.files[next] != null) return toast('File មានរួចហើយ', true);
         state.files[next] = state.files[path];
@@ -497,6 +752,9 @@
           Object.keys(state.files).forEach(function (p) {
             if (p.indexOf(path + '/') === 0) delete state.files[p];
           });
+          if (state.selFolder === path || state.selFolder.indexOf(path + '/') === 0) {
+            state.selFolder = '';
+          }
         } else {
           delete state.files[path];
         }
@@ -751,25 +1009,36 @@
 
   /* ---------------- file ops ---------------- */
   $('newFile').onclick = function () {
-    ask(t('newFile'), 'src/new-file.js', function (path) {
+    var base = state.selFolder ? state.selFolder + '/' : '';
+    ask(t('newFile'), base ? base + 'new-file.js' : 'src/new-file.js', function (path) {
       if (!path) return;
       if (!validPath(path)) return toast(t('invalidName'), true);
       if (state.files[path] != null) return toast('File មានរួចហើយ', true);
+      if (state.folders.indexOf(path) >= 0) return toast('មាន folder ឈ្មោះនេះរួចហើយ', true);
       state.files[path] = '';
-      var parts = path.split('/');
-      for (var i = 1; i < parts.length; i++) {
-        var f = parts.slice(0, i).join('/');
+      parentFolders(path).forEach(function (f) {
         if (state.folders.indexOf(f) < 0) state.folders.push(f);
-      }
+      });
       persist(true); refreshAll(); openFile(path);
     });
   };
   $('newFolder').onclick = function () {
-    ask(t('newFolder'), 'assets', function (path) {
+    var base = state.selFolder ? state.selFolder + '/' : '';
+    ask(t('newFolder'), base ? base + 'assets' : 'assets', function (raw) {
+      var path = normFolder(raw);
       if (!path) return;
       if (!validPath(path)) return toast(t('invalidName'), true);
-      if (state.folders.indexOf(path) < 0) state.folders.push(path);
-      persist(true); renderTree();
+      if (folderIssue(state.files, path)) {
+        return toast('មាន file ឈ្មោះនេះរួចហើយ — folder និង file ដូចគ្នាមិនបានទេ', true);
+      }
+      var added = 0;
+      parentFolders(path).concat([path]).forEach(function (f) {
+        if (state.folders.indexOf(f) < 0) { state.folders.push(f); added++; }
+      });
+      collapsed[path] = false;
+      state.selFolder = path;
+      persist(true); refreshAll();
+      toast(added ? 'Folder បង្កើតរួច · ' + path : 'Folder មានស្រាប់ · ' + path);
     });
   };
   $('uploadBtn').onclick = function () { $('uploadInput').click(); };
@@ -777,10 +1046,22 @@
     var files = Array.prototype.slice.call(this.files || []);
     this.value = '';
     files.forEach(function (file) {
+      // រក្សា folder របស់ file បើ browser ផ្តល់ webkitRelativePath
+      var name = safeName(file.webkitRelativePath || file.name);
+      if (!name) return;
+      if (!validPath(name)) return toast('ឈ្មោះ file មិនត្រឹមត្រូវ: ' + name, true);
+      if (!isText(name) && !isBinary(name)) {
+        return toast('ប្រភេទ file .' + ext(name) + ' មិនគាំទ្រ', true);
+      }
+      if (file.size > 5 * 1024 * 1024) return toast(name + ' ធំពេក (5MB)', true);
+      var target = uniquePath(state.files, name);
       var reader = new FileReader();
-      var binary = !isText(file.name);
+      var binary = isBinary(name);
       reader.onload = function () {
-        state.files[file.name] = reader.result;
+        state.files[target] = reader.result;
+        parentFolders(target).forEach(function (f) {
+          if (state.folders.indexOf(f) < 0) state.folders.push(f);
+        });
         persist(true); refreshAll();
       };
       if (binary) reader.readAsDataURL(file); else reader.readAsText(file);
@@ -801,7 +1082,13 @@
         if (!res.ok) throw new Error(res.j.error || 'import failed');
         var replace = window.confirm(t('replaceProject'));
         if (replace) { state.files = {}; state.folders = []; state.open = []; state.active = ''; }
-        Object.keys(res.j.files).forEach(function (p) { state.files[p] = res.j.files[p]; });
+        Object.keys(res.j.files).forEach(function (p) {
+          state.files[p] = res.j.files[p];
+          // បង្កើត folder មេរបស់ file ដែល import ចូល
+          parentFolders(p).forEach(function (f) {
+            if (state.folders.indexOf(f) < 0) state.folders.push(f);
+          });
+        });
         persist(true); refreshAll(); renderEditor();
         toast('Import រួចរាល់ · ' + res.j.count + ' file');
         status(t('saved'), 'ok');
@@ -845,6 +1132,7 @@
     $('bMode').value = state.build.mode;
     $('bOrient').value = state.build.orient;
     $('bOnline').value = state.build.online ? '1' : '0';
+    if ($('bArtifact')) $('bArtifact').value = state.build.artifact || 'both';
     var host = $('perms');
     host.innerHTML = '';
     PERMS.forEach(function (p) {
@@ -865,7 +1153,7 @@
       ? 'GitHub Actions · ' + CFG.repo : 'GH_REPO/GH_TOKEN មិនបានកំណត់';
     $('ghState').className = 'hint' + (CFG.ghReady ? '' : ' bad');
   }
-  ['bTitle','bPkg','bVer','bCode','bMode','bOrient','bOnline'].forEach(function (id) {
+  ['bTitle','bPkg','bVer','bCode','bMode','bOrient','bOnline','bArtifact'].forEach(function (id) {
     $(id).addEventListener('change', function () {
       if (id === 'bTitle') { state.name = $('bTitle').value.trim() || 'My App'; }
       if (id === 'bPkg') { state.pkg = $('bPkg').value.trim(); }
@@ -877,6 +1165,7 @@
       }
       if (id === 'bOrient') { state.build.orient = $('bOrient').value; }
       if (id === 'bOnline') { state.build.online = $('bOnline').value === '1'; }
+      if (id === 'bArtifact') { state.build.artifact = $('bArtifact').value; }
       persist(); renderProjectName();
     });
   });
@@ -900,6 +1189,8 @@
   function startBuild() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     $('dlApk').hidden = true; $('runLink').hidden = true; $('logsBtn').hidden = true;
+    if ($('dlAab')) $('dlAab').hidden = true;
+    renderProblems([]);
     $('buildLog').textContent = ''; $('buildLog').hidden = true;
     $('buildSteps').innerHTML = '';
     setProgress(1);
@@ -910,6 +1201,7 @@
       version: $('bVer').value.trim() || '1.0',
       build: parseInt($('bCode').value, 10) || 1,
       mode: $('bMode').value,
+      artifact: (state.build.artifact || ($('bArtifact') ? $('bArtifact').value : 'apk')),
       orientation: $('bOrient').value,
       online: $('bOnline').value === '1',
       permissions: state.build.perms,
@@ -922,8 +1214,8 @@
       return;
     }
     $('buildBtn').disabled = true;
-    appendLog('POST /api/ide/build · mode=' + payload.mode + ' · files=' +
-      Object.keys(payload.files).length);
+    appendLog('POST /api/ide/build · mode=' + payload.mode + ' · artifact=' +
+      payload.artifact + ' · files=' + Object.keys(payload.files).length);
     fetch('/api/ide/build', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -975,14 +1267,17 @@
           setProgress(100, 'ok');
           setBuildState(t('built') + ' · 100%', 'ok');
           var dl = $('dlApk');
-          dl.href = '/dl/' + j.id;
+          dl.href = '/dl/' + j.id + '?type=apk';
           dl.hidden = false;
+          var dlb = $('dlAab');
+          if (dlb) { dlb.href = '/dl/' + j.id + '?type=aab'; dlb.hidden = false; }
           if (j.run_url) { $('runLink').href = j.run_url; $('runLink').hidden = false; }
           $('logsBtn').hidden = false;
           $('logsBtn').onclick = function () { showLogs(j.id); };
-          appendLog('APK រួចរាល់ — ចុច Download APK');
+          appendLog('Artifacts រួចរាល់ — APK + AAB (ចុច Download)');
           markHistory(j.id, 'done');
-          toast('APK រួចរាល់ 🎉');
+          loadProblems(j.id);
+          toast('APK + AAB រួចរាល់ 🎉');
         } else {
           setProgress(0, 'bad');
           setBuildState(j.error || t('failed'), 'bad');
@@ -991,6 +1286,7 @@
           $('logsBtn').onclick = function () { showLogs(j.id); };
           if (j.run_url) { $('runLink').href = j.run_url; $('runLink').hidden = false; }
           markHistory(j.id, 'error');
+          loadProblems(j.id);
         }
       }).catch(function () {});
     }
@@ -1006,7 +1302,49 @@
       .then(function (j) {
         log.textContent = j.logs || j.note || 'គ្មាន log';
         if (j.note) log.textContent += '\n' + j.note;
+        renderProblems(j.problems || []);
       }).catch(function (e) { log.textContent = 'អាន log មិនបាន: ' + e.message; });
+  }
+
+  /* ---------------- Problems (ពី build log ពិត) ---------------- */
+  // log មាន path ពេញ (java/org/…/MainActivity.kt) — រក file ក្នុង project តាម suffix
+  function resolveFile(p) {
+    if (!p) return '';
+    if (state.files[p]) return p;
+    var keys = Object.keys(state.files);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].slice(-p.length - 1) === '/' + p) return keys[i];
+    }
+    var base = p.split('/').pop();
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].split('/').pop() === base) return keys[i];
+    }
+    return '';
+  }
+  function renderProblems(items) {
+    var host = $('problems');
+    if (!host) return;
+    host.innerHTML = '';
+    if (!items || !items.length) { host.hidden = true; return; }
+    host.hidden = false;
+    items.forEach(function (p) {
+      var row = document.createElement('div');
+      var target = resolveFile(p.file);
+      row.style.cssText = 'padding:4px 8px;border-left:3px solid ' +
+        (p.severity === 'warning' ? '#d29922' : '#f85149') +
+        ';font:12px/1.5 ui-monospace,monospace;cursor:' +
+        (target ? 'pointer' : 'default') + ';color:#c9d1d9';
+      row.textContent = (p.file ? p.file + (p.line ? ':' + p.line : '') + ' · ' : '') + p.message;
+      row.title = p.severity + (p.file ? ' — ' + p.file : '');
+      row.onclick = function () { if (target) openFile(target); };
+      host.appendChild(row);
+    });
+  }
+  function loadProblems(jobId) {
+    fetch('/api/jobs/' + jobId + '/logs').then(function (r) { return r.json(); })
+      .then(function (j) { renderProblems(j.problems || []); })
+      .catch(function () {});
   }
   $('buildBtn').onclick = startBuild;
 
@@ -1221,7 +1559,8 @@
       state.settings = Object.assign({theme: 'dark', lang: 'km', font: 14, wrap: 'on', auto: true},
         saved.settings || {});
       state.build = Object.assign({mode: 'webview', ver: '1.0', code: 1,
-        orient: 'unspecified', online: true, perms: ['INTERNET']}, saved.build || {});
+        orient: 'unspecified', online: true, artifact: 'both',
+        perms: ['INTERNET']}, saved.build || {});
     } else {
       state.name = CFG.defaultTitle || 'My App';
       state.pkg = CFG.defaultPackage || 'org.pyapp.demo';

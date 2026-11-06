@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""បង្កើត Android Gradle project ពី file របស់ IDE (WebView / Kotlin / Java)។
+"""បង្កើត Android Gradle project ពី file របស់ IDE។
 
-- `webview` : file ទាំងអស់ → `app/src/main/assets/www/` ហើយ WebView បើក index.html
-- `kotlin`  : `*.kt` របស់អ្នកប្រើ → compile ដោយ Kotlin (Gradle) ជា app native
-- `java`    : `*.java` របស់អ្នកប្រើ → compile ដោយ Java (Gradle) ជា app native
+គណៈកម្មការទទួលយកគ្រប់ app type៖
+- `webview`  : file ទាំងអស់ → `app/src/main/assets/www/` ហើយ WebView បើក index.html
+- `kotlin`   : `*.kt` របស់អ្នកប្រើ → compile ដោយ Kotlin (Gradle) ជា app native
+- `java`     : `*.java` របស់អ្នកប្រើ → compile ដោយ Java (Gradle) ជា app native
+- `ndk`      : app native + C/C++ (JNI) → NDK + CMake → `libnativeapp.so`
 
-Gradle + Android SDK compile ក្នុង GitHub Actions (IP ថ្ងៃនេះមិន build ក្នុង server)។
+Gradle + Android SDK/NDK compile ក្នុង GitHub Actions។
 """
 from __future__ import annotations
 
@@ -14,28 +16,137 @@ import xml.etree.ElementTree as ET
 
 from androidutil import MAX_ICON_BYTES, launcher_icons, xml_escape
 
-MODES = ("webview", "kotlin", "java")
+MODES = ("webview", "kotlin", "java", "ndk")
 
-# permission ដែលអនុញ្ញាត (ឈ្មោះ Android ដើម) → ពិពណ៌នាខ្មែរ
-PERMISSIONS = {
-    "INTERNET": "អ៊ីនធឺណិត",
-    "ACCESS_NETWORK_STATE": "ស្ថានភាព network",
-    "VIBRATE": "រំញ័រ",
-    "CAMERA": "កាមេរ៉ា",
-    "RECORD_AUDIO": "ថតសំឡេង",
-    "ACCESS_FINE_LOCATION": "ទីតាំង GPS",
-    "ACCESS_COARSE_LOCATION": "ទីតាំង (rough)",
-    "READ_EXTERNAL_STORAGE": "អាន file",
-    "WRITE_EXTERNAL_STORAGE": "សរសេរ file",
-    "POST_NOTIFICATIONS": "ជូនដំណឹង",
-    "WAKE_LOCK": "បើកអេក្រង់",
-    "FLASHLIGHT": "ពិល",
-    "SYSTEM_ALERT_WINDOW": "បង្ហាញលើ app ផ្សេង",
-    "FOREGROUND_SERVICE": "service ខាងក្រោយ",
-    "FOREGROUND_SERVICE_SPECIAL_USE": "service ប្រភេទពិសេស",
+# NDK/CMake version ត្រូវតែត្រូវនឹងអ្វីដែល workflow ដំឡើង (sdkmanager --install "ndk;<ver>")។
+NDK_VERSION = "26.1.10909125"
+CMAKE_VERSION = "3.22.1"
+NATIVE_LIB = "nativeapp"
+
+# ក្រប permission ពេញលេញ៖ ឈ្មោះ Android, ប្រភេទ, បរិយាបទខ្មែរ។
+# dangerous = ត្រូវ runtime request (Android 6 / API 23+)
+# special   = ត្រូវ special app access (មិនមែន manifest permission ទេ)
+PERMISSIONS: dict[str, dict] = {
+    #  connectivity
+    "INTERNET":               {"kh": "អ៊ីនធឺណិត",            "kind": "normal"},
+    "ACCESS_NETWORK_STATE":   {"kh": "ស្ថានភាព network",       "kind": "normal"},
+    "ACCESS_WIFI_STATE":      {"kh": "ស្ថានភាព Wi-Fi",         "kind": "normal"},
+    "CHANGE_WIFI_STATE":      {"kh": "ប្តូរស្ថានភាព Wi-Fi",   "kind": "normal"},
+    "CHANGE_NETWORK_STATE":   {"kh": "ប្តូរស្ថានភាព network",  "kind": "normal"},
+    "NEARBY_WIFI_DEVICES":    {"kh": "Wi-Fi ខាងក្រោម (API 33+)", "kind": "dangerous", "min_sdk": 33},
+
+    #  bluetooth
+    "BLUETOOTH":              {"kh": "Bluetooth",                "kind": "normal",   "dep": "android.hardware.bluetooth"},
+    "BLUETOOTH_ADMIN":        {"kh": "ចម្លង Bluetooth",        "kind": "normal",   "dep": "android.hardware.bluetooth"},
+    "BLUETOOTH_CONNECT":      {"kh": "ភ្ជាប់ Bluetooth",        "kind": "dangerous", "min_sdk": 31},
+    "BLUETOOTH_SCAN":         {"kh": "ស្វែងរក Bluetooth",       "kind": "dangerous", "min_sdk": 31},
+    "BLUETOOTH_ADVERTISE":    {"kh": "ផ្សាដូច Bluetooth",       "kind": "normal",   "min_sdk": 31},
+
+    #  location  (dangerous — runtime request)
+    "ACCESS_FINE_LOCATION":   {"kh": "ទីតាំង GPS ត្រឹមត្រូវ",     "kind": "dangerous"},
+    "ACCESS_COARSE_LOCATION": {"kh": "ទីតាំងប្រហែល",           "kind": "dangerous"},
+    "ACCESS_BACKGROUND_LOCATION": {"kh": "ទីតាំងភ្លក់ខ្លួន",     "kind": "dangerous", "min_sdk": 29},
+
+    #  camera
+    "CAMERA":                 {"kh": "កាមេរ៉ា",                  "kind": "dangerous", "dep": "android.hardware.camera"},
+
+    #  audio
+    "RECORD_AUDIO":           {"kh": "ថតសំឡេង",                "kind": "dangerous", "dep": "android.hardware.microphone"},
+
+    #  storage / media
+    "READ_EXTERNAL_STORAGE":  {"kh": "អាន storage",              "kind": "dangerous", "max_sdk": 32},
+    "WRITE_EXTERNAL_STORAGE": {"kh": "សរសេរ storage (ចំណុចឯកជន)", "kind": "dangerous", "max_sdk": 28,
+                                "extra": "android:maxSdkVersion=\"28\""},
+    "READ_MEDIA_IMAGES":      {"kh": "អានរូបភាព",                "kind": "dangerous", "min_sdk": 33},
+    "READ_MEDIA_VIDEO":       {"kh": "អានវីដេអូ",               "kind": "dangerous", "min_sdk": 33},
+    "READ_MEDIA_AUDIO":       {"kh": "អានសំឡេង/តន្ត្រី",        "kind": "dangerous", "min_sdk": 33},
+    "MANAGE_EXTERNAL_STORAGE":{"kh": "គ្រប់គ្រង storage ពេញ",      "kind": "special",   "min_sdk": 29,
+                                "extra": "android:maxSdkVersion=\"28\""},
+
+    #  notifications  (dangerous តែ API 33+)
+    "POST_NOTIFICATIONS":     {"kh": "ជូនដំណឹង",                 "kind": "dangerous", "min_sdk": 33},
+
+    #  phone / sms / call
+    "READ_PHONE_STATE":       {"kh": "ស្ថានភាពទូរស័ព្ទ",        "kind": "dangerous"},
+    "READ_PRIVILEGED_PHONE_STATE": {"kh": "ស្ថានភាពទូរស័ព្ទ (privileged)", "kind": "special", "min_sdk": 30},
+    "CALL_PHONE":             {"kh": "ទូរស័ព្ទដោយផ្ទាល់",        "kind": "dangerous"},
+    "ANSWER_PHONE_CALLS":    {"kh": "ឆ្លើយត្រូវការទូរស័ព្ទ",     "kind": "dangerous", "min_sdk": 30},
+    "READ_CALL_LOG":         {"kh": "អានប្រវត្តិទូរស័ព្ទ",      "kind": "dangerous", "signature": True},
+    "WRITE_CALL_LOG":        {"kh": "សរសេរប្រវត្តិទូរស័ព្ទ",      "kind": "dangerous", "signature": True},
+    "ADD_VOICEMAIL":         {"kh": "បន្ថែមសំឡេងសម្គាល់",      "kind": "signature", "signature": True},
+    "USE_SIP":               {"kh": "ប្រើ SIP",                  "kind": "dangerous"},
+    "PROCESS_OUTGOING_CALLS":{"kh": "ដំណើរការការទូរស័ព្ទ",       "kind": "dangerous"},
+    "READ_SMS":              {"kh": "អាន SMS",                   "kind": "dangerous", "signature": True},
+    "SEND_SMS":              {"kh": "ផ្ញើ SMS",                  "kind": "dangerous"},
+    " RECEIVE_SMS":          {"kh": "ទទួល SMS",                "kind": "dangerous", "signature": True},
+    "RECEIVE_MMS":           {"kh": "ទទួល MMS",               "kind": "dangerous", "signature": True},
+    "RECEIVE_WAP_PUSH":      {"kh": "ទទួល WAP push",            "kind": "dangerous", "signature": True},
+    "WRITE_SMS":             {"kh": "សរសេរ SMS",                 "kind": "signature", "signature": True},
+    "BROADCAST_SMS":         {"kh": "ចែករំលែក SMS",             "kind": "signature", "signature": True},
+
+    #  contacts / calendar
+    "READ_CONTACTS":         {"kh": "អានទំនាក់ទំនង",            "kind": "dangerous"},
+    "WRITE_CONTACTS":        {"kh": "សរសេរទំនាក់ទំនង",          "kind": "dangerous"},
+    "GET_ACCOUNTS":          {"kh": "រកគណនីអ្នកប្រើប្រាស់",      "kind": "normal"},
+    "ACCOUNT_MANAGER":       {"kh": "គ្រប់គ្រងគណនី",            "kind": "signature", "signature": True},
+    "READ_CALENDAR":         {"kh": "អានតាមម៉ោង",                "kind": "dangerous"},
+    "WRITE_CALENDAR":        {"kh": "សរសេរតាមម៉ោង",              "kind": "dangerous"},
+    "SCHEDULE_EXACT_ALARM":  {"kh": "កំណត់ម៉ោងច្បាស់លាស់",      "kind": "special",   "min_sdk": 31},
+    "USE_EXACT_ALARM":       {"kh": "ប្រើម៉ោងច្បាស់លាស់",        "kind": "dangerous", "min_sdk": 31},
+
+    #  sensors / body / activity
+    "ACTIVITY_RECOGNITION":  {"kh": "សម្រាប់ការងារ/លើកចាប់ផ្តើម",  "kind": "dangerous", "min_sdk": 29},
+    "BODY_SENSORS":          {"kh": "រូបិយប័ណ្ណរាងកាយ",         "kind": "dangerous", "min_sdk": 29},
+    "BODY_SENSORS_BACKGROUND": {"kh": "រូបិយប័ណ្ណរាងកាយ (bg)", "kind": "dangerous", "min_sdk": 29},
+    "ACTIVITY_RECOGNITION":  {"kh": "សម្រាប់ការងារ/លើកចាប់ផ្តើម",  "kind": "dangerous", "min_sdk": 29},
+
+    #  NFC
+    "NFC":                   {"kh": "NFC",                       "kind": "normal", "dep": "android.hardware.nfc"},
+    "NFC_TRANSACTION_ITEM":  {"kh": "ធានា NFC transaction",     "kind": "signature", "signature": True},
+    "NFC_HANDLES":           {"kh": "ប្រើ NFC handles",          "kind": "signature", "signature": True},
+
+    #  vibration / wake
+    "VIBRATE":               {"kh": "រំញ័រ",                    "kind": "normal"},
+    "WAKE_LOCK":             {"kh": "បើកអេក្រង់",                "kind": "normal"},
+    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS": {"kh": "មិនអនុញ្ញាត battery optimization", "kind": "normal", "min_sdk": 23},
+
+    #  flashlight
+    "FLASHLIGHT":            {"kh": "ពិល",                       "kind": "normal"},
+
+    #  foreground / background services
+    "FOREGROUND_SERVICE":    {"kh": "service ខាងក្រោយលាស់",      "kind": "normal"},
+    "FOREGROUND_SERVICE_CAMERA": {"kh": "FGS កាមេរ៉ា",        "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_MICROPHONE": {"kh": "FGS ថតសំឡេង",  "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_LOCATION": {"kh": "FGS ទីតាំង",       "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_HEALTH":   {"kh": "FGS សុខភាព",     "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_MEDIA_PLAYBACK": {"kh": "FGS តន្ត្រី", "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_PHONE_CALL": {"kh": "FGS ទូរស័ព្ទ",   "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_SPECIAL_USE": {"kh": "FGS ប្រភេទពិសេស", "kind": "normal", "min_sdk": 34},
+    " FOREGROUND_SERVICE_DATA_SYNC": {"kh": "FGS ដាក់ស្តុក", "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_CONNECTED_DEVICE": {"kh": "FGS ឧបករណ៍", "kind": "normal", "min_sdk": 34},
+
+    #  special app access (មិនមែន <uses-permission>)
+    "SYSTEM_ALERT_WINDOW":   {"kh": "បង្ហាញលើ app ផ្សេង",      "kind": "special", "special_use": "overlay"},
+    "PACKAGE_USAGE_STATS":   {"kh": "ប្រើប្រាស់ចំនួនការប្រើប្រាស់",  "kind": "special", "special_use": "usage_stats"},
+    "QUERY_ALL_PACKAGES":    {"kh": "សួរគ្រប់ package",         "kind": "special", "min_sdk": 29},
+    "READ_APP_SERVICES":     {"kh": "អាន app service",           "kind": "special"},
+    "CaptivePortal":         {"kh": "បង្កើត captive portal",   "kind": "signature", "signature": True},
+    "INSTALL_LOCATION":      {"kh": "ដំឡើងតំបន់",               "kind": "signature", "signature": True},
+    "INSTALL_PACKAGES":      {"kh": "ដំឡើង app",                  "kind": "signature", "signature": True},
+    "DELETE_PACKAGES":       {"kh": "លុប app",                    "kind": "signature", "signature": True},
+    "REQUEST_INSTALL_PACKAGES": {"kh": "សុំដំឡើង app",           "kind": "normal"},
+    "SYSTEM_ALERT_WINDOW":   {"kh": "បង្ហាញលើ app ផ្សេង",      "kind": "special"},
+    "BIND_NOTIFICATION_LISTENER_SERVICE": {"kh": "ស្ថានីយប្រព័ន្ធជូនដំណឹង", "kind": "signature", "signature": True},
+    "BIND_CARETEAM_SERVICE":  {"kh": "ភ្ជាប់ car team",          "kind": "signature", "signature": True},
 }
+# កែត្រចះ double-key នៅលើ PERMISSIONS ពីការកកស្រង់"
+_PERMS_MAP: dict[str, dict] = {}
+for _k, _v in PERMISSIONS.items():
+    _PERMS_MAP[_k.strip()] = _v
+
 ORIENTATIONS = {"unspecified": "", "portrait": "portrait", "landscape": "landscape",
-                "sensor": "sensor"}
+                "sensor": "sensor", "behind": "behind", "reverse": "reverse",
+                "reverse_portrait": "reversePortrait", "reverse_landscape": "reverseLandscape"}
 
 WEBVIEW_KT = '''package @@PKG@@
 
@@ -251,6 +362,7 @@ public class MainActivity extends Activity {
 MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+@@FEATURES@@
 @@PERMISSIONS@@
     <application
 @@ICON@@        android:allowBackup="true"
@@ -266,7 +378,8 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-@@APP_EXTRA@@    </application>
+@@APP_EXTRA@@
+@@RUNTIME_NOTE@@    </application>
 
 </manifest>
 '''
@@ -310,13 +423,14 @@ APP_GRADLE = '''plugins {
 android {
     namespace = "@@PKG@@"
     compileSdk = 34
-
+@@NDK_BLOCK@@
     defaultConfig {
         applicationId = "@@PKG@@"
         minSdk = 21
         targetSdk = 34
         versionCode = @@BUILD@@
         versionName = "@@VERSION@@"
+@@NDK_CONFIG@@
     }
 
     signingConfigs {
@@ -376,6 +490,105 @@ out/
 .idea/
 '''
 
+# ---------------------------------------------------------------- NDK / C++
+# Block ទាំងនេះបញ្ចូលក្នង app/build.gradle.kts តែពេល project មាន C/C++ (JNI)។
+NDK_GRADLE_BLOCK = '''
+    ndkVersion = "@@NDK@@"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "@@CMAKE@@"
+        }
+    }
+'''
+
+NDK_GRADLE_CONFIG = '''
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += listOf("-DANDROID_STL=c++_shared")
+            }
+        }
+'''
+
+CMAKE_LISTS = '''cmake_minimum_required(VERSION 3.22.1)
+project("@@LIB@@")
+
+add_library(@@LIB@@ SHARED
+        @@SOURCES@@)
+
+target_compile_features(@@LIB@@ PUBLIC cxx_std_17)
+
+find_library(log-lib log)
+target_link_libraries(@@LIB@@ ${log-lib})
+'''
+
+NATIVE_CPP = '''#include <jni.h>
+#include <string>
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_@@JNI@@_MainActivity_stringFromJNI(JNIEnv *env, jobject /* this */) {
+    std::string hello = "Hello from C++ / NDK";
+    return env->NewStringUTF(hello.c_str());
+}
+'''
+
+NDK_KT = '''package @@PKG@@
+
+import android.app.Activity
+import android.os.Bundle
+import android.widget.TextView
+
+class MainActivity : Activity() {
+    // C/C++ នៅ app/src/main/cpp/ → lib@@LIB@@.so (JNI)
+    private external fun stringFromJNI(): String
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val tv = TextView(this).apply {
+            textSize = 18f
+            setPadding(48, 96, 48, 48)
+            text = stringFromJNI()
+        }
+        setContentView(tv)
+    }
+
+    companion object {
+        init {
+            System.loadLibrary("@@LIB@@")
+        }
+    }
+}
+'''
+
+NDK_JAVA = '''package @@PKG@@;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+    private native String stringFromJNI();
+
+    static {
+        System.loadLibrary("@@LIB@@");
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        TextView tv = new TextView(this);
+        tv.setTextSize(18f);
+        tv.setPadding(48, 96, 48, 48);
+        tv.setText(stringFromJNI());
+        setContentView(tv);
+    }
+}
+'''
+
+NATIVE_EXTS = (".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx")
+
 PACKAGE_RE = re.compile(r"^[ \t]*package[ \t]+([A-Za-z_][\w.]*)[ \t]*;?[ \t]*$", re.MULTILINE)
 MAIN_CLASS_RE = re.compile(r"\bclass\s+MainActivity\b")
 
@@ -384,6 +597,34 @@ ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 # component ដែលអនុញ្ញាតឲ្យ project ប្រកាសខ្លួនឯងក្នុង <application>
 APP_EXTRA_TAGS = {"service", "receiver", "provider", "meta-data", "activity-alias"}
+
+
+def _runtime_permission_note(perms: list[str], full_perms: dict[str, dict] | None = None) -> str:
+    """Generate XML comment អំពី runtime permission request សម្រាប់ dangerous permission។
+
+    មិនដាក់ក្នុង manifest — គ្រាន់តែជូនដំណឹងដល់អ្នកប្រើ ថា permission ទាំងនេះ
+    ត្រូវការ runtime request នៅលើឧបករណ៍។
+    """
+    active = full_perms if full_perms is not None else _PERMS_MAP
+    dangerous = []
+    for p in perms:
+        p = p.strip()
+        info = active.get(p)
+        if info and info.get("kind") == "dangerous":
+            dangerous.append(p)
+    if not dangerous:
+        return ""
+    # ចែកជាក្រុមតាមប្រភេទ
+    groups: dict[str, list[str]] = {}
+    for p in dangerous:
+        cat = (active[p].get("kh", p)).split()[0] if p in active else p
+        groups.setdefault(cat, []).append(p)
+    body = "Manually request these dangerous permissions at runtime (Android 6+, API 23+):\n"
+    for p in sorted(dangerous):
+        name = active[p]["kh"] if p in active else p
+        body += f"  - {name} ({p})\n"
+    body += "\nNo permission is granted silently. The user must approve on their device."
+    return "    <!--\n        " + body.replace("\n", "\n        ") + "\n    -->\n"
 
 
 def _user_manifest(files: dict) -> tuple[list[str], str]:
@@ -414,6 +655,11 @@ def _user_manifest(files: dict) -> tuple[list[str], str]:
         if el.tag in ("uses-permission", "uses-permission-sdk-23"):
             name = el.get(ANDROID_NS + "name")
             if name:
+                # លុប prefix permission ឱ្យបានតែ base name (ឧ. android.permission.CAMERA → CAMERA)
+                if name.startswith("android.permission."):
+                    name = name[len("android.permission."):]
+                elif name.startswith("android:"):
+                    continue
                 perms.append(name)
 
     blocks = []
@@ -433,23 +679,47 @@ def _user_manifest(files: dict) -> tuple[list[str], str]:
     return perms, ("\n".join(blocks) + "\n" if blocks else "")
 
 
-def _permission_blocks(perms, online: bool, extra=()) -> str:
-    names = []
+def _permission_blocks(perms: list[str], online: bool,
+                         full_perms: dict[str, dict] | None = None) -> str:
+    """Generate <uses-permission> lines.
+
+    - បញ្ចូល INTERNET ប្រសិនបើ app អាចប្រើ network (online ឬមាន permission ដែលទាក់ទងនឹង network)
+    - បញ្ចូល ACCESS_NETWORK_STATE ប្រសិនបើមាន permission network ណាមួយ ឬ CAMERA/RECORD_AUDIO
+      (ដែលពិតជាត្រូវការវាស់ signal)
+    - ចែកចាយ permission ដោយ জ Categories: normal / dangerous តែប៉ុណ្ណោះ (special និង signature
+      permission មិនដាក់ក្នុង manifest)
+    - ការពារកំហុស៖ បិទឈ្មោះ permission ដែលមិនត្រឹមត្រូវ ឬឈ្មោះខុសគ្នា (ឧ. RECEIVE_SMS មាន space)
+    """
+    active = full_perms if full_perms is not None else _PERMS_MAP
+    names: list[str] = []
     if online:
         names.append("android.permission.INTERNET")
-    # app ដែលបិទ network មិនត្រូវការ permission នេះទេ — បញ្ចូលតែពេលត្រូវការ
-    if online or "ACCESS_NETWORK_STATE" in perms:
+    # ACCESS_NETWORK_STATE គឺត្រូវការនៅពេល app មាន permission ណាដែលពិតជាត្រូវការ network
+    # (camera, mic, location, bluetooth scan…)
+    perms_set = set(perms)
+    if (online or "ACCESS_NETWORK_STATE" in perms_set
+            or any(p in perms_set for p in ("CAMERA", "RECORD_AUDIO",
+                                              "BLUETOOTH_SCAN", "NEARBY_WIFI_DEVICES"))):
         names.append("android.permission.ACCESS_NETWORK_STATE")
+    seen = set(names)
     for name in perms:
-        if name != "INTERNET" and name in PERMISSIONS:
-            names.append(f"android.permission.{name}")
-    names.extend(n for n in extra if n)
-    seen, lines = set(), []
-    for name in names:
-        if name in seen:
+        name = name.strip()
+        info = active.get(name)
+        if info is None:
             continue
-        seen.add(name)
-        lines.append(f'    <uses-permission android:name="{name}" />')
+        kind = info.get("kind", "normal")
+        if kind in ("normal", "dangerous"):
+            pname = f"android.permission.{name}"
+            if pname not in seen:
+                seen.add(pname)
+                names.append(pname)
+    lines = []
+    for name in names:
+        extra = active.get(name.split(".")[-1], {}).get("extra")
+        if extra:
+            lines.append(f'    <uses-permission android:name="{name}" {extra} />')
+        else:
+            lines.append(f'    <uses-permission android:name="{name}" />')
     return "\n".join(lines) + "\n"
 
 
@@ -462,20 +732,32 @@ def android_project_files(title: str, package: str, mode: str,
                           files: dict, *, icon: bytes | None = None,
                           version: str = "1.0", build: str = "1",
                           permissions=(), orientation: str = "unspecified",
-                          online: bool = True, name_prefix: str = "") -> dict:
-    """បង្កើត file ទាំងអស់របស់ Android project ជា dict {path: bytes|str}។"""
+                          online: bool = True) -> dict:
+    """បង្កើត file ទាំងអស់របស់ Android project ជា dict {path: bytes|str}។
+
+    គណៈកម្មការទទួលយកគ្រប់ app type៖ webview, kotlin, java។
+    permission ទាំងអស់ត្រូវបានបញ្ចូលដោយស្វ័យប្រវត្តិ ដោយផ្អែកលើប្រភេទ។
+    dangerous permission ត្រូវបានជូនដំណឹងដល់អ្នកប្រើតាម comment ក្នុង manifest។
+    """
     package = package.strip()
     mode = (mode or "webview").strip().lower()
     if mode not in MODES:
-        raise ValueError("mode មិនត្រឹមត្រូវ — ត្រូវជា webview, kotlin ឬ java")
+        raise ValueError("mode មិនត្រឹមត្រូវ — ត្រូវជា webview, kotlin, java ឬ ndk")
     if not re.match(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$", package):
         raise ValueError("package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo")
     orientation = (orientation or "unspecified").strip().lower()
     if orientation not in ORIENTATIONS:
         orientation = "unspecified"
-    permissions = [p for p in (permissions or ()) if p in PERMISSIONS]
-    icons = launcher_icons(icon) if icon else {}
+    # Normalize permission names — លុប space, តែងតែ lowercase ក្នុង manifest
+    perms_raw = [str(p).strip() for p in (permissions or ())]
+    # បញ្ចប់ permission ដែលមិនត្រឹមត្រូវ (ជាក់លាក់) ដើម្បីការពារ manifest parse error
+    invalid = [p for p in perms_raw if p not in _PERMS_MAP]
+    if invalid:
+        raise ValueError(f"permission មិនត្រឹមត្រូវ: {', '.join(invalid)}")
+    # រួមវិញ permission ពី project manifest ដែលអ្នកប្រើដាក់ដោយផ្ទាល់
     manifest_perms, app_extra = _user_manifest(files or {})
+    all_perms = list(dict.fromkeys(perms_raw + manifest_perms))  # order + លុប duplicate
+    icons = launcher_icons(icon) if icon else {}
 
     path = package.replace(".", "/")
     src = {}
@@ -491,11 +773,24 @@ def android_project_files(title: str, package: str, mode: str,
         sources = {f"app/src/main/java/{path}/MainActivity.kt":
                    WEBVIEW_KT.replace("@@PKG@@", package)}
     else:
-        ext = ".kt" if mode == "kotlin" else ".java"
+        # `ndk` អាចប្រើ Kotlin ឬ Java ជា host — ជ្រើសតាម file ដែលអ្នកប្រើដាក់
+        if mode == "java":
+            ext = ".java"
+        elif mode == "ndk":
+            has_kt = any(n.endswith(".kt") for n in src)
+            has_java = any(n.endswith(".java") for n in src)
+            ext = ".java" if (has_java and not has_kt) else ".kt"
+        else:
+            ext = ".kt"
         picks = {n: c for n, c in src.items() if n.endswith(ext)}
         if not any(MAIN_CLASS_RE.search(c) for c in picks.values()):
-            default = DEFAULT_NATIVE_KT if mode == "kotlin" else DEFAULT_NATIVE_JAVA
-            picks[f"MainActivity{ext}"] = default.replace("@@PKG@@", package)
+            if mode == "ndk":
+                tpl = NDK_KT if ext == ".kt" else NDK_JAVA
+                picks[f"MainActivity{ext}"] = (tpl.replace("@@PKG@@", package)
+                                               .replace("@@LIB@@", NATIVE_LIB))
+            else:
+                default = DEFAULT_NATIVE_KT if mode == "kotlin" else DEFAULT_NATIVE_JAVA
+                picks[f"MainActivity{ext}"] = default.replace("@@PKG@@", package)
         sources = {}
         for n, c in picks.items():
             filename = n.rsplit("/", 1)[-1]
@@ -504,6 +799,43 @@ def android_project_files(title: str, package: str, mode: str,
             body = (PACKAGE_RE.sub(decl, c, count=1)
                     if PACKAGE_RE.search(c) else decl + "\n\n" + c)
             sources[f"app/src/main/java/{path}/{filename}"] = body
+
+    # ---- C/C++ (NDK + CMake) ---------------------------------------------
+    # `ndk` mode ឬ project ណាដែលមាន .c/.cpp → compile ជា lib@@LIB@@.so
+    native_files: dict = {}
+    for n, c in src.items():
+        if not n.lower().endswith(NATIVE_EXTS):
+            continue
+        base = n.rsplit("/", 1)[-1]
+        if base in native_files and native_files[base] != c:
+            # CMake តម្រូវឈ្មោះ file តែមួយក្នុង folder ដូច្នេះបដិសេធជាជាងបាត់ file ស្ងាត់
+            raise ValueError(
+                f"មាន C/C++ file ឈ្មោះដូចគ្នា ({base}) — ប្តូរឈ្មោះមួយសិន")
+        native_files[base] = c
+    user_cmake = next((c for n, c in src.items()
+                      if n.rsplit("/", 1)[-1] == "CMakeLists.txt"), None)
+    want_native = mode == "ndk" or bool(native_files) or user_cmake is not None
+    native_extra: dict = {}
+    if want_native:
+        cpp_dir = "app/src/main/cpp"
+        for name, content in native_files.items():
+            native_extra[f"{cpp_dir}/{name}"] = content
+        if not any(n.lower().endswith((".c", ".cc", ".cpp", ".cxx"))
+                   for n in native_files):
+            native_extra[f"{cpp_dir}/native-lib.cpp"] = NATIVE_CPP.replace(
+                "@@JNI@@", package.replace(".", "_"))
+        if user_cmake is not None:
+            # CMakeLists របស់អ្នកប្រើ — រក្សាដើម មិន override
+            native_extra[f"{cpp_dir}/CMakeLists.txt"] = user_cmake
+        else:
+            cpp_names = sorted(n.rsplit("/", 1)[-1] for n in native_extra
+                               if n.lower().endswith((".c", ".cc", ".cpp", ".cxx")))
+            native_extra[f"{cpp_dir}/CMakeLists.txt"] = (CMAKE_LISTS
+                .replace("@@LIB@@", NATIVE_LIB)
+                .replace("@@SOURCES@@", "\n        ".join(cpp_names)))
+    ndk_block = (NDK_GRADLE_BLOCK.replace("@@NDK@@", NDK_VERSION)
+                 .replace("@@CMAKE@@", CMAKE_VERSION)) if want_native else ""
+    ndk_config = NDK_GRADLE_CONFIG if want_native else ""
 
     # Project ដែលប្រើ AndroidX (AppCompatActivity, NotificationCompat…) ត្រូវការ
     # dependency + theme ត្រឹមត្រូវ បើមិនដូច្នេះ Kotlin compile បរាជ័យ ឬ crash ពេលបើក app។
@@ -527,6 +859,19 @@ def android_project_files(title: str, package: str, mode: str,
         icon_attr = ('        android:icon="@mipmap/ic_launcher"\n'
                      '        android:roundIcon="@mipmap/ic_launcher_round"\n')
 
+    # Permissions ពិតប្រាកដពី Google សម្រាប់ការប្រើ API
+    # API lint: បញ្ចូល uses-feature តាមឱកាស (camera, bluetooth, nfc, microphone)
+    uses_features = []
+    for p in all_perms:
+        info = _PERMS_MAP.get(p.strip())
+        if info and "dep" in info:
+            feat = info["dep"].split(".")[-1]  # e.g. android.hardware.camera → camera
+            uses_features.append(f'    <uses-feature android:name="{info["dep"]}" />')
+    features_block = "\n".join(sorted(set(uses_features))) + "\n" if uses_features else ""
+
+    # Runtime permission reminder (dangerous permission)
+    runtime_note = _runtime_permission_note(all_perms)
+
     out = {
         "settings.gradle.kts": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
         "build.gradle.kts": ROOT_GRADLE,
@@ -535,10 +880,12 @@ def android_project_files(title: str, package: str, mode: str,
         "app/build.gradle.kts": (APP_GRADLE.replace("@@PKG@@", package)
                                  .replace("@@VERSION@@", xml_escape(version))
                                  .replace("@@BUILD@@", str(build))
+                                 .replace("@@NDK_BLOCK@@", ndk_block)
+                                 .replace("@@NDK_CONFIG@@", ndk_config)
                                  .replace("@@DEPENDENCIES@@", dependencies)),
         "app/src/main/AndroidManifest.xml": (MANIFEST
-            .replace("@@PERMISSIONS@@", _permission_blocks(permissions, online,
-                                                           manifest_perms))
+            .replace("@@FEATURES@@", features_block)
+            .replace("@@PERMISSIONS@@", _permission_blocks(all_perms, online))
             .replace("@@APP_EXTRA@@", app_extra)
             .replace("@@ICON@@", icon_attr)
             .replace("@@THEME@@", theme)
@@ -546,11 +893,13 @@ def android_project_files(title: str, package: str, mode: str,
                      '        android:usesCleartextTraffic="true"\n' if online else "")
             .replace("@@ORIENTATION@@",
                      (f'            android:screenOrientation="{ORIENTATIONS[orientation]}"\n'
-                      if ORIENTATIONS[orientation] else ""))),
+                      if ORIENTATIONS[orientation] else ""))
+            .replace("@@RUNTIME_NOTE@@", runtime_note)),
         "app/src/main/res/values/strings.xml": STRINGS.replace("@@TITLE@@", xml_escape(title)),
         ".gitignore": GITIGNORE,
     }
     out.update(sources)
+    out.update(native_extra)
     if mode == "webview":
         for name, content in files.items():
             if isinstance(content, (bytes, bytearray)):

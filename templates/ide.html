@@ -96,6 +96,15 @@
               <option value="webview">WebView (HTML/CSS/JS)</option>
               <option value="kotlin">Native Kotlin</option>
               <option value="java">Native Java</option>
+              <option value="ndk">Native C/C++ (NDK + CMake)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="artifact">Build output</label>
+            <select id="bArtifact">
+              <option value="both">APK + AAB</option>
+              <option value="apk">APK (debug)</option>
+              <option value="aab">AAB (release)</option>
             </select>
           </div>
           <div class="field">
@@ -140,10 +149,13 @@
             <span class="hint" id="buildState" data-i18n="idle">មិនទាន់ build</span>
             <span class="spacer"></span>
             <a id="dlApk" class="btn ok" hidden download>⬇ APK</a>
+            <a id="dlAab" class="btn ghost" hidden download>⬇ AAB</a>
             <a id="runLink" class="btn ghost" hidden target="_blank" rel="noopener">GitHub ↗</a>
             <button class="btn ghost" id="logsBtn" hidden data-i18n="logs">Logs</button>
           </div>
           <div class="steps" id="buildSteps"></div>
+          <div id="problems" hidden
+               style="margin-top:8px;max-height:180px;overflow:auto;background:#0d1117;border:1px solid #30363d;border-radius:8px"></div>
           <pre class="log" id="buildLog" hidden></pre>
         </div>
       </div>

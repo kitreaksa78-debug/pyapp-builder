@@ -221,7 +221,13 @@ def build_app_html(title: str, js: str, css: str = "", dark: bool = False) -> st
 
 def web_project_files(title: str, package: str, js: str, css: str = "",
                       icon: bytes | None = None,
-                      version: str = "1.0", build: str = "1") -> dict:
-    """Project Kotlin ដែលដាក់ JavaScript app ជា asset ក្នុង APK។"""
+                      version: str = "1.0", build: str = "1",
+                      permissions=()) -> dict:
+    """Project Kotlin ដែលដាក់ JavaScript app ជា asset ក្នុង APK។
+
+    ប្រើ `kotlin_project_files` ដែលជួនសួរ `android_project_files` ដើម្បីទទួល
+    បាន permission + manifest + gradle ត្រឹមត្រូវ។
+    """
     return kotlin_project_files(title, package, js, css, icon=icon,
-                                version=version, build=build)
+                                version=version, build=build,
+                                permissions=permissions)

@@ -20,6 +20,8 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import r2
+
 from flask import (Flask, abort, jsonify, make_response, redirect,
                    render_template, request, send_file, send_from_directory,
                    url_for)
@@ -268,9 +270,13 @@ def files_from_form(form, uploads=None) -> tuple:
     return title, package, web_project_files(title, package, js, css, icon)
 
 
-def create_job(title: str, package: str, files: dict) -> dict:
+def create_job(title: str, package: str, files: dict,
+               artifact: str = "apk") -> dict:
     job_id = secrets.token_hex(6)
     tag = "apk-" + job_id
+    artifact = (artifact or "apk").strip().lower()
+    if artifact not in ("apk", "aab", "both"):
+        artifact = "apk"
     meta = {
         "id": job_id,
         "title": title,
@@ -279,7 +285,9 @@ def create_job(title: str, package: str, files: dict) -> dict:
         "status": "queued",
         "status_note": "",
         "error": "",
+        "artifact": artifact,
         "apk_url": "",
+        "aab_url": "",
         "run_url": "",
         "progress": {"percent": 0, "step": "", "steps": [], "eta": 0},
         "created": time.time(),
@@ -345,8 +353,8 @@ def refresh_job(meta: dict) -> dict:
     if run.get("status") == "completed":
         if run.get("conclusion") == "success":
             meta["status"] = "done"
-            meta["apk_url"] = (f"https://github.com/{GH_REPO}/releases/download/"
-                               f"{meta['tag']}/app.apk")
+            meta["apk_url"] = release_asset_url(meta["id"], "apk")
+            meta["aab_url"] = release_asset_url(meta["id"], "aab")
             meta["progress"] = {"percent": 100, "step": "", "steps": [], "eta": 0}
         else:
             meta["status"] = "error"
@@ -448,9 +456,13 @@ def api_build():
         # UI ជា JavaScript (engine តែមួយនឹង /builder) — វេចខ្ចប់ដោយ WebView Kotlin
         if not str(data.get("app_js") or "").strip():
             raise ValueError("កូដ app ទទួល — សរសេរ app_js (JavaScript)")
+        perms = data.get("permissions") or []
+        if not isinstance(perms, list):
+            perms = []
         files = web_project_files(title, package, validate_js(data.get("app_js")),
                                   validate_css(data.get("app_css") or ""),
-                                  version=version, build=build_no)
+                                  version=version, build=build_no,
+                                  permissions=perms)
         meta = create_job(title, package, files)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -546,28 +558,79 @@ def job_status(job_id: str):
     meta = refresh_job(load_job(job_id))
     return jsonify({
         "id": meta["id"], "status": meta["status"], "note": meta["status_note"],
-        "error": meta["error"], "apk_url": meta["apk_url"], "run_url": meta["run_url"],
+        "error": meta["error"], "apk_url": meta["apk_url"],
+        "aab_url": meta.get("aab_url", ""), "artifact": meta.get("artifact", "apk"),
+        "run_url": meta["run_url"],
         "title": meta["title"],
         "progress": meta.get("progress") or {"percent": 0, "step": "", "steps": [], "eta": 0},
     })
 
 
-def release_asset_url(job_id: str) -> str:
-    """URL APK ក្នុង GitHub release — កំណត់ដោយ job id ដូច្នេះមិនបាត់ពេល server restart។"""
-    return f"https://github.com/{GH_REPO}/releases/download/apk-{job_id}/app.apk"
+R2_ARTIFACT_PREFIX = "artifacts"
+
+
+def _artifact_key(job_id: str, kind: str) -> str:
+    ext = "aab" if (kind or "").lower() == "aab" else "apk"
+    return f"{R2_ARTIFACT_PREFIX}/{job_id}/app.{ext}"
+
+
+def _artifact_bytes(job_id: str, kind: str) -> bytes:
+    """ទាញ APK/AAB ពី GitHub release (ប្រើ GH_TOKEN បើមាន — repo private)។"""
+    req = urllib.request.Request(release_asset_url(job_id, kind))
+    req.add_header("User-Agent", "pyapp-builder")
+    req.add_header("Accept", "application/octet-stream")
+    if GH_TOKEN:
+        req.add_header("Authorization", "Bearer " + GH_TOKEN)
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        return resp.read()
+
+
+def r2_artifact_url(job_id: str, kind: str, expires: int = 3600) -> str:
+    """R2 បើក: upload លើកដំបូង (បើខ្វះ) រួចត្រឡប់ presigned URL។ មិនអាច → ""។"""
+    if not r2.configured():
+        return ""
+    key = _artifact_key(job_id, kind)
+    try:
+        if r2.head(key) is None:
+            data = _artifact_bytes(job_id, kind)
+            if not data:
+                return ""
+            ctype = ("application/vnd.android.package-archive"
+                     if (kind or "").lower() != "aab" else "application/octet-stream")
+            r2.put_bytes(key, data, ctype)
+        return r2.presigned_url(key, expires)
+    except Exception:  # noqa: BLE001 — R2 ខូច/គ្មានសិទ្ធិ → fallback ទៅ GitHub
+        return ""
+
+
+def release_asset_url(job_id: str, kind: str = "apk") -> str:
+    """URL artifact ក្នុង GitHub release — កំណត់ដោយ job id ដូច្នេះមិនបាត់ពេល restart។
+
+    `kind` = "apk" ឬ "aab" (workflow បង្កើតទំងពីរ)។
+    """
+    name = "app.aab" if (kind or "").lower() == "aab" else "app.apk"
+    return f"https://github.com/{GH_REPO}/releases/download/apk-{job_id}/{name}"
 
 
 @app.get("/dl/<job_id>")
 def download(job_id: str):
+    kind = (request.args.get("type") or "").strip().lower()
+    if kind not in ("apk", "aab"):
+        kind = ""
     if not ID_RE.match(job_id or ""):
         abort(404)
     if not (JOBS / job_id / "meta.json").is_file():
         # Render restart/spin-down លុប jobs/ ⇒ ទាញពី release ដោយផ្ទាល់
-        return redirect(release_asset_url(job_id))
+        return redirect(release_asset_url(job_id, kind or "apk"))
     meta = refresh_job(load_job(job_id))
     if meta["status"] != "done":
-        abort(409, description="APK មិនទាន់រួចរាល់")
-    return redirect(meta.get("apk_url") or release_asset_url(job_id))
+        abort(409, description="Artifact មិនទាន់រួចរាល់")
+    wanted = kind or meta.get("artifact") or "apk"
+    if wanted == "aab":
+        return redirect(r2_artifact_url(job_id, "aab")
+                        or meta.get("aab_url") or release_asset_url(job_id, "aab"))
+    return redirect(r2_artifact_url(job_id, "apk")
+                    or meta.get("apk_url") or release_asset_url(job_id, "apk"))
 
 
 app.register_blueprint(ide_blueprint(create_job, validate_common, GH_REPO, GH_TOKEN))
@@ -583,10 +646,23 @@ def on_http_error(exc):
     return render_template("error.html", code=exc.code, msg=exc.description), exc.code
 
 
+@app.get("/api/r2/status")
+def r2_status():
+    """ស្ថានភាព R2 — គ្មាន secret ត្រឡប់ឡើយ។"""
+    return jsonify(r2.info())
+
+
+@app.route("/api/r2/selftest", methods=["GET", "POST"])
+def r2_selftest():
+    """សាក R2 ពិត៖ PUT → HEAD → presigned GET → DELETE (GET សម្រាប់ browser/ទូរស័ព្ទ)។"""
+    result = r2.selftest()
+    return jsonify(result), (200 if result.get("ok") else 503)
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True, "gh_ready": bool(GH_REPO and GH_TOKEN),
-                    "workflow": GH_WORKFLOW})
+                    "r2_ready": r2.configured(), "workflow": GH_WORKFLOW})
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag for the APK (e.g. apk-1a2b3c4d5e6f)"
+        description: "Release tag for the artifacts (e.g. apk-1a2b3c4d5e6f)"
         required: true
         type: string
 
@@ -13,8 +13,9 @@ permissions:
 
 jobs:
   apk:
-    name: gradle assembleDebug (Kotlin)
+    name: gradle assembleDebug + bundleRelease
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +30,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: "12.0"
-          packages: "platforms;android-34 build-tools;34.0.0"
+          packages: "platforms;android-34 build-tools;34.0.0 cmake;3.22.1 ndk;26.1.10909125"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -44,7 +45,11 @@ jobs:
       - name: Build APK (Kotlin)
         run: gradle assembleDebug --no-daemon --stacktrace
 
+      - name: Build AAB (bundleRelease)
+        run: gradle bundleRelease --no-daemon --stacktrace
+
       - name: Collect APK
+        if: always()
         run: |
           mkdir -p out
           APK=$(find app/build/outputs/apk -name "*.apk" -print | head -1)
@@ -52,16 +57,33 @@ jobs:
           cp "$APK" out/app.apk
           ls -l out
 
+      - name: Collect AAB
+        if: always()
+        run: |
+          mkdir -p out
+          AAB=$(find app/build/outputs/bundle -name "*.aab" -print | head -1)
+          test -n "$AAB" || (echo "no AAB produced" && exit 1)
+          cp "$AAB" out/app.aab
+          ls -l out
+
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-apk
-          path: out/app.apk
+          name: app-artifacts
+          path: |
+            out/app.apk
+            out/app.aab
+          if-no-files-found: warn
 
       - name: Publish release
+        if: always()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
           name: ${{ inputs.tag }}
-          body: "APK បង្កើតដោយ PyApp Builder (JavaScript + Kotlin WebView)."
-          files: out/app.apk
+          body: "APK + AAB បង្កើតដោយ AppForge IDE — Gradle + Android SDK/NDK (compile ពិត)។"
+          files: |
+            out/app.apk
+            out/app.aab
+          fail_on_unmatched_files: false

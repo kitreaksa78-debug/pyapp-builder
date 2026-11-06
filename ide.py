@@ -16,28 +16,92 @@ import zipfile
 from flask import Blueprint, jsonify, request, send_file, url_for
 
 from androidproject import (MODES, ORIENTATIONS, PERMISSIONS,
-                            android_project_files)
+                            _PERMS_MAP, android_project_files)
+from languages import (all_extensions, binary_extensions, language_list,
+                       monaco_map, text_extensions)
 
 MAX_FILES = 300
 MAX_FILE_BYTES = 5 * 1024 * 1024          # 5 MB / file
 MAX_TOTAL_BYTES = 30 * 1024 * 1024        # 30 MB / project
 MAX_PATH_LEN = 180
 
-TEXT_EXT = {
-    "html", "htm", "css", "js", "mjs", "jsx", "ts", "tsx", "json", "md", "txt",
-    "xml", "yml", "yaml", "gradle", "kts", "properties", "pro", "kt", "java",
-    "py", "php", "rb", "go", "rs", "c", "h", "cpp", "hpp", "cs", "swift",
-    "sql", "sh", "bat", "env", "gitignore", "svg", "toml", "ini", "conf",
-}
-BINARY_EXT = {"png", "jpg", "jpeg", "webp", "gif", "ico", "bmp", "ttf", "otf",
-              "woff", "woff2", "mp3", "wav", "ogg", "mp4", "webm", "pdf", "zip"}
-ALLOWED_EXT = TEXT_EXT | BINARY_EXT
+# បញ្ជី extension មកពី languages.py — ប្រភពតែមួយសម្រាប់ backend + editor។
+# បន្ថែមភាសាថ្មីនៅ languages.py ហើយ API/editor ទទួលបានដោយស្វ័យប្រវត្តិ។
+TEXT_EXT = text_extensions()
+BINARY_EXT = binary_extensions()
+ALLOWED_EXT = all_extensions()
 
 DATA_URL_RE = re.compile(r"^data:([\w.+-]+/[\w.+-]+)?;base64,(.*)$", re.DOTALL)
 
 
 class FileError(ValueError):
     """File មិនត្រឹមត្រូវ (បង្ហាញជាសារខ្មែរ)។"""
+
+
+def _permission_info() -> list[dict]:
+    """Build structured permission list for /api/ide/info.
+
+    Returns list of {code, label, kind, min_sdk, max_sdk, requires_runtime, special_use, signature}
+    grouped by category so the frontend can present them by groups.
+    """
+    out: list[dict] = []
+    for code, info in _PERMS_MAP.items():
+        out.append({
+            "code": code,
+            "label": info.get("kh", code),
+            "kind": info.get("kind", "normal"),
+            "min_sdk": info.get("min_sdk"),
+            "max_sdk": info.get("max_sdk"),
+            "requires_runtime": info.get("kind") == "dangerous",
+            "special_use": info.get("special_use"),
+            "signature": info.get("signature", False),
+        })
+    # រៀបចំតាម category ដើម្បី frontend ងាយស្រួល render
+    categories: list[dict] = []
+    seen_cats: set[str] = set()
+    cat_order = [
+        "ការភ្ជាប់", "Bluetooth", "ទីតាំង", "កាមេរ៉ា/សំឡេង",
+        "Storage/Media", "ជូនដំណឹង", "ទូរស័ព្ទ/SMS",
+        "ទំនាក់ទំនង/តាមម៉ោង", "Sensor/សកម្មភាព", "NFC",
+        "សេវាកម្ម", "Special app access", "App installation"
+    ]
+    for code, info in _PERMS_MAP.items():
+        kind = info.get("kind", "normal")
+        if kind == "signature":
+            cat = "សិទ្ធិ system (signature)"
+        elif kind == "special":
+            cat = "Special app access"
+        elif kind == "dangerous":
+            label = info.get("kh", code)
+            cat = ("ទីតាំង" if "location" in code.lower() else
+                   "កាមេរ៉ា/សំឡេង" if "camera" in code.lower() or "audio" in code.lower() or "microphone" in code.lower() else
+                   "ទំនាក់ទំនង/តាមម៉ោង" if "contact" in code.lower() or "calendar" in code.lower() else
+                   "ទូរស័ព្ទ/SMS" if any(x in code.lower() for x in ("phone", "sms", "call")) else
+                   "ជូនដំណឹង" if "notification" in code.lower() else
+                   "Storage/Media" if any(x in code.lower() for x in ("storage", "media")) else
+                   "Bluetooth" if "bluetooth" in code.lower() or "wifi" in code.lower() else
+                   "Sensor/សកម្មភាព" if any(x in code.lower() for x in ("sensor", "activity")) else
+                   "ការភ្ជាប់")
+        else:
+            cat = "ការភ្ជាប់"
+        if cat not in seen_cats:
+            seen_cats.add(cat)
+            categories.append({"name": cat, "perms": []})
+        for c in categories:
+            if c["name"] == cat:
+                c["perms"].append({
+                    "code": code,
+                    "label": info.get("kh", code),
+                    "kind": kind,
+                    "min_sdk": info.get("min_sdk"),
+                    "max_sdk": info.get("max_sdk"),
+                    "requires_runtime": kind == "dangerous",
+                    "special_use": info.get("special_use"),
+                    "signature": info.get("signature", False),
+                })
+                break
+    return {"flat": out, "categories": categories}
+
 
 
 def _ext(name: str) -> str:
@@ -227,6 +291,66 @@ def _logs_for(run_url: str, repo: str, token: str) -> dict:
     return {"logs": joined[-60000:], "note": ""}
 
 
+# ---------------------------------------------------------------- diagnostics
+_PROBLEM_PATTERNS = (
+    re.compile(
+        r"^(?P<sev>e|w):\s+(?:file://)?(?P<file>[^\s:]+\.(?:kt|kts|java|xml|gradle|c|cc|cpp|h|hpp))"
+        r"(?::(?P<line>\d+))?(?::(?P<col>\d+))?:\s*(?P<msg>.+)$"),
+    re.compile(
+        r"^(?P<file>[^\s:]+\.(?:java|kt|xml|c|cc|cpp|h|hpp)):(?P<line>\d+):\s*"
+        r"(?P<sev>error|warning):\s*(?P<msg>.+)$"),
+    re.compile(r"^(?P<sev>error|warning):\s*(?P<msg>.+)$"),
+)
+_SEVERITY = {"e": "error", "w": "warning", "error": "error", "warning": "warning"}
+MAX_PROBLEMS = 200
+_SRC_MARKERS = ("app/src/main/", "src/main/", "/src/")
+
+
+def _short_path(path: str) -> str:
+    """`/home/runner/work/app/app/src/main/java/…/MainActivity.kt` → path ក្នុង project។"""
+    for marker in _SRC_MARKERS:
+        if marker in path:
+            return path.split(marker, 1)[1]
+    return path.rsplit("/", 1)[-1]
+
+
+def parse_problems(logs: str) -> list[dict]:
+    """បំលែង log របស់ Gradle/Kotlin/Java/CMake → Problems ដែលចុចទៅ file បាន។
+
+    មិនបង្កើត problem ក្លែងក្លាយទេ — តែ error/warning ដែលមានក្នុង log ពិតប៉ុណ្ណោះ។
+    """
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for raw in (logs or "").replace("\r", "").split("\n"):
+        line = raw.strip()
+        if not line or len(line) > 800:
+            continue
+        for pattern in _PROBLEM_PATTERNS:
+            m = pattern.match(line)
+            if not m:
+                continue
+            gd = m.groupdict()
+            msg = (gd.get("msg") or "").strip()
+            if not msg or msg.startswith("BUILD "):
+                continue
+            severity = _SEVERITY.get((gd.get("sev") or "error").lower(), "error")
+            file = _short_path(gd.get("file") or "")
+            try:
+                lineno = int(gd.get("line") or 0)
+            except (TypeError, ValueError):
+                lineno = 0
+            key = (file, lineno, msg)
+            if key in seen:
+                break
+            seen.add(key)
+            out.append({"file": file, "line": lineno, "severity": severity,
+                        "message": msg})
+            break
+        if len(out) >= MAX_PROBLEMS:
+            break
+    return out
+
+
 def create_blueprint(create_job, validate_common, repo: str, token: str):
     bp = Blueprint("ide", __name__)
 
@@ -234,11 +358,14 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
     def ide_info():
         return jsonify({
             "modes": list(MODES),
-            "permissions": PERMISSIONS,
+            "permissions": _permission_info(),
+            "permission_categories": True,
             "orientations": list(ORIENTATIONS),
             "limits": {"files": MAX_FILES, "file_bytes": MAX_FILE_BYTES,
                        "total_bytes": MAX_TOTAL_BYTES},
             "extensions": sorted(ALLOWED_EXT),
+            "languages": language_list(),
+            "monaco": monaco_map(),
         })
 
     @bp.post("/api/ide/build")
@@ -251,6 +378,9 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
             version = str(data.get("version") or "1.0").strip()
             if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
                 version = "1.0"
+            artifact = str(data.get("artifact") or "apk").strip().lower()
+            if artifact not in ("apk", "aab", "both"):
+                artifact = "apk"
             build_no = str(data.get("build") or "1").strip()
             if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
                 build_no = "1"
@@ -263,15 +393,16 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
                 build=build_no, permissions=[str(p) for p in perms],
                 orientation=str(data.get("orientation") or "unspecified"),
                 online=bool(data.get("online", True)))
-            meta = create_job(title, package, project)
+            meta = create_job(title, package, project, artifact=artifact)
         except (FileError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({
             "id": meta["id"], "status": meta["status"], "error": meta["error"],
-            "title": meta["title"], "mode": mode,
+            "title": meta["title"], "mode": mode, "artifact": artifact,
             "job_url": url_for("job_page", job_id=meta["id"]),
             "status_url": url_for("job_status", job_id=meta["id"]),
             "download_url": url_for("download", job_id=meta["id"]),
+            "download_aab_url": url_for("download", job_id=meta["id"], type="aab"),
         }), 201
 
     @bp.post("/api/ide/zip")
@@ -318,6 +449,8 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
     def job_logs(job_id: str):
         from app import load_job  # noqa: WPS433 — ចៀសវាង circular import ពេលចាប់ផ្តើម
         meta = load_job(job_id)
-        return jsonify(_logs_for(meta.get("run_url", ""), repo, token))
+        result = _logs_for(meta.get("run_url", ""), repo, token)
+        result["problems"] = parse_problems(result.get("logs", ""))
+        return jsonify(result)
 
     return bp
