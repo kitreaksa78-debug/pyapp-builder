@@ -580,7 +580,13 @@
 
   function newEmptyProject(name) {
     var title = String(name || '').trim() || 'My App';
-    state.files = {'README.md': emptyReadme(title)};
+    state.files = {
+      'index.html': '<!doctype html>\n<html lang="km">\n<head>\n  <meta charset="utf-8">\n' +
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+        '  <title>' + esc(title) + '</title>\n</head>\n<body>\n  <h1>' + esc(title) +
+        '</h1>\n  <p>សរសេរកូដនៅទីនេះ ឬបន្ថែម file ភាសាផ្សេង (Kotlin/Java/C/C++...)។</p>\n</body>\n</html>\n',
+      'README.md': emptyReadme(title)
+    };
     state.folders = [];
     state.open = [];
     state.active = '';
@@ -593,7 +599,7 @@
     models = {};
     persist(true);
     refreshAll();
-    if (state.files['README.md']) openFile('README.md');
+    openFile(state.files['index.html'] ? 'index.html' : 'README.md');
     renderPreview();
   }
 
