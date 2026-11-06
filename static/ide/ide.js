@@ -575,7 +575,21 @@
       '- .c / .cpp / .h → Native C/C++ (NDK + CMake)\n' +
       '- .kt → Native Kotlin\n' +
       '- .java → Native Java\n' +
-      '- .html / .css / .js → WebView\n';
+      '- .html / .css / .js → WebView\n\n' +
+      '## មុខងារទូរស័ព្ទពី JavaScript (WebView app)\n' +
+      'WebView app មាន bridge ទៅ Kotlin ស្វ័យប្រវត្តិ — ហៅ `Native.*` ក្នុង JS៖\n' +
+      '```js\n' +
+      'Native.toast("សួស្តី");\n' +
+      'Native.vibrate(60);\n' +
+      'await Native.copy("text");          // clipboard\n' +
+      'await Native.share("text", "ចែករំលែក");\n' +
+      'Native.notify("ចំណងជើង", "សារ");     // notification\n' +
+      'const img = await Native.pickImage(); // data URL ឬ null\n' +
+      'const ok = await Native.permission("android.permission.CAMERA");\n' +
+      'Native.info(); Native.net(); Native.battery();\n' +
+      '```\n' +
+      'ឯកសារ Android ផ្សេងៗ (Camera2, Bluetooth, Sensors) ត្រូវសរសេរជា Kotlin/Java\n' +
+      'ដោយប្តូរ app type ទៅ Native Kotlin — ឬបន្ថែម method ក្នុង `MainActivity.kt`។\n';
   }
 
   function newEmptyProject(name) {
