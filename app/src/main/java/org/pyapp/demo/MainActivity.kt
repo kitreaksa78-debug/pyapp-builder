@@ -1,0 +1,63 @@
+package org.pyapp.demo
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+                    
+                            // បង្កើតប៊ូតុងសាមញ្ញមួយ
+                                    val startButton = Button(this).apply {
+                                                text = "បើក Mod Menu"
+                                                            setOnClickListener {
+                                                                            if (checkOverlayPermission()) {
+                                                                                                startOverlayService()
+                                                                                                                } else {
+                                                                                                                                    requestOverlayPermission()
+                                                                                                                                                    }
+                                                                                                                                                                }
+                                                                                                                                                                        }
+                                                                                                                                                                                setContentView(startButton)
+                                                                                                                                                                                    }
+
+                                                                                                                                                                                        // ពិនិត្យមើលសិទ្ធិគូរលើអេក្រង់
+                                                                                                                                                                                            private fun checkOverlayPermission(): Boolean {
+                                                                                                                                                                                                    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                                                                                                                                                                                Settings.canDrawOverlays(this)
+                                                                                                                                                                                                                        } else {
+                                                                                                                                                                                                                                    true
+                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                }
+
+                                                                                                                                                                                                                                                    // សុំសិទ្ធិគូរលើអេក្រង់
+                                                                                                                                                                                                                                                        private fun requestOverlayPermission() {
+                                                                                                                                                                                                                                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                                                                                                                                                                                                                                            val intent = Intent(
+                                                                                                                                                                                                                                                                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                                                                                                                                                                                                                                                                            Uri.parse("package:$packageName")
+                                                                                                                                                                                                                                                                                                                        )
+                                                                                                                                                                                                                                                                                                                                    startActivity(intent)
+                                                                                                                                                                                                                                                                                                                                                Toast.makeText(this, "សូមអនុញ្ញាតឱ្យ App គូរលើអេក្រង់", Toast.LENGTH_LONG).show()
+                                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                                            }
+
+                                                                                                                                                                                                                                                                                                                                                                // ចាប់ផ្តើម Service
+                                                                                                                                                                                                                                                                                                                                                                    private fun startOverlayService() {
+                                                                                                                                                                                                                                                                                                                                                                            val serviceIntent = Intent(this, OverlayService::class.java)
+                                                                                                                                                                                                                                                                                                                                                                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                                                                                                                                                                                                                                                                                                                                                                startForegroundService(serviceIntent)
+                                                                                                                                                                                                                                                                                                                                                                                                        } else {
+                                                                                                                                                                                                                                                                                                                                                                                                                    startService(serviceIntent)
+                                                                                                                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                                                                                                                                    Toast.makeText(this, "Mod Menu កំពុងដំណើរការ...", Toast.LENGTH_SHORT).show()
+                                                                                                                                                                                                                                                                                                                                                                                                                                            finish() // បិទ Activity ដើម្បីឱ្យអ្នកប្រើអាចចូលលេងហ្គេមបាន
+                                                                                                                                                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                }
