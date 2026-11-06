@@ -27,7 +27,7 @@ function ok(cond, label) {
 }
 
 console.log('== helpers មានក្នុង ide.js ==');
-for (const name of ['validPath', 'normFolder', 'parentFolders', 'folderIssue', 'uniquePath', 'safeName', 'buildTree']) {
+for (const name of ['validPath', 'normFolder', 'parentFolders', 'folderIssue', 'uniquePath', 'safeName', 'buildTree', 'detectMode']) {
   ok(new RegExp('function ' + name + '\\s*\\(').test(src), name + ' defined');
 }
 
@@ -40,9 +40,10 @@ if (!m) {
 const api = new Function(
   m[1] + '\nreturn {validPath: validPath, normFolder: normFolder,' +
   ' parentFolders: parentFolders, folderIssue: folderIssue, uniquePath: uniquePath,' +
-  ' safeName: safeName, buildTree: buildTree};'
+  ' safeName: safeName, buildTree: buildTree, detectMode: detectMode};'
 )();
-const { validPath, normFolder, parentFolders, folderIssue, uniquePath, safeName, buildTree } = api;
+const { validPath, normFolder, parentFolders, folderIssue, uniquePath, safeName,
+  buildTree, detectMode } = api;
 
 console.log('== normFolder ==');
 eq(normFolder('assets'), 'assets', 'plain');
@@ -122,6 +123,16 @@ eq(derived.dirs.App.files.map(f => f.name), ['new-file.js'], 'file ក្នុ�
 
 eq(Object.keys(buildTree(['empty'], {}).dirs), ['empty'], 'folder ទទេនៅតែបង្ហាញ');
 eq(Object.keys(buildTree(['a'], {'A.py': ''}).dirs), ['a'], 'folder និង file ឈ្មោះផ្សេងគ្នានៅដាច់ពីគ្នា');
+
+console.log('== detectMode — App type ពី file ==');
+eq(detectMode({'lib/x.cpp': ''}), 'ndk', '.cpp → ndk');
+eq(detectMode({'native.h': ''}), 'ndk', '.h → ndk');
+eq(detectMode({'MainActivity.kt': ''}), 'kotlin', '.kt → kotlin');
+eq(detectMode({'MainActivity.java': ''}), 'java', '.java → java');
+eq(detectMode({'index.html': '', 'app.js': ''}), 'webview', 'web → webview');
+eq(detectMode({}), 'webview', 'project ទទេ → webview');
+eq(detectMode({'index.html': '', 'MainActivity.kt': ''}), 'kotlin', 'kotlin ឈ្នះ web');
+eq(detectMode({'index.html': '', 'app.c': ''}), 'ndk', 'C ឈ្នះ web');
 
 console.log('');
 if (fails) {

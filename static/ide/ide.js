@@ -370,7 +370,7 @@
     files: {}, folders: [], open: [], active: '', selFolder: '',
     settings: {theme: 'dark', lang: 'km', font: 14, wrap: 'on', auto: true},
     icon: '',
-    build: {mode: 'webview', ver: '1.0', code: 1, orient: 'unspecified', online: true,
+    build: {mode: 'auto', ver: '1.0', code: 1, orient: 'unspecified', online: true,
             artifact: 'both', perms: ['INTERNET']},
     history: []
   };
@@ -524,7 +524,22 @@
     });
     return root;
   }
+
+  // App type ពី file ដែលមាន (mode "auto") — pure → តេស្តបាន
+  function detectMode(files) {
+    var keys = Object.keys(files || {});
+    function has(re) { return keys.some(function (p) { return re.test(p); }); }
+    if (has(/\.(c|cc|cpp|cxx|h|hh|hpp)$/i)) return 'ndk';
+    if (has(/\.kt$/i)) return 'kotlin';
+    if (has(/\.java$/i)) return 'java';
+    return 'webview';
+  }
   /* #endregion */
+
+  // App type ដែលកំពុងប្រើ ("auto" → គណនាពី file)
+  function currentMode() {
+    return state.build.mode === 'auto' ? detectMode(state.files) : state.build.mode;
+  }
 
   /* ---------------- modal ---------------- */
   var modalOk = $('modalOk'), modalCancel = $('modalCancel');
@@ -551,17 +566,35 @@
     });
   }
 
-  /* ---------------- templates ---------------- */
-  function templateChooser() {
-    var body = showModal('New project — template',
-      '<p class="hint">ជ្រើសគំរូដើម (file បច្ចុប្បន្ននឹងត្រូវជំនួស)</p>' +
-      '<div class="tmpl">' + Object.keys(TPL).map(function (k) {
-        return '<button data-tpl="' + k + '"><b>' + esc(TPL[k].label) + '</b><small>' +
-          esc(TPL[k].desc) + '</small></button>';
-      }).join('') + '</div>', { noOk: true });
-    body.querySelectorAll('[data-tpl]').forEach(function (b) {
-      b.onclick = function () { closeModal(); newProject(b.getAttribute('data-tpl')); };
-    });
+  /* ---------------- new project (ទទេ) ---------------- */
+  // បញ្ជី template លុបចេញពី UI — ចុច ＋ បង្កើត project ទទេភ្លាម, app type កំណត់ដោយ detectMode()
+  function emptyReadme(title) {
+    return '# ' + title + '\n\n' +
+      'Project ទទេ — បន្ថែម file ភាសាណាក៏បានពីប៊ូតុង 📄, upload ឬ drag & drop។\n\n' +
+      'App type កំណត់ស្វ័យប្រវត្តិពី file ដែលមាន៖\n' +
+      '- .c / .cpp / .h → Native C/C++ (NDK + CMake)\n' +
+      '- .kt → Native Kotlin\n' +
+      '- .java → Native Java\n' +
+      '- .html / .css / .js → WebView\n';
+  }
+
+  function newEmptyProject(name) {
+    var title = String(name || '').trim() || 'My App';
+    state.files = {'README.md': emptyReadme(title)};
+    state.folders = [];
+    state.open = [];
+    state.active = '';
+    state.selFolder = '';
+    state.name = title;
+    state.build.mode = 'auto';
+    if (monacoReady) {
+      Object.keys(models).forEach(function (k) { try { models[k].dispose(); } catch (e) {} });
+    }
+    models = {};
+    persist(true);
+    refreshAll();
+    if (state.files['README.md']) openFile('README.md');
+    renderPreview();
   }
 
   function newProject(key) {
@@ -1195,18 +1228,19 @@
     $('buildSteps').innerHTML = '';
     setProgress(1);
     setBuildState(t('running'));
+    var filesNow = currentFiles();
     var payload = {
       title: $('bTitle').value.trim() || state.name,
       package: $('bPkg').value.trim() || state.pkg,
       version: $('bVer').value.trim() || '1.0',
       build: parseInt($('bCode').value, 10) || 1,
-      mode: $('bMode').value,
+      mode: currentMode(),
       artifact: (state.build.artifact || ($('bArtifact') ? $('bArtifact').value : 'apk')),
       orientation: $('bOrient').value,
       online: $('bOnline').value === '1',
       permissions: state.build.perms,
       icon: state.icon || '',
-      files: currentFiles()
+      files: filesNow
     };
     if (!payload.title || !/^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$/.test(payload.package)) {
       setBuildState('package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo', 'bad');
@@ -1488,7 +1522,7 @@
   $('setAuto').onchange = function () { state.settings.auto = this.value === '1'; persist(); };
   $('resetProject').onclick = function () {
     showModal(t('resetProject'), '<p>' + esc(t('confirmDel')) + '</p>', {
-      onOk: function () { closeModal(); newProject('webview'); }
+      onOk: function () { closeModal(); newEmptyProject(state.name); }
     });
   };
 
@@ -1504,7 +1538,7 @@
   $('scrim').onclick = closeSidebar;
   /* Native projects គ្មាន HTML ⇒ preview មិនអាចប្រើ (បិទប៊ូតុងហើយលាក់ panel) */
   function syncPreviewMode() {
-    var web = state.build.mode === 'webview';
+    var web = currentMode() === 'webview';
     var btn = $('pvToggle');
     btn.disabled = !web;
     btn.title = web ? t('preview') + ' (Ctrl+J)' : t('nativeNoPreview');
@@ -1513,7 +1547,7 @@
   window.syncPreviewMode = syncPreviewMode;
 
   $('pvToggle').onclick = function () {
-    if (state.build.mode !== 'webview') { toast(t('nativeNoPreview')); return; }
+    if (currentMode() !== 'webview') { toast(t('nativeNoPreview')); return; }
     $('preview').classList.toggle('hidden');
     renderPreview();
   };
@@ -1533,7 +1567,9 @@
   $('projBtn').onclick = function () {
     ask('Project name', state.name, function (v) { if (v) { state.name = v; persist(true); renderProjectName(); } });
   };
-  $('newProjBtn').onclick = templateChooser;
+  $('newProjBtn').onclick = function () {
+    ask(t('newProject'), 'My App', function (v) { newEmptyProject(v); });
+  };
 
   document.addEventListener('keydown', function (e) {
     var mod = e.ctrlKey || e.metaKey;
