@@ -107,6 +107,10 @@ def main() -> int:
     info = r2.info()
     check(info["configured"] is False and len(info["missing"]) == 4,
           "info() រាយ env ដែលខ្វះ ៤", info)
+    check(info["env"]["present"]["R2_BUCKET_NAME"] is False
+          and info["env"]["other_r2_keys"] == [],
+          "env diagnostics៖ ឈ្មោះតែប៉ុណ្ណោះ, present=false")
+    check("hint" in info and info["hint"], "info() មាន hint ពេលមិនកំណត់")
     res = r2.selftest()
     check(res["ok"] is False and "R2_BUCKET_NAME" in res["error"],
           "selftest បរាជ័យជាមួយសារច្បាស់", res.get("error"))
@@ -157,6 +161,13 @@ def main() -> int:
     blob = json.dumps(info)
     check("test-secret-value" not in blob and "test-key-id" not in blob,
           "info() មិនលាតត្រដាង credential")
+    check(info["env"]["present"]["R2_BUCKET_NAME"] is True
+          and info["env"]["present"]["R2_SECRET_ACCESS_KEY"] is True,
+          "env diagnostics ឃើញ var ពេលកំណត់")
+    os.environ["R2_BUCKETS"] = "typo"
+    check(r2.env_report()["other_r2_keys"] == ["R2_BUCKETS"],
+          "ឈ្មោះវាយខុសត្រូវរាយក្នុង other_r2_keys")
+    os.environ.pop("R2_BUCKETS")
 
     print("== selftest (put → head → presigned get → delete) ==")
     res = r2.selftest()

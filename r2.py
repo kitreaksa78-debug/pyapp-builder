@@ -73,16 +73,37 @@ def configured() -> bool:
     return not missing_env()
 
 
+EXPECTED_ENV = ("R2_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET_NAME",
+                "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_REGION")
+
+
+def env_report() -> dict:
+    """ឈ្មោះ env var ដែលមាន និងតម្លៃទទេ/ពេញ — **គ្មានតម្លៃត្រឡប់ឡើយ**។
+
+    ជួយដានពេល deploy៖ បើ Render មិនបញ្ជូនវាមក `present` ទាំងអស់ជា false
+    ហើយ `other_r2_keys` បង្ហាញឈ្មោះដែលវាយខុស (ឧ. R2_BUCKET ខ្វះ _NAME)។
+    """
+    present = {k: bool((os.environ.get(k) or "").strip()) for k in EXPECTED_ENV}
+    other = sorted(k for k in os.environ
+                   if k.upper().startswith("R2") and k not in EXPECTED_ENV)
+    return {"present": present, "other_r2_keys": other}
+
+
 def info() -> dict:
     """ស្ថានភាពសម្រាប់ UI/health check — មិនដែលត្រឡប់ secret ឡើយ។"""
     s = settings()
     host = s["endpoint"].split("://", 1)[-1] if s["endpoint"] else ""
+    ready = configured()
     return {
-        "configured": configured(),
+        "configured": ready,
         "bucket": s["bucket"],
         "endpoint": host,
         "region": s["region"],
         "missing": missing_env(),
+        "env": env_report(),
+        "hint": "" if ready else (
+            "បើបានដាក់ក្នុង Render រួច៖ ពិនិត្យឈ្មោះ key ខាងលើ, ចុច Save Changes, "
+            "រួច Manual Deploy → Restart service។"),
     }
 
 
