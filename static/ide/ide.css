@@ -85,6 +85,9 @@ a { color: var(--accent); }
   font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap;
 }
 .row:hover { background: var(--hover); }
+.row.addrow { color: #8b949e; opacity: .7; }
+.row.addrow:hover { opacity: 1; }
+.row.addrow .ic { font-size: 11px; }
 .row.active { background: var(--sel); box-shadow: inset 0 0 0 1px #1f6feb55; }
 .row .ic { width: 15px; text-align: center; font-size: 12px; flex: 0 0 15px; }
 .row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }

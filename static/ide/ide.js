@@ -668,7 +668,10 @@
         };
         row.oncontextmenu = function (e) { e.preventDefault(); folderMenu(path); };
         wrap.appendChild(row);
-        if (!collapsed[path]) walk(node.dirs[name], path, depth + 1);
+        if (!collapsed[path]) {
+          walk(node.dirs[name], path, depth + 1);
+          wrap.appendChild(addRow(path, depth + 1));
+        }
       });
       node.files.sort(function (a, b) { return a.name.localeCompare(b.name); })
         .forEach(function (f) {
@@ -699,6 +702,17 @@
     host.appendChild(wrap);
   }
 
+  // បន្ទាត់ "＋ file" នៅខាងក្នុង folder នីមួយៗ — ចុច → បង្កើត file ក្នុង folder នោះ
+  function addRow(folder, depth) {
+    var row = document.createElement('div');
+    row.className = 'row addrow indent-' + Math.min(depth, 6);
+    row.title = 'បង្កើត file ក្នុង ' + folder + '/';
+    row.innerHTML = '<span class="ic">＋</span><span class="nm">file</span>';
+    row.onclick = function (e) { e.stopPropagation(); createFileIn(folder); };
+    row.oncontextmenu = function (e) { e.preventDefault(); folderMenu(folder); };
+    return row;
+  }
+
   function fileMenu(path) {
     var body = showModal(path,
       '<div style="display:flex;flex-direction:column;gap:6px">' +
@@ -721,6 +735,9 @@
   function folderMenu(path) {
     var body = showModal(path,
       '<div style="display:flex;flex-direction:column;gap:6px">' +
+      '<button class="btn ghost" data-act="file">📄 file ថ្មីក្នុង ' + esc(path) + '/</button>' +
+      '<button class="btn ghost" data-act="sub">📁 folder ថ្មីក្នុង ' + esc(path) + '/</button>' +
+      '<button class="btn ghost" data-act="upload">⬆ upload ចូល folder នេះ</button>' +
       '<button class="btn ghost" data-act="rename">✏️ ' + t('rename') + '</button>' +
       '<button class="btn ghost" data-act="delete">🗑 ' + t('del') + '</button></div>',
       { noOk: true });
@@ -728,6 +745,9 @@
       b.onclick = function () {
         var act = b.getAttribute('data-act');
         closeModal();
+        if (act === 'file') createFileIn(path);
+        if (act === 'sub') createFolderIn(path);
+        if (act === 'upload') { state.selFolder = path; renderTree(); $('uploadInput').click(); }
         if (act === 'rename') renamePath(path, true);
         if (act === 'delete') deletePath(path, true);
       };
@@ -1047,8 +1067,8 @@
   });
 
   /* ---------------- file ops ---------------- */
-  $('newFile').onclick = function () {
-    var base = state.selFolder ? state.selFolder + '/' : '';
+  function createFileIn(folder) {
+    var base = folder ? folder + '/' : '';
     ask(t('newFile'), base ? base + 'new-file.js' : 'src/new-file.js', function (path) {
       if (!path) return;
       if (!validPath(path)) return toast(t('invalidName'), true);
@@ -1058,11 +1078,13 @@
       parentFolders(path).forEach(function (f) {
         if (state.folders.indexOf(f) < 0) state.folders.push(f);
       });
+      if (folder) { collapsed[folder] = false; state.selFolder = folder; }
       persist(true); refreshAll(); openFile(path);
     });
-  };
-  $('newFolder').onclick = function () {
-    var base = state.selFolder ? state.selFolder + '/' : '';
+  }
+  $('newFile').onclick = function () { createFileIn(state.selFolder); };
+  function createFolderIn(folder) {
+    var base = folder ? folder + '/' : '';
     ask(t('newFolder'), base ? base + 'assets' : 'assets', function (raw) {
       var path = normFolder(raw);
       if (!path) return;
@@ -1079,7 +1101,8 @@
       persist(true); refreshAll();
       toast(added ? 'Folder បង្កើតរួច · ' + path : 'Folder មានស្រាប់ · ' + path);
     });
-  };
+  }
+  $('newFolder').onclick = function () { createFolderIn(state.selFolder); };
   $('uploadBtn').onclick = function () { $('uploadInput').click(); };
   $('uploadInput').addEventListener('change', function () {
     var files = Array.prototype.slice.call(this.files || []);
@@ -1093,6 +1116,8 @@
         return toast('ប្រភេទ file .' + ext(name) + ' មិនគាំទ្រ', true);
       }
       if (file.size > 5 * 1024 * 1024) return toast(name + ' ធំពេក (5MB)', true);
+      // upload ចូល folder ដែលបានជ្រើស (បើ file មកដោយខ្លួនឯង គ្មាន path)
+      if (state.selFolder && name.indexOf('/') < 0) name = state.selFolder + '/' + name;
       var target = uniquePath(state.files, name);
       var reader = new FileReader();
       var binary = isBinary(name);

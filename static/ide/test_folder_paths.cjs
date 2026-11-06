@@ -134,6 +134,16 @@ eq(detectMode({}), 'webview', 'project ទទេ → webview');
 eq(detectMode({'index.html': '', 'MainActivity.kt': ''}), 'kotlin', 'kotlin ឈ្នះ web');
 eq(detectMode({'index.html': '', 'app.c': ''}), 'ndk', 'C ឈ្នះ web');
 
+console.log('== folder → add file (wiring) ==');
+ok(src.indexOf('function addRow(folder, depth)') > 0, 'addRow() សម្រាប់បន្ទាត់ ＋file');
+ok(src.indexOf('wrap.appendChild(addRow(path, depth + 1))') > 0, 'ចុច folder → មាន ＋file ក្នុង folder');
+ok(src.indexOf('data-act="file"') > 0 && src.indexOf('data-act="sub"') > 0 &&
+  src.indexOf('data-act="upload"') > 0, 'menu folder មាន file / folder ថ្មី / upload');
+ok(src.indexOf("if (state.selFolder && name.indexOf('/') < 0) name = state.selFolder + '/' + name;") > 0,
+  'upload ដាក់ file ចូល folder ដែលជ្រើស');
+ok(src.indexOf('function createFileIn(folder)') > 0 &&
+  src.indexOf('createFileIn(state.selFolder)') > 0, 'toolbar ＋file → createFileIn(selFolder)');
+
 console.log('');
 if (fails) {
   console.log('FAILED ' + fails + ' checks');
