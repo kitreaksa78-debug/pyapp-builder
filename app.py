@@ -28,6 +28,7 @@ from flask import (Flask, abort, jsonify, make_response, redirect,
 from werkzeug.exceptions import HTTPException
 
 from androidutil import MAX_ICON_BYTES
+import zipbuild
 from ide import create_blueprint as ide_blueprint
 from webapp import (DEFAULT_CSS_SOURCE, DEFAULT_JS_SOURCE, build_app_html,
                     validate_css, validate_js, web_project_files)
@@ -43,6 +44,8 @@ GH_REPO = os.environ.get("GH_REPO", "").strip()
 GH_TOKEN = os.environ.get("GH_TOKEN", "").strip()
 GH_WORKFLOW = (os.environ.get("GH_WORKFLOW", "build-kotlin-apk.yml")
                or "build-kotlin-apk.yml").strip()
+GH_WORKFLOW_ZIP = (os.environ.get("GH_WORKFLOW_ZIP", "build-zip-apk.yml")
+                   or "build-zip-apk.yml").strip()
 GH_BRANCH = (os.environ.get("GH_BRANCH", "main") or "main").strip()
 
 # អក្សរខ្មែរមានសញ្ញាស្រៈ (combining marks) ដែល \w មិនទទួល — ដូច្នេះបិទតែអក្សរដែលធ្វើឲ្យ file/XML ខូច
@@ -54,6 +57,8 @@ FILE_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
 MAX_FILE_BYTES = 400_000
 
 app = Flask(__name__)
+# ទទួល ZIP ធំ (ZIP → APK) — លើសពីនេះ Flask ត្រឡប់ 413
+app.config["MAX_CONTENT_LENGTH"] = zipbuild.MAX_ZIP_BYTES + 2 * 1024 * 1024
 
 
 # ---------------------------------------------------------------- helpers
@@ -190,8 +195,9 @@ class GitHub:
                       {"sha": commit["sha"], "force": True})
         return commit["sha"]
 
-    def dispatch(self, branch: str, tag: str) -> None:
-        self.call(f"/repos/{self.repo}/actions/workflows/{GH_WORKFLOW}/dispatches", "POST",
+    def dispatch(self, branch: str, tag: str, workflow: str = "") -> None:
+        wf = (workflow or GH_WORKFLOW).strip()
+        self.call(f"/repos/{self.repo}/actions/workflows/{wf}/dispatches", "POST",
                   {"ref": branch, "inputs": {"tag": tag}})
 
     def find_run(self, branch: str, not_before: float):
@@ -271,7 +277,8 @@ def files_from_form(form, uploads=None) -> tuple:
 
 
 def create_job(title: str, package: str, files: dict,
-               artifact: str = "apk") -> dict:
+               artifact: str = "apk", *, kind: str = "app",
+               workflow: str = "") -> dict:
     job_id = secrets.token_hex(6)
     tag = "apk-" + job_id
     artifact = (artifact or "apk").strip().lower()
@@ -286,6 +293,8 @@ def create_job(title: str, package: str, files: dict,
         "status_note": "",
         "error": "",
         "artifact": artifact,
+        "kind": kind,
+        "workflow": (workflow or GH_WORKFLOW).strip(),
         "apk_url": "",
         "aab_url": "",
         "run_url": "",
@@ -315,7 +324,7 @@ def create_job(title: str, package: str, files: dict,
     try:
         client = gh()
         client.push_branch(meta["branch"], files, f"Build {title} ({tag})")
-        client.dispatch(meta["branch"], tag)
+        client.dispatch(meta["branch"], tag, meta["workflow"])
         meta["status"] = "building"
         meta["status_note"] = "បញ្ជូនទៅ GitHub Actions រួច — កំពុងតម្រៀបជួរ…"
     except Exception as exc:  # noqa: BLE001 — បង្ហាញកំហុសដល់អ្នកប្រើ
@@ -354,7 +363,9 @@ def refresh_job(meta: dict) -> dict:
         if run.get("conclusion") == "success":
             meta["status"] = "done"
             meta["apk_url"] = release_asset_url(meta["id"], "apk")
-            meta["aab_url"] = release_asset_url(meta["id"], "aab")
+            # ZIP→APK workflow ផ្សព្វផ្សាយតែ app.apk (គ្មាន AAB)
+            meta["aab_url"] = ("" if meta.get("kind") == "zip"
+                               else release_asset_url(meta["id"], "aab"))
             meta["progress"] = {"percent": 100, "step": "", "steps": [], "eta": 0}
         else:
             meta["status"] = "error"
@@ -562,8 +573,67 @@ def job_status(job_id: str):
         "aab_url": meta.get("aab_url", ""), "artifact": meta.get("artifact", "apk"),
         "run_url": meta["run_url"],
         "title": meta["title"],
+        "kind": meta.get("kind", "app"),
         "progress": meta.get("progress") or {"percent": 0, "step": "", "steps": [], "eta": 0},
     })
+
+
+# ---------------------------------------------------------------- ZIP → APK
+@app.post("/api/zip/build")
+def zip_build():
+    """ទទួល Android project ZIP → ពិនិត្យ → បញ្ជូនទៅ GitHub Actions (JDK+SDK+Gradle)។"""
+    upload = request.files.get("zip")
+    if upload is None or not (upload.filename or "").strip():
+        return jsonify({"ok": False, "step": "upload",
+                        "error": "សូមជ្រើសរើស file .zip របស់ Android project"}), 400
+    data = upload.read(zipbuild.MAX_ZIP_BYTES + 1)
+    if len(data) > zipbuild.MAX_ZIP_BYTES:
+        return jsonify({"ok": False, "step": "upload",
+                        "error": "ZIP ធំពេក (អតិបរមា %d MB)"
+                                 % (zipbuild.MAX_ZIP_BYTES // (1024 * 1024))}), 400
+    try:
+        info = zipbuild.inspect_zip(data)
+    except zipbuild.ZipError as exc:
+        return jsonify({"ok": False, "step": "validate", "error": str(exc)}), 400
+    if info["problems"]:
+        return jsonify({"ok": False, "step": "validate", "error": info["problems"][0],
+                        "problems": info["problems"], "info": info["summary"]}), 400
+    # ZIP ត្រឹមត្រូវហើយ — ឥឡូវទើបត្រូវការ GitHub Actions ដើម្បី build ពិត
+    if not (GH_REPO and GH_TOKEN):
+        return jsonify({"ok": False, "step": "build", "info": info["summary"],
+                        "error": ("Server មិនបានកំណត់ GH_REPO / GH_TOKEN — "
+                                  "build ក្នុង cloud មិនអាចធ្វើបានទេ។")}), 503
+    title = (upload.filename or "app.zip").rsplit("/", 1)[-1]
+    title = re.sub(r"\.zip$", "", title, flags=re.I).strip() or "My App"
+    if not NAME_RE.match(title):
+        title = "Android App"
+    meta = create_job(title[:48], info["package"], info["files"], artifact="apk",
+                      kind="zip", workflow=GH_WORKFLOW_ZIP)
+    ok = meta["status"] != "error"
+    return jsonify({"ok": ok, "step": "build", "id": meta["id"],
+                    "status": meta["status"], "error": meta["error"],
+                    "info": info["summary"]}), (201 if ok else 502)
+
+
+@app.get("/api/jobs/<job_id>/log")
+def job_log(job_id: str):
+    """Build log ពិត (build.log ដែល workflow ផ្សព្វផ្សាយក្នុង release)។"""
+    if not ID_RE.match(job_id or "") or not (JOBS / job_id / "meta.json").is_file():
+        abort(404)
+    req = urllib.request.Request(release_file_url(job_id, "build.log"))
+    req.add_header("User-Agent", "pyapp-builder")
+    if GH_TOKEN:
+        req.add_header("Authorization", "Bearer " + GH_TOKEN)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            raw = resp.read(3_000_000)
+    except urllib.error.HTTPError as exc:
+        return jsonify({"ok": False, "error": f"មិនទាន់មាន build log (HTTP {exc.code})"}), 404
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"មិនអាចទាញ build log: {exc}"}), 502
+    text = raw.decode("utf-8", "replace")
+    limit = 200_000
+    return jsonify({"ok": True, "log": text[-limit:], "truncated": len(text) > limit})
 
 
 R2_ARTIFACT_PREFIX = "artifacts"
@@ -603,13 +673,17 @@ def r2_artifact_url(job_id: str, kind: str, expires: int = 3600) -> str:
         return ""
 
 
+def release_file_url(job_id: str, name: str) -> str:
+    return f"https://github.com/{GH_REPO}/releases/download/apk-{job_id}/{name}"
+
+
 def release_asset_url(job_id: str, kind: str = "apk") -> str:
     """URL artifact ក្នុង GitHub release — កំណត់ដោយ job id ដូច្នេះមិនបាត់ពេល restart។
 
     `kind` = "apk" ឬ "aab" (workflow បង្កើតទំងពីរ)។
     """
     name = "app.aab" if (kind or "").lower() == "aab" else "app.apk"
-    return f"https://github.com/{GH_REPO}/releases/download/apk-{job_id}/{name}"
+    return release_file_url(job_id, name)
 
 
 @app.get("/dl/<job_id>")
@@ -646,6 +720,12 @@ def on_http_error(exc):
     return render_template("error.html", code=exc.code, msg=exc.description), exc.code
 
 
+@app.errorhandler(413)
+def on_too_large(exc):  # noqa: ARG001
+    return jsonify({"ok": False, "step": "upload",
+                    "error": "File ធំពេក — ZIP អតិបរមា %d MB"
+                             % (zipbuild.MAX_ZIP_BYTES // (1024 * 1024))}), 413
+
 @app.get("/api/r2/status")
 def r2_status():
     """ស្ថានភាព R2 — គ្មាន secret ត្រឡប់ឡើយ។"""
@@ -662,7 +742,8 @@ def r2_selftest():
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True, "gh_ready": bool(GH_REPO and GH_TOKEN),
-                    "r2_ready": r2.configured(), "workflow": GH_WORKFLOW})
+                    "r2_ready": r2.configured(), "workflow": GH_WORKFLOW,
+                    "zip_workflow": GH_WORKFLOW_ZIP})
 
 
 if __name__ == "__main__":

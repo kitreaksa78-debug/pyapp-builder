@@ -1,0 +1,97 @@
+name: build-zip-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag for the artifacts (e.g. apk-1a2b3c4d5e6f)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: assembleDebug (user project)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "12.0"
+          packages: "platform-tools platforms;android-34 platforms;android-35 build-tools;34.0.0"
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Validate project files
+        run: |
+          set -e
+          test -f settings.gradle -o -f settings.gradle.kts || (echo "::error::missing settings.gradle(.kts)" && exit 1)
+          test -f build.gradle -o -f build.gradle.kts || (echo "::error::missing build.gradle(.kts)" && exit 1)
+          find . -name AndroidManifest.xml -not -path "*/build/*" | head -1 | grep -q . || (echo "::error::missing AndroidManifest.xml" && exit 1)
+          echo "project files: $(find . -type f -not -path './.git/*' | wc -l)"
+
+      - name: Pick gradle command
+        run: |
+          # gradlew ត្រូវការ gradle-wrapper.jar ដែរ — បើខ្វះ ប្រើ Gradle 8.7 ដែលដំឡើងរួច
+          if [ -f gradlew ] && { [ -f gradle/wrapper/gradle-wrapper.jar ] || [ -f app/gradle/wrapper/gradle-wrapper.jar ]; }; then
+            chmod +x gradlew
+            echo "GRADLE_CMD=./gradlew" >> "$GITHUB_ENV"
+          else
+            echo "GRADLE_CMD=gradle" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APK
+        run: |
+          set -o pipefail
+          $GRADLE_CMD assembleDebug --no-daemon --stacktrace --console=plain 2>&1 | tee build.log
+
+      - name: Collect APK
+        if: always()
+        run: |
+          mkdir -p out
+          echo "build log lines: $(wc -l < build.log || echo 0)"
+          APK=$(find . -path "*/build/outputs/apk/*.apk" -print | head -1)
+          if [ -n "$APK" ]; then
+            cp "$APK" out/app.apk
+            echo "APK: $APK"
+            ls -l out
+          else
+            echo "::warning::no APK produced"
+          fi
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-artifacts
+          path: |
+            out/app.apk
+            build.log
+          if-no-files-found: warn
+
+      - name: Publish release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          body: "APK ពី Android project ZIP — JDK 17 + Android SDK + Gradle (assembleDebug ពិត)។"
+          files: |
+            out/app.apk
+            build.log
+          fail_on_unmatched_files: false

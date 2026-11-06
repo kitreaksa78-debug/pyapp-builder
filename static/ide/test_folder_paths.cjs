@@ -144,6 +144,18 @@ ok(src.indexOf("if (state.selFolder && name.indexOf('/') < 0) name = state.selFo
 ok(src.indexOf('function createFileIn(folder)') > 0 &&
   src.indexOf('createFileIn(state.selFolder)') > 0, 'toolbar ＋file → createFileIn(selFolder)');
 
+console.log('== ZIP → APK wiring ==');
+const ideHtml = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'ide.html'), 'utf8');
+ok(ideHtml.indexOf('id="zipApkBtn"') > 0, 'toolbar មានប៊ូតុង ZIP→APK');
+ok(src.indexOf("$('zipApkBtn').onclick = zipApk") > 0, 'ប៊ូតុងភ្ជាប់ zipApk()');
+ok(src.indexOf("fetch('/api/zip/build'") > 0, 'upload ទៅ /api/zip/build');
+ok(src.indexOf("'/api/jobs/' + id + '/log'") > 0, 'ទាញ build log ពី job');
+ok(src.indexOf("'/api/jobs/' + id") > 0, 'poll status របស់ job');
+ok(src.indexOf("dl.href = '/dl/' + id") > 0, 'ប៊ូតុងទាញយក /dl/<id>');
+ok(['upload', 'validate', 'build', 'download'].every(function (s) {
+  return src.indexOf("['" + s + "',") > 0;
+}), 'ជំហាន ៤ តាមលំដាប់ upload → validate → build → download');
+
 console.log('');
 if (fails) {
   console.log('FAILED ' + fails + ' checks');

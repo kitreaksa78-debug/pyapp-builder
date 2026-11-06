@@ -1669,5 +1669,167 @@
     if (CFG.ghReady === false) status('GH_REPO/GH_TOKEN មិនកំណត់', 'bad');
   }
 
+  /* ---------------- ZIP → APK (Android project) ---------------- */
+  var Z2A_STEPS = [
+    ['upload', 'Upload ZIP', 'ជ្រើស Android project (.zip)'],
+    ['validate', 'Extract & Validate', 'ពិនិត្យ Gradle, Manifest និង source'],
+    ['build', 'Cloud Build APK', 'JDK + Android SDK + Gradle'],
+    ['download', 'Download APK', 'Build Log និងប៊ូតុងទាញយក']
+  ];
+
+  function z2aMB(bytes) {
+    var mb = (Number(bytes) || 0) / (1024 * 1024);
+    return mb >= 1 ? mb.toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  }
+
+  function zipApk() {
+    var steps = Z2A_STEPS.map(function (s) {
+      return '<div class="z2a-step" id="z2a-' + s[0] + '">' +
+        '<span class="z2a-dot">•</span><div><b>' + s[1] + '</b>' +
+        '<div class="hint">' + s[2] + '</div>' +
+        '<div class="z2a-note" id="z2a-' + s[0] + '-note"></div></div></div>';
+    }).join('');
+    showModal('ZIP → APK',
+      '<div class="z2a" id="z2aSteps">' + steps + '</div>' +
+      '<div class="z2a-pick" id="z2aPick">' +
+        '<input type="file" id="z2aFile" accept=".zip,application/zip,application/x-zip-compressed">' +
+        '<button class="btn" id="z2aGo">⬆ Upload &amp; Build</button>' +
+        '<p class="hint">Android project ត្រូវមាន <code>settings.gradle(.kts)</code>, ' +
+        '<code>build.gradle(.kts)</code> និង <code>AndroidManifest.xml</code> — អតិបរមា 40 MB។ ' +
+        'Build ពិតក្នុង cloud (JDK 17 + Android SDK + Gradle) — មិនមែន simulation។</p>' +
+      '</div>' +
+      '<div class="z2a-info" id="z2aInfo" hidden></div>' +
+      '<p class="z2a-msg" id="z2aMsg" hidden></p>' +
+      '<div class="z2a-actions" id="z2aActions" hidden>' +
+        '<a class="btn accent" id="z2aDl" href="#">⬇ ទាញយក APK</a>' +
+        '<button class="btn" id="z2aLogBtn">📄 Build Log</button>' +
+      '</div>' +
+      '<pre class="z2a-log" id="z2aLog" hidden></pre>',
+      { noOk: true });
+
+    function step(name, state, note) {
+      var el = $('z2a-' + name);
+      if (!el) return;
+      el.className = 'z2a-step' + (state ? ' ' + state : '');
+      var dot = el.querySelector('.z2a-dot');
+      if (dot) dot.textContent = state === 'done' ? '✓' : state === 'now' ? '⟳' : state === 'bad' ? '✕' : '•';
+      var n = $('z2a-' + name + '-note');
+      if (n) n.textContent = note || '';
+    }
+    function say(text, bad) {
+      var el = $('z2aMsg');
+      el.hidden = !text;
+      el.textContent = text || '';
+      el.className = 'z2a-msg' + (bad ? ' bad' : '');
+    }
+    function showInfo(i) {
+      var el = $('z2aInfo');
+      if (!i) { el.hidden = true; return; }
+      el.hidden = false;
+      el.innerHTML = 'root: <b>' + esc(i.root) + '</b> · file: ' + i.files +
+        ' · source: ' + i.sources + ' · manifest: ' + i.manifests + '<br>' +
+        'App ID: <b>' + esc(i.app_id) + '</b> · compileSdk: ' + esc(i.compile_sdk) +
+        ' · minSdk: ' + esc(i.min_sdk) + ' · gradlew: ' +
+        (i.gradlew ? 'មាន' : 'គ្មាន (ប្រើ Gradle 8.7)') +
+        (i.wrapper && i.wrapper !== '—' ? ' · wrapper: ' + esc(i.wrapper) : '');
+    }
+    function loadLog(id, tries) {
+      var pre = $('z2aLog');
+      pre.hidden = false;
+      pre.textContent = 'កំពុងទាញ build log…';
+      fetch('/api/jobs/' + id + '/log', { cache: 'no-store' }).then(function (r) {
+        return r.json();
+      }).then(function (j) {
+        if (j && j.ok) {
+          pre.textContent = j.log || '(build log ទទេ)';
+          pre.scrollTop = pre.scrollHeight;
+        } else if (tries > 0) {
+          setTimeout(function () { loadLog(id, tries - 1); }, 5000);
+        } else {
+          pre.textContent = 'មិនអាចទាញ build log: ' + ((j && j.error) || 'មិនដឹងមូលហេតុ');
+        }
+      }).catch(function () { pre.textContent = 'មិនអាចទាញ build log បាន (network)'; });
+    }
+    function poll(id, tries) {
+      tries = (tries || 0) + 1;
+      fetch('/api/jobs/' + id, { cache: 'no-store' }).then(function (r) {
+        return r.json();
+      }).then(function (j) {
+        var p = j.progress || {};
+        if (j.status === 'done') {
+          step('build', 'done', '100%');
+          step('download', 'done', 'APK រួចរាល់');
+          var dl = $('z2aDl');
+          dl.href = '/dl/' + id;
+          dl.hidden = false;
+          $('z2aActions').hidden = false;
+          $('z2aPick').hidden = true;
+          say('✓ APK បង្កើតរួចរាល់ — ចុច «ទាញយក APK»។ Build Log បង្ហាញការ compile ពិត។');
+          loadLog(id, 3);
+          return;
+        }
+        if (j.status === 'error') {
+          step('build', 'bad', j.error || 'បរាជ័យ');
+          $('z2aActions').hidden = false;
+          $('z2aDl').hidden = true;
+          say((j.error || 'Build បរាជ័យ') + (j.run_url ? ' — ' + j.run_url : ''), true);
+          loadLog(id, 3);
+          return;
+        }
+        var note = (p.percent || 0) + '%' + (p.step ? ' · ' + p.step : (j.note ? ' · ' + j.note : ''));
+        step('build', 'now', note);
+        if (tries < 600) setTimeout(function () { poll(id, tries); }, 3000);
+      }).catch(function () {
+        if (tries < 600) setTimeout(function () { poll(id, tries); }, 5000);
+      });
+    }
+
+    $('z2aGo').onclick = function () {
+      var input = $('z2aFile');
+      var f = input.files && input.files[0];
+      if (!f) return say('សូមជ្រើស file .zip សិន', true);
+      if (!/\.zip$/i.test(f.name)) return say('ត្រូវជា file .zip', true);
+      if (f.size > 40 * 1024 * 1024) return say('ZIP ធំពេក (អតិបរមា 40 MB)', true);
+      say('');
+      $('z2aGo').disabled = true;
+      step('upload', 'done', esc(f.name) + ' · ' + z2aMB(f.size));
+      step('validate', 'now', 'កំពុងពិនិត្យ Gradle / Manifest / source…');
+      var fd = new FormData();
+      fd.append('zip', f, f.name);
+      fetch('/api/zip/build', { method: 'POST', body: fd }).then(function (r) {
+        return r.json().then(function (j) { return { code: r.status, j: j || {} }; });
+      }).then(function (res) {
+        var j = res.j;
+        showInfo(j.info);
+        if (!j.ok) {
+          if (res.code === 400 || j.step === 'validate') {
+            step('validate', 'bad', j.error || 'ZIP មិនត្រឹមត្រូវ');
+            step('upload', 'now', 'សាកម្តងទៀតបាន');
+            say((j.problems && j.problems.length ? j.problems.join(' · ') : j.error) || 'ZIP មិនត្រឹមត្រូវ', true);
+          } else {
+            step('validate', 'done');
+            step('build', 'bad', j.error || 'Cloud build មិនអាចចាប់ផ្តើម');
+            say(j.error || 'Cloud build មិនអាចចាប់ផ្តើម', true);
+          }
+          $('z2aGo').disabled = false;
+          return;
+        }
+        step('validate', 'done', j.info ? (j.info.files + ' file · ' + j.info.sources + ' source') : 'រួចរាល់');
+        step('build', 'now', 'បញ្ជូនទៅ GitHub Actions…');
+        $('z2aPick').hidden = true;
+        poll(j.id);
+      }).catch(function (err) {
+        step('validate', 'bad', 'បញ្ជូនមិនបាន');
+        say('បញ្ជូន ZIP មិនបាន: ' + (err && err.message ? err.message : err), true);
+        $('z2aGo').disabled = false;
+      });
+    };
+    $('z2aLogBtn').onclick = function () {
+      var pre = $('z2aLog');
+      pre.hidden = !pre.hidden;
+    };
+  }
+  $('zipApkBtn').onclick = zipApk;
+
   boot();
 })();
