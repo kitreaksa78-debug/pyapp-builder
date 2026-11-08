@@ -78,6 +78,7 @@ class MainActivity : Activity() {
         serverInput = EditText(this)
         serverInput.inputType = InputType.TYPE_TEXT_VARIATION_URI
         serverInput.hint = "https://your-app.onrender.com"
+        serverInput.setSingleLine(true)
         val prefs = getSharedPreferences("share", Context.MODE_PRIVATE)
         serverInput.setText(prefs.getString("server", DEFAULT_SERVER))
 
@@ -119,6 +120,16 @@ class MainActivity : Activity() {
         val url = serverInput.text.toString().trim().trimEnd('/')
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             Toast.makeText(this, "សរសេរ Server URL ជាមុន (http:// ឬ https://)",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        // 127.0.0.1 / localhost ជា server នៅក្នុងទូរស័ព្ទខ្លួនឯង — ទូរស័ព្ទភ្ជាប់មិនបាន
+        val host = url.substringAfter("://").substringBefore("/").substringBefore(":")
+        if (host == "127.0.0.1" || host == "0.0.0.0" || host == "10.0.2.2" ||
+            host.equals("localhost", ignoreCase = true)) {
+            Toast.makeText(this,
+                "URL នេះជា server ក្នុងទូរស័ព្ទខ្លួនឯង (" + host + ") — " +
+                    "សរសេរ URL ពិត ឧ. https://pyapp-builder.onrender.com",
                 Toast.LENGTH_LONG).show()
             return
         }
@@ -170,9 +181,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
+import android.widget.Toast
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -193,6 +206,7 @@ class ScreenShareService : Service() {
         private const val TAG = "ScreenShare"
         private const val CHANNEL = "screenshare"
         private const val NOTIFICATION_ID = 4201
+        private const val NOTIFICATION_FINAL = 4202
         private const val FRAME_INTERVAL_MS = 500L
         private const val MAX_WIDTH = 640
         private const val JPEG_QUALITY = 45
@@ -267,7 +281,8 @@ class ScreenShareService : Service() {
         val payload = JSONObject().put("title", applicationInfo.loadLabel(packageManager).toString())
         val json = postJson(server + "/api/screenshare/start", payload.toString())
         if (json == null) {
-            finish("ភ្ជាប់ server មិនបាន — ពិនិត្យ URL និង network")
+            finish("ភ្ជាប់ server មិនបាន: " + server +
+                " — ពិនិត្យ URL (ត្រូវជា server ពិត) និង internet")
             return
         }
         code = json.optString("code")
@@ -425,11 +440,8 @@ class ScreenShareService : Service() {
     private fun finish(message: String) {
         if (finished) return
         finished = true
-        try {
-            notify(buildNotification("ការចែករំលែកបានបញ្ចប់", message))
-        } catch (exc: Exception) {
-            Log.w(TAG, "notify failed: " + exc.message)
-        }
+        notifyFinal("ការចែករំលែកបានបញ្ចប់", message)
+        showToast(message)
         cleanup()
         try {
             stopForeground(true)
@@ -442,6 +454,7 @@ class ScreenShareService : Service() {
     private fun shutdown() {
         if (finished) return
         finished = true
+        notifyFinal("បានឈប់ចែករំលែកអេក្រង់", null)
         if (code.isNotEmpty() && token.isNotEmpty()) {
             worker.execute { postStop() }
         }
@@ -498,23 +511,25 @@ class ScreenShareService : Service() {
     }
 
     @Suppress("DEPRECATION")
-    private fun buildNotification(text: String, big: String?): Notification {
+    private fun buildNotification(text: String, big: String?, ongoing: Boolean = true): Notification {
         if (Build.VERSION.SDK_INT >= 26) ensureChannel()
         val builder = Notification.Builder(this)
         if (Build.VERSION.SDK_INT >= 26) builder.setChannelId(CHANNEL)
-        val flags = if (Build.VERSION.SDK_INT >= 23)
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        else
-            PendingIntent.FLAG_UPDATE_CURRENT
-        val stopIntent = PendingIntent.getService(
-            this, 1, Intent(this, ScreenShareService::class.java).setAction(ACTION_STOP), flags)
         builder.setSmallIcon(android.R.drawable.presence_video_online)
-            .setContentTitle("កំពុងចែករំលែកអេក្រង់")
+            .setContentTitle(if (ongoing) "កំពុងចែករំលែកអេក្រង់" else "ការចែករំលែកអេក្រង់")
             .setContentText(text)
-            .setOngoing(true)
+            .setOngoing(ongoing)
             .setOnlyAlertOnce(true)
-            .addAction(Notification.Action.Builder(
+        if (ongoing) {
+            val flags = if (Build.VERSION.SDK_INT >= 23)
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            else
+                PendingIntent.FLAG_UPDATE_CURRENT
+            val stopIntent = PendingIntent.getService(
+                this, 1, Intent(this, ScreenShareService::class.java).setAction(ACTION_STOP), flags)
+            builder.addAction(Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel, "ឈប់", stopIntent).build())
+        }
         if (big != null) builder.setStyle(Notification.BigTextStyle().bigText(big))
         return builder.build()
     }
@@ -522,6 +537,28 @@ class ScreenShareService : Service() {
     private fun notify(notification: Notification) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /** សារបញ្ចប់ — ID ដោយឡែក ដើម្បីកុំបាត់ពេល `stopForeground(true)`។ */
+    private fun notifyFinal(title: String, message: String?) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        try {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_FINAL,
+                buildNotification(message ?: title, message, ongoing = false))
+        } catch (exc: Exception) {
+            Log.w(TAG, "notifyFinal failed: " + exc.message)
+        }
+    }
+
+    private fun showToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+        }
     }
 }
 '''

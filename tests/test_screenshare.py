@@ -122,10 +122,15 @@ ok('const val DEFAULT_SERVER = "https://pyapp.example.com"' in act,
 ok("createScreenCaptureIntent" in act, "app សុំការយល់ព្រមពី Android")
 ok("startForegroundService" in act, "បើក foreground service")
 ok("registerCallback" in srv, "registerCallback មុន createVirtualDisplay (Android 14)")
-ok("setOngoing(true)" in srv, "notification ជាប់ជានិច្ច")
+ok("setOngoing(ongoing)" in srv and "ongoing: Boolean = true" in srv,
+   "notification ជាប់ជានិច្ច")
 ok("ACTION_STOP" in srv and "ប៊ូតុង" not in srv, "មានប៉ុស្តិ៍ឈប់")
 ok("X-Session-Token" in srv, "app ផ្ញើ token ជាមួយ frame")
 ok("screenshare/start" in srv and "/frame" in srv, "app ភ្ជាប់ទៅ session API")
+ok('host == "127.0.0.1"' in act and 'localhost' in act,
+   "app បដិសេធ loopback URL (127.0.0.1/localhost)")
+ok("NOTIFICATION_FINAL" in srv, "សារបញ្ចប់មាន notification ID ដោយឡែក (មិនបាត់)")
+ok("showToast" in srv, "បង្ហាញ Toast ពេលភ្ជាប់មិនបាន")
 ok(act.count("{") == act.count("}"), "MainActivity.kt braces balance")
 ok(srv.count("{") == srv.count("}"), "ScreenShareService.kt braces balance")
 ok(srv.count("(") == srv.count(")"), "ScreenShareService.kt parens balance")
