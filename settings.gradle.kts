@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "networkscanner"
+rootProject.name = "qaweb"
 include(":app")
