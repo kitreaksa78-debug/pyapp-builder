@@ -128,6 +128,12 @@ for perm in ('android.permission.VIBRATE', 'android.permission.POST_NOTIFICATION
              'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET'):
     ok(perm in manifest, 'manifest មាន ' + perm.split('.')[-1])
 
+print('== permission គោលស្រាប់ ==')
+for perm in ('CAMERA', 'RECORD_AUDIO', 'ACCESS_FINE_LOCATION',
+             'ACCESS_COARSE_LOCATION', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE'):
+    ok('android.permission.' + perm in manifest, 'manifest មាន ' + perm + ' ស្រាប់')
+ok('android.permission.WRITE_EXTERNAL_STORAGE' in manifest, 'manifest មាន WRITE_EXTERNAL_STORAGE')
+
 print('== មិនប៉ះ app type ផ្សេង ==')
 native = ap.android_project_files('K', 'org.pyapp.demo', 'kotlin', {'MainActivity.kt': ''})
 ok(not any(k.endswith('appforge-bridge.js') for k in native), 'Kotlin native គ្មាន bridge')

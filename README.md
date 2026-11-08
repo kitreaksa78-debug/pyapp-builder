@@ -21,7 +21,9 @@ IDE ពេញលេញក្នុង browser (VS Code style) សម្រាប
 - **Live preview** — បញ្ចូល `index.html`, CSS, JS, រូបភាពក្នុង project ចូល iframe sandbox,
   បង្ហាញ JavaScript error, មាន desktop/mobile mode និង refresh
 - **Build APK** — ជ្រើស app type **WebView / Native Kotlin / Native Java**, ឈ្មោះ, package,
-  version name/code, icon (upload ឬ icon generator), permissions, orientation, online/offline
+  version name/code, icon (upload ឬ icon generator), permissions សង្ខេប ៨ ប្រភេទ
+  (Internet, Camera, Microphone, Location, Notifications, Vibrate, Photos, Storage —
+  ជ្រើសស្រាប់ ហើយ manifest ក៏បញ្ចូល permission ទាំងនេះដោយស្វ័យប្រវត្តិ), orientation, online/offline
 - **Build progress** — % ពីជំហាន GitHub, log ពី workflow (បើបរាជ័យ), link APK និង GitHub run,
   ប្រវត្តិ build (local) និង `/api/ide/builds` (server 20 ចុងក្រោយ)
 - **Themes** dark/light, **ភាសា** ខ្មែរ/English, font size, word wrap, autosave

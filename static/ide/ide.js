@@ -27,7 +27,21 @@
     sh:'shell',bash:'shell',zsh:'shell',bat:'bat',cmd:'bat',ps1:'powershell',
     pro:'plaintext'
   };
-  var PERMS = [['INTERNET','Internet'],['ACCESS_NETWORK_STATE','Network state'],['ACCESS_WIFI_STATE','Wi-Fi state'],['CHANGE_WIFI_STATE','Change Wi-Fi'],['CHANGE_NETWORK_STATE','Change network'],['NEARBY_WIFI_DEVICES','Nearby Wi-Fi (API 33+)'],['BLUETOOTH','Bluetooth'],['BLUETOOTH_ADMIN','Bluetooth admin'],['BLUETOOTH_CONNECT','Connect Bluetooth'],['BLUETOOTH_SCAN','Scan Bluetooth'],['BLUETOOTH_ADVERTISE','Advertise Bluetooth'],['ACCESS_FINE_LOCATION','GPS location (fine)'],['ACCESS_COARSE_LOCATION','Coarse location'],['ACCESS_BACKGROUND_LOCATION','Background location'],['CAMERA','Camera'],['RECORD_AUDIO','Record audio'],['READ_EXTERNAL_STORAGE','Read storage'],['WRITE_EXTERNAL_STORAGE','Write storage'],['READ_MEDIA_IMAGES','Read images'],['READ_MEDIA_VIDEO','Read video'],['READ_MEDIA_AUDIO','Read audio'],['MANAGE_EXTERNAL_STORAGE','Manage all storage'],['POST_NOTIFICATIONS','Notifications (API 33+)'],['WAKE_LOCK','Wake lock'],['VIBRATE','Vibrate'],['FLASHLIGHT','Flashlight'],['READ_PHONE_STATE','Phone state'],['READ_PRIVILEGED_PHONE_STATE','Phone state (privileged)'],['CALL_PHONE','Call phone'],['ANSWER_PHONE_CALLS','Answer calls'],['READ_CALL_LOG','Read call log'],['WRITE_CALL_LOG','Write call log'],['ADD_VOICEMAIL','Add voicemail'],['USE_SIP','Use SIP'],['PROCESS_OUTGOING_CALLS','Process outgoing calls'],['READ_SMS','Read SMS'],['SEND_SMS','Send SMS'],['WRITE_SMS','Write SMS'],['READ_CONTACTS','Read contacts'],['WRITE_CONTACTS','Write contacts'],['GET_ACCOUNTS','Get accounts'],['READ_CALENDAR','Read calendar'],['WRITE_CALENDAR','Write calendar'],['SCHEDULE_EXACT_ALARM','Schedule exact alarm'],['USE_EXACT_ALARM','Use exact alarm'],['ACTIVITY_RECOGNITION','Activity recognition'],['BODY_SENSORS','Body sensors'],['BODY_SENSORS_BACKGROUND','Body sensors (bg)'],['NFC','NFC'],['NFC_TRANSACTION_ITEM','NFC transaction'],['NFC_HANDLES','NFC handles'],['REQUEST_IGNORE_BATTERY_OPTIMIZATIONS','Ignore battery optimization'],['FOREGROUND_SERVICE','Foreground service'],['FOREGROUND_SERVICE_CAMERA','FGS Camera'],['FOREGROUND_SERVICE_MICROPHONE','FGS Microphone'],['FOREGROUND_SERVICE_LOCATION','FGS Location'],['FOREGROUND_SERVICE_HEALTH','FGS Health'],['FOREGROUND_SERVICE_MEDIA_PLAYBACK','FGS Media'],['FOREGROUND_SERVICE_PHONE_CALL','FGS Phone call'],['FOREGROUND_SERVICE_SPECIAL_USE','FGS Special use'],['FOREGROUND_SERVICE_DATA_SYNC','FGS Data sync'],['FOREGROUND_SERVICE_CONNECTED_DEVICE','FGS Connected device'],['SYSTEM_ALERT_WINDOW','Show over other apps'],['PACKAGE_USAGE_STATS','Usage stats'],['QUERY_ALL_PACKAGES','Query all packages'],['READ_APP_SERVICES','Read app services'],['REQUEST_INSTALL_PACKAGES','Request install packages'],['BIND_NOTIFICATION_LISTENER_SERVICE','Bind notification listener'],['CaptivePortal','Captive portal'],['INSTALL_LOCATION','Install location'],['INSTALL_PACKAGES','Install packages'],['DELETE_PACKAGES','Delete packages'],['READ_PRIVILEGED_PHONE_STATE','Read privileged phone state']];
+  // Permissions ដែលបង្ហាញក្នុង Build panel — សង្ខេប ៨ ប្រភេទសំខាន់
+  var PERMS = [
+    [['INTERNET'], 'Internet'],
+    [['CAMERA'], 'Camera'],
+    [['RECORD_AUDIO'], 'Microphone'],
+    [['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION'], 'Location'],
+    [['POST_NOTIFICATIONS'], 'Notifications'],
+    [['VIBRATE'], 'Vibrate'],
+    [['READ_MEDIA_IMAGES'], 'Photos'],
+    [['READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE'], 'Storage']
+  ];
+  // app ដែលបង្កើតថ្មីមាន permission ទាំងនេះស្រាប់ (server ក៏បញ្ចូលដែរ)
+  var DEFAULT_PERMS = ['INTERNET', 'CAMERA', 'RECORD_AUDIO',
+    'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'POST_NOTIFICATIONS', 'VIBRATE',
+    'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE'];
 
   var I18N = {
     km: {
@@ -371,7 +385,7 @@
     settings: {theme: 'dark', lang: 'km', font: 14, wrap: 'on', auto: true},
     icon: '',
     build: {mode: 'auto', ver: '1.0', code: 1, orient: 'unspecified', online: true,
-            artifact: 'both', perms: ['INTERNET']},
+            artifact: 'both', perms: DEFAULT_PERMS.slice()},
     history: []
   };
 
@@ -1277,17 +1291,26 @@
     if ($('bArtifact')) $('bArtifact').value = state.build.artifact || 'both';
     var host = $('perms');
     host.innerHTML = '';
+    var gridCodes = [];
     PERMS.forEach(function (p) {
       var label = document.createElement('label');
-      var checked = state.build.perms.indexOf(p[0]) >= 0;
-      label.innerHTML = '<input type="checkbox" value="' + p[0] + '"' +
-        (checked ? ' checked' : '') + '>' + p[1];
+      var checked = p[0].every(function (c) { return state.build.perms.indexOf(c) >= 0; });
+      var inp = document.createElement('input');
+      inp.type = 'checkbox';
+      inp.value = p[0].join(',');
+      inp.checked = checked;
+      label.appendChild(inp);
+      label.appendChild(document.createTextNode(p[1]));
       host.appendChild(label);
+      gridCodes = gridCodes.concat(p[0]);
     });
     host.querySelectorAll('input').forEach(function (inp) {
       inp.onchange = function () {
-        state.build.perms = Array.prototype.slice.call(host.querySelectorAll('input:checked'))
-          .map(function (i) { return i.value; });
+        // permission ដែលមិនមានក្នុង grid (មកពី project ដើម) ត្រូវរក្សាទុក
+        var extra = state.build.perms.filter(function (c) { return gridCodes.indexOf(c) < 0; });
+        var picked = Array.prototype.slice.call(host.querySelectorAll('input:checked'))
+          .reduce(function (acc, i) { return acc.concat(i.value.split(',')); }, []);
+        state.build.perms = picked.concat(extra);
         persist();
       };
     });
@@ -1715,7 +1738,7 @@
         saved.settings || {});
       state.build = Object.assign({mode: 'webview', ver: '1.0', code: 1,
         orient: 'unspecified', online: true, artifact: 'both',
-        perms: ['INTERNET']}, saved.build || {});
+        perms: DEFAULT_PERMS.slice()}, saved.build || {});
     } else {
       state.name = CFG.defaultTitle || 'My App';
       state.pkg = CFG.defaultPackage || 'org.pyapp.demo';

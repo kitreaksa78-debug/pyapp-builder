@@ -144,6 +144,13 @@ _PERMS_MAP: dict[str, dict] = {}
 for _k, _v in PERMISSIONS.items():
     _PERMS_MAP[_k.strip()] = _v
 
+# permission គោលដែល app ដែលបង្កើតថ្មីត្រូវមានស្រាប់ ដើម្បីឲ្យ feature ទូទៅដំណើរការដោយមិនត្រូវកែ manifest
+DEFAULT_PERMISSIONS = (
+    "CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION",
+    "POST_NOTIFICATIONS", "VIBRATE", "READ_MEDIA_IMAGES",
+    "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE",
+)
+
 ORIENTATIONS = {"unspecified": "", "portrait": "portrait", "landscape": "landscape",
                 "sensor": "sensor", "behind": "behind", "reverse": "reverse",
                 "reverse_portrait": "reversePortrait", "reverse_landscape": "reverseLandscape"}
@@ -1143,12 +1150,10 @@ def _permission_blocks(perms: list[str], online: bool,
     names: list[str] = []
     if online:
         names.append("android.permission.INTERNET")
-    # ACCESS_NETWORK_STATE គឺត្រូវការនៅពេល app មាន permission ណាដែលពិតជាត្រូវការ network
-    # (camera, mic, location, bluetooth scan…)
+    # ACCESS_NETWORK_STATE មកជាមួយ INTERNET ព្រោះកូដ bridge ប្រើវាដើម្បីដឹងស្ថានភាព network
+    # (app ដែលជ្រើស Offline មិនត្រូវមាន permission network ទេ)
     perms_set = set(perms)
-    if (online or "ACCESS_NETWORK_STATE" in perms_set
-            or any(p in perms_set for p in ("CAMERA", "RECORD_AUDIO",
-                                              "BLUETOOTH_SCAN", "NEARBY_WIFI_DEVICES"))):
+    if online or "ACCESS_NETWORK_STATE" in perms_set:
         names.append("android.permission.ACCESS_NETWORK_STATE")
     seen = set(names)
     for name in perms:
@@ -1214,6 +1219,10 @@ def android_project_files(title: str, package: str, mode: str,
         for _bp in bridge_perms:
             if _bp in _PERMS_MAP and _bp not in all_perms:
                 all_perms.append(_bp)
+    # permission គោល — app ដែលបង្កើតថ្មីមានសិទ្ធិទាំងនេះស្រាប់
+    for _dp in DEFAULT_PERMISSIONS:
+        if _dp in _PERMS_MAP and _dp not in all_perms:
+            all_perms.append(_dp)
     icons = launcher_icons(icon) if icon else {}
 
     path = package.replace(".", "/")

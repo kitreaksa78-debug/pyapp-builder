@@ -187,6 +187,16 @@ ok(src.indexOf('tab.innerHTML = fileBadge(path)') > 0, 'tab ប្រើ badge �
 ok(ideCss.indexOf('.fic {') > 0 && ideCss.indexOf('.tab .fic') > 0,
   'CSS badge ទាំង tree និង tab');
 
+console.log('== Permissions សង្ខេប (៨ ប្រភេទ) ==');
+const permsBlock = src.slice(src.indexOf('var PERMS = ['), src.indexOf('var DEFAULT_PERMS'));
+ok((permsBlock.match(/\[\['/g) || []).length === 8, 'Build panel មាន permission ៨ ប្រភេទ');
+['Internet', 'Camera', 'Microphone', 'Location', 'Notifications', 'Vibrate',
+  'Photos', 'Storage'].forEach(function (name) {
+  ok(permsBlock.indexOf("'" + name + "'") > 0, 'មាន checkbox ' + name);
+});
+ok(src.indexOf("perms: DEFAULT_PERMS.slice()") > 0, 'project ថ្មីមាន permission គោលស្រាប់');
+ok(ideCss.indexOf('grid-template-columns: 1fr 1fr') > 0, 'bảng permission ជា ២ ជួរ');
+
 console.log('');
 if (fails) {
   console.log('FAILED ' + fails + ' checks');

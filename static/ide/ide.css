@@ -191,7 +191,10 @@ a { color: var(--accent); }
   border: 1px solid var(--line-2); font-size: 13px; width: 100%;
 }
 .field input:focus, .field select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
-.perms { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
+.perms {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 6px;
+}
+@media (max-width: 420px) { .perms { gap: 8px; } }
 .perms label {
   display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--fg); cursor: pointer;
 }
