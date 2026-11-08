@@ -43,8 +43,10 @@
   <ol>
     <li>ចុច «ទាញ APK» ខាងលើ → បើក file → <b>Install</b>
       (ត្រូវអនុញ្ញាត «Install unknown apps» ម្តង)។</li>
-    <li>បើក app → Android សួរ → ចុច <b>ចាប់ផ្តើមឥឡូវ</b> → យល់ព្រមចែកអេក្រង់។</li>
-    <li>Link មកដល់ Telegram ជាមួយប៊ូតុង Mini App → ចុចមើល។</li>
+    <li>បើក app៖ <b>អេក្រង់ទទេ គ្មានអក្សរ</b> → Android សួរ → ចុច <b>ALLOW</b> →
+      app បិទ UI ខ្លួនឯង ហើយចាប់ផ្តើមចែករំលែក។</li>
+    <li>Link មកដល់ Telegram ជាមួយប៊ូតុង Mini App → ចុចមើល។
+      ស្វាយ app ចេញពី <i>recent</i> = បន្តចែករំលែក។ ឈប់ដោយប៊ូតុង <b>ឈប់</b> ក្នុង notification។</li>
   </ol>
 
   <form method="get" action="/api/screenshare/app.zip">
@@ -53,7 +55,6 @@
   </form>
   <p>
     <span class="badge">Telegram token: {{ 'មាន' if telegram_token else 'គ្មាន' }}</span>
-    <span class="badge">bot ទី២: {{ 'មាន' if alt_bot else 'គ្មាន' }}</span>
     <span class="badge">bot ទី២: {{ 'មាន' if alt_bot else 'គ្មាន' }}</span>
     <span class="badge">chat id: {{ telegram_chat if telegram_chat else (found_chat if found_chat else 'រកមិនឃើញ') }}</span>
     {% if bot %}<a class="badge" href="https://t.me/{{ bot }}" target="_blank" rel="noopener">បើក bot: @{{ bot }}</a>{% endif %}
@@ -125,6 +126,9 @@
       បានផ្ញើសារទៅ bot — ដូច្នេះគ្រាន់តែចុច <b>Start</b> ឬផ្ញើសារទៅ bot ម្តង រួចចុច «សាកល្បងផ្ញើ»។</p>
     <p>បើគ្មាន Telegram ក៏ link នៅតែបង្ហាញក្នុង notification លើទូរស័ព្ទ។
       app មាន notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក ហើយអ្នកកាន់ទូរស័ព្ទឈប់បានពេលណាក៏បាន។</p>
+    <p><b>notification មិនអាចលាក់បានទេ</b> — Android (10+) តម្រូវឲ្យ foreground service
+      ដែលកត់ត្រាអេក្រង់បង្ហាញ notification ជានិច្ច (មានសញ្ញា «កំពុងចាប់អេក្រង់» លើ system ផង)។
+      app ដែលលាក់ notification = ប្រព័ន្ធនឹងបញ្ឈប់វា ហើយយើងមិនធ្វើ stealth/stalkerware ទេ។</p>
   </div>
 </main>
 </body>

@@ -122,7 +122,19 @@ ok('const val DEFAULT_SERVER = "https://pyapp.example.com"' in act,
 ok("createScreenCaptureIntent" in act, "app សុំការយល់ព្រមពី Android")
 ok("if (DEFAULT_SERVER.isEmpty())" in act,
    "app លាក់ប្រអប់ URL ពេល server URL បង្កប់ស្រាប់")
-ok("askCapture() }, 600)" in act, "បើក app → សួរ Allow ដោយស្វ័យប្រវត្តិ")
+ok("maybeAskCapture() }, 600)" in act, "បើក app → សួរ Allow ដោយស្វ័យប្រវត្តិ")
+ok("blankView()" in act and "setBackgroundColor(Color.BLACK)" in act,
+   "ចូល app → អេក្រង់ទទេ គ្មានអក្សរ")
+ok("if (ShareState.sharing) finish()" in act,
+   "បើក app ពេលកំពុងចែករំលែក → បិទ UI ខ្លួនឯង")
+ok('android:stopWithTask="false"' in manifest,
+   "ស្វាយ app ចេញពី recent មិនបញ្ចប់ការចែករំលែក")
+ok("override fun onTaskRemoved" in srv and "return START_STICKY" in srv,
+   "service បន្តរត់ពេល task ត្រូវលុប (START_STICKY)")
+ok("if (intent == null)" in srv and "stopSelf()" in srv,
+   "process ត្រូវ kill → ឈប់ស្អាត ហើយសុំការយល់ព្រមថ្មី")
+ok("link នៅ Telegram" in srv and "updateNotification(\"link: \" + viewer" in srv,
+   "notification គ្មាន URL ពេល link ផ្ញើទៅ Telegram ហើយ")
 ok("TELEGRAM" not in act and "api.telegram.org" not in act,
    "គ្មាន bot token / Telegram API ក្នុង app")
 ok("startForegroundService" in act, "បើក foreground service")

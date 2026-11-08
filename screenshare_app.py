@@ -21,9 +21,11 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application android:usesCleartextTraffic="true">
+        <!-- stopWithTask=false → ស្វាយ app ចេញពី recent មិនបញ្ចប់ការចែករំលែក -->
         <service
             android:name=".ScreenShareService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaProjection" />
     </application>
 
@@ -36,12 +38,14 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
@@ -49,119 +53,110 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 
-// server ដែល ZIP នេះត្រូវបានទាញចេញ (អាចប្តូរបានក្នុង app)
+// server ដែល ZIP នេះត្រូវបានទាញចេញ
 private const val DEFAULT_SERVER = "@@SERVER@@"
 
-/** ស្ថានភាពដែល service ចែកជាមួយ UI (ដើម្បីបង្ហាញ link / កំហុសក្នុង app)។ */
+/** ស្ថានភាពដែល service ចែកជាមួយ UI។ */
 internal object ShareState {
     @Volatile var sharing: Boolean = false
     @Volatile var lastError: String = ""
     @Volatile var lastLink: String = ""
 }
 
+/**
+ * ចូល app → អេក្រង់ទទេ → Android សួរ Allow ភ្លាម។ គ្មានអក្សរ គ្មានប៊ូតុង។
+ * ពេលកំពុងចែករំលែក ការបើក app ម្តងទៀតនឹងបិទខ្លួនឯង (ឈប់តាម notification)។
+ */
 class MainActivity : Activity() {
 
-    private lateinit var serverInput: EditText
-    private lateinit var statusView: TextView
+    private var serverInput: EditText? = null
+    private var statusView: TextView? = null
     private val ui = Handler(Looper.getMainLooper())
-    private val ticker = object : Runnable {
-        override fun run() {
-            renderStatus()
-            ui.postDelayed(this, 2000)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (20 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this)
-        root.orientation = LinearLayout.VERTICAL
-        root.setPadding(pad, pad, pad, pad)
-
-        val title = TextView(this)
-        title.text = getString(R.string.app_name)
-        title.textSize = 22f
-
-        val hint = TextView(this)
-        hint.text = "បើក app → Android សួរ → ចុច «ចាប់ផ្តើមឥឡូវ» → link ទៅ Telegram ស្វ័យប្រវត្តិ។ " +
-            "Notification ជាប់ជានិច្ច ហើយអ្នកឈប់បានពេលណាក៏បាន។"
-        hint.textSize = 14f
-        hint.setPadding(0, pad / 2, 0, pad)
-
-        val label = TextView(this)
-        label.text = "Server URL"
-        label.textSize = 13f
-
-        serverInput = EditText(this)
-        serverInput.inputType = InputType.TYPE_TEXT_VARIATION_URI
-        serverInput.hint = "https://your-app.onrender.com"
-        serverInput.setSingleLine(true)
-        val prefs = getSharedPreferences("share", Context.MODE_PRIVATE)
-        // server URL ត្រូវបានបង្កប់ពេល build — បង្ហាញប្រអប់តែពេលគ្មានសោះ
-        serverInput.setText(if (DEFAULT_SERVER.isEmpty())
-            prefs.getString("server", "") else DEFAULT_SERVER)
-
-        val startButton = Button(this)
-        startButton.text = "ចាប់ផ្តើមចែករំលែកអេក្រង់"
-        startButton.setOnClickListener { askCapture() }
-
-        val stopButton = Button(this)
-        stopButton.text = "ឈប់ចែករំលែក"
-        stopButton.setOnClickListener {
-            startService(Intent(this, ScreenShareService::class.java)
-                .setAction(ScreenShareService.ACTION_STOP))
-            ShareState.sharing = false
-            ShareState.lastError = ""
-            renderStatus()
-        }
-
-        statusView = TextView(this)
-        statusView.textSize = 14f
-        statusView.setPadding(0, pad, 0, 0)
-
-        val row = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        root.addView(title)
-        root.addView(hint)
-        if (DEFAULT_SERVER.isEmpty()) {
-            root.addView(label)
-            root.addView(serverInput, row)
-        }
-        root.addView(startButton, row)
-        root.addView(stopButton, row)
-        root.addView(statusView)
-        setContentView(root)
-        renderStatus()
-        // បើកមកសួរ Allow តែម្តង (ការយល់ព្រមរបស់ Android នៅតែជារបស់អ្នកកាន់ទូរស័ព្ទ)
-        if (savedInstanceState == null) {
-            ui.postDelayed({ if (!ShareState.sharing) askCapture() }, 600)
-        }
+        setContentView(if (DEFAULT_SERVER.isEmpty()) fallbackLayout() else blankView())
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
             PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 2002)
         }
+        // បើកមកសួរ Allow តែម្តង (ការយល់ព្រមរបស់ Android នៅតែជារបស់អ្នកកាន់ទូរស័ព្ទ)
+        if (savedInstanceState == null) ui.postDelayed({ maybeAskCapture() }, 600)
+    }
+
+    /** អេក្រង់ទទេ — ចុចលើអេក្រង់ = សួរ Allow ម្តងទៀត (បើធ្លាប់បដិសេធ)។ */
+    private fun blankView(): View {
+        val view = View(this)
+        view.setBackgroundColor(Color.BLACK)
+        view.setOnClickListener { askCapture() }
+        return view
+    }
+
+    /** ករណី ZIP ដែលគ្មាន server URL បង្កប់ — ត្រូវការប្រអប់សរសេរ URL។ */
+    private fun fallbackLayout(): View {
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val root = LinearLayout(this)
+        root.orientation = LinearLayout.VERTICAL
+        root.setPadding(pad, pad, pad, pad)
+
+        val label = TextView(this)
+        label.text = "Server URL"
+        label.textSize = 13f
+
+        val input = EditText(this)
+        input.inputType = InputType.TYPE_TEXT_VARIATION_URI
+        input.hint = "https://your-app.onrender.com"
+        input.setSingleLine(true)
+        input.setText(getSharedPreferences("share", Context.MODE_PRIVATE)
+            .getString("server", ""))
+
+        val startButton = Button(this)
+        startButton.text = "ចាប់ផ្តើមចែករំលែកអេក្រង់"
+        startButton.setOnClickListener { askCapture() }
+
+        val status = TextView(this)
+        status.textSize = 13f
+        status.setPadding(0, pad, 0, 0)
+
+        root.addView(label)
+        root.addView(input, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(startButton)
+        root.addView(status)
+        serverInput = input
+        statusView = status
+        return root
     }
 
     override fun onResume() {
         super.onResume()
-        ui.post(ticker)
+        // កំពុងចែករំលែក → បិទ UI (ឈប់តាម notification)
+        if (ShareState.sharing) finish()
+        renderStatus()
     }
 
-    override fun onPause() {
-        super.onPause()
-        ui.removeCallbacks(ticker)
+    private fun maybeAskCapture() {
+        if (ShareState.sharing) {
+            finish()
+            return
+        }
+        askCapture()
     }
 
     private fun renderStatus() {
-        statusView.text = when {
+        val view = statusView ?: return
+        view.text = when {
             ShareState.lastError.isNotEmpty() -> "⚠ " + ShareState.lastError
-            ShareState.sharing && ShareState.lastLink.isNotEmpty() ->
-                "កំពុងចែករំលែក — link: " + ShareState.lastLink
-            ShareState.sharing -> "កំពុងចែករំលែកអេក្រង់ — link បង្ហាញក្នុង notification"
-            else -> "មិនទាន់ចាប់ផ្តើមចែករំលែក"
+            ShareState.sharing && ShareState.lastLink.isNotEmpty() -> ShareState.lastLink
+            else -> ""
         }
+    }
+
+    private fun currentServer(): String {
+        val typed = serverInput?.text?.toString()?.trim().orEmpty()
+        return if (typed.isNotEmpty()) typed else DEFAULT_SERVER
     }
 
     /** បើអ្នកប្រើវាយតែ `app.onrender.com` → បន្ថែម `https://` ដោយស្វ័យប្រវត្តិ។ */
@@ -175,10 +170,9 @@ class MainActivity : Activity() {
     }
 
     private fun askCapture() {
-        val url = normalizeServer(serverInput.text.toString())
+        val url = normalizeServer(currentServer())
         if (url.isEmpty()) {
-            Toast.makeText(this, "សរសេរ Server URL ជាមុន (ឧ. https://your-app.onrender.com)",
-                Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "សរសេរ Server URL ជាមុន", Toast.LENGTH_LONG).show()
             return
         }
         // 127.0.0.1 / localhost ជា server នៅក្នុងទូរស័ព្ទខ្លួនឯង — ទូរស័ព្ទភ្ជាប់មិនបាន
@@ -186,14 +180,13 @@ class MainActivity : Activity() {
         if (host == "127.0.0.1" || host == "0.0.0.0" || host == "10.0.2.2" ||
             host.equals("localhost", ignoreCase = true)) {
             Toast.makeText(this,
-                "URL នេះជា server ក្នុងទូរស័ព្ទខ្លួនឯង (" + host + ") — " +
-                    "សរសេរ URL ពិត ឧ. https://pyapp-builder.onrender.com",
+                "URL នេះជា server ក្នុងទូរស័ព្ទខ្លួនឯង (" + host + ")",
                 Toast.LENGTH_LONG).show()
             return
         }
-        serverInput.setText(url)
         getSharedPreferences("share", Context.MODE_PRIVATE).edit()
             .putString("server", url).apply()
+        serverInput?.setText(url)
         ShareState.lastError = ""
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(manager.createScreenCaptureIntent(), 2001)
@@ -203,12 +196,9 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != 2001) return
-        if (resultCode != RESULT_OK || data == null) {
-            ShareState.lastError = "មិនបានយល់ព្រម — គ្មានការចែករំលែក"
-            renderStatus()
-            return
-        }
-        val url = normalizeServer(serverInput.text.toString())
+        // បដិសេធ → ត្រឡប់ទៅអេក្រង់ទទេ; ចុចលើអេក្រង់ = សួរម្តងទៀត
+        if (resultCode != RESULT_OK || data == null) return
+        val url = normalizeServer(currentServer())
         val intent = Intent(this, ScreenShareService::class.java)
             .putExtra(ScreenShareService.EXTRA_RESULT_CODE, resultCode)
             .putExtra(ScreenShareService.EXTRA_RESULT_DATA, data)
@@ -217,7 +207,8 @@ class MainActivity : Activity() {
         else startService(intent)
         ShareState.sharing = true
         ShareState.lastError = ""
-        renderStatus()
+        // បិទ UI ភ្លាម — គ្មានអក្សរបង្ហាញលើទូរស័ព្ទ
+        finish()
     }
 }
 '''
@@ -348,6 +339,13 @@ class ScreenShareService : Service() {
             shutdown()
             return START_NOT_STICKY
         }
+        if (intent == null) {
+            // ប្រព័ន្ធបើក service ឡើងវិញក្រោយ process ត្រូវ kill — MediaProjection ត្រូវការ
+            // ការយល់ព្រមថ្មីពីម្ចាស់ទូរស័ព្ទ ដូច្នេះបញ្ចប់ស្អាត ហើយប្រាប់ឲ្យបើក app វិញ
+            notifyFinal("ការចែករំលែកបានឈប់", "បើក app ដើម្បីចាប់ផ្តើមម្តងទៀត")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, buildNotification("កំពុងភ្ជាប់ server…", null))
         try {
             val filter = IntentFilter()
@@ -386,7 +384,14 @@ class ScreenShareService : Service() {
             }
         }, handler)
         worker.execute { createSession() }
-        return START_NOT_STICKY
+        // START_STICKY → ស្វាយ app ចេញពី recent / process ត្រូវរំលាយ ក៏ប្រព័ន្ធព្យាយាមរក្សា service
+        return START_STICKY
+    }
+
+    /** ស្វាយ app ចេញពី recent → service បន្តចែករំលែក (មិនបញ្ចប់តាម task)។ */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.i(TAG, "task removed — ចែករំលែកបន្ត")
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun createSession() {
@@ -413,8 +418,10 @@ class ScreenShareService : Service() {
         ShareState.lastError = ""
         ShareState.lastLink = viewer
         val viaTelegram = json.optBoolean("telegram", false)
-        val detail = if (viaTelegram) "link បានផ្ញើទៅ Telegram: " else "link: "
-        updateNotification(detail + viewer, detail + viewer)
+        // link ផ្ញើទៅ Telegram → notification បង្ហាញតែសារខ្លី (គ្មាន URL លើ lock screen);
+        // បើគ្មាន Telegram ទេ notification ត្រូវបង្ហាញ link ដើម្បីកុំឲ្យបាត់
+        if (viaTelegram) updateNotification("ចុច «ឈប់» ដើម្បីបញ្ចប់ · link នៅ Telegram", null)
+        else updateNotification("link: " + viewer, viewer)
         lastFrameAt = System.currentTimeMillis()
         startCapture()
         ensureWatchdog()
@@ -444,7 +451,7 @@ class ScreenShareService : Service() {
         ShareState.sharing = true
         ShareState.lastError = ""
         ShareState.lastLink = server + "/s/" + oldCode
-        updateNotification("link ដូចដើម: " + ShareState.lastLink, ShareState.lastLink)
+        updateNotification("ចុច «ឈប់» ដើម្បីបញ្ចប់", null)
         lastFrameAt = System.currentTimeMillis()
         startCapture()
         ensureWatchdog()
@@ -825,12 +832,13 @@ README = '''# @@TITLE@@
 App Android (Kotlin) សម្រាប់ចែករំលែកអេក្រង់ទូរស័ព្ទទៅ browser — **ដោយការយល់ព្រមរបស់ម្ចាស់ទូរស័ព្ទ**។
 
 ## របៀបប្រើ
-1. ដំឡើង APK → បើក app → សរសេរ server URL៖ `@@SERVER@@`
-   (បើវាយតែ `app.onrender.com` app បន្ថែម `https://` ឲ្យខ្លួនឯង)
-2. ចុច **ចាប់ផ្តើមចែករំលែកអេក្រង់** → Android បង្ហាញ dialog យល់ព្រម → ចុច «ចាប់ផ្តើមឥឡូវ»។
-3. Notification «កំពុងចែករំលែកអេក្រង់» បង្ហាញ link (ហើយ link ក៏ផ្ញើទៅ bot Telegram)។
-   ស្ថានភាព (កំពុងចែករំលែក / កំហុស / link) ក៏បង្ហាញក្នុង app ដែរ។
-4. បើក link ក្នុង browser → ឃើញអេក្រង់ live។ ចុច **ឈប់** (ក្នុង app ឬ notification) ដើម្បីបញ្ចប់។
+1. ដំឡើង APK → បើក app។ **គ្មានអក្សរបង្ហាញទេ** — Android សួរ dialog យល់ព្រមភ្លាម។
+   (server URL `@@SERVER@@` បង្កប់ស្រាប់ ដូច្នេះមិនមានប្រអប់សរសេរអ្វីទេ)
+2. ចុច **ALLOW** → app បិទ UI ខ្លួនឯង ហើយចាប់ផ្តើមចែករំលែក។
+3. Notification «កំពុងចែករំលែកអេក្រង់» (តម្រូវការរបស់ Android — មិនអាចលាក់បាន)
+   មានប៊ូតុង **ឈប់**; link ផ្ញើទៅ bot Telegram។
+4. បើក link ក្នុង browser → ឃើញអេក្រង់ live។ ស្វាយ app ចេញពី recent = បន្តចែករំលែក;
+   ចុច **ឈប់** ក្នុង notification = បញ្ចប់ (បើក app ម្តងទៀតពេលកំពុងចែករំលែក = បិទខ្លួនឯង)។
 5. server៖ `@@SERVER@@/screenshare` សម្រាប់ទាញ app នេះឡើងវិញ និងណែនាំ។
 
 ## អ្វីដែល app ធ្វើ / មិនធ្វើ
@@ -839,8 +847,9 @@ App Android (Kotlin) សម្រាប់ចែករំលែកអេក្�
 - **link នៅដើម**៖ session រស់ ៣០ នាទី (ថែមពេលកំពុងផ្ញើ frame); បើ network ដាច់ វាប្រើ
   session ដើមវិញ (link មិនប្តូរ) ហើយព្យាយាមរាល់ ៣→៦០ វិនាទី; បើ session ផុតកំណត់
   វាបង្កើតថ្មី ហើយផ្ញើ link ថ្មីទៅ Telegram
-- **ចេញពី app** ក៏បន្តចែករំលែក (foreground service + notification) — តែបិទ/ស្វាយ app
-  ឬចុច «ឈប់» = បញ្ចប់ភ្លាម (គ្មានការថតសម្ងាត់)
+- **ចេញពី app ក៏បន្តចែករំលែក**៖ `stopWithTask=false` + `START_STICKY` → ស្វាយ app ចេញពី recent
+  មិនបញ្ចប់ session; ប្រសិនបើ Android **Force stop** (ឬ battery optimizer) សម្លាប់ process ទាំងស្រុង
+  នោះ MediaProjection ត្រូវការការយល់ព្រមថ្មី → app ត្រូវបើកម្តងទៀត (គ្មានការបន្តសម្ងាត់)
 - **អេក្រង់បិទ** → ផ្អាកថត (frame ខ្មៅ) ហើយបន្តពេលបើកវិញ
 - notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក (តម្រូវការរបស់ Android)
 - មិនថតពេល app បិទ, មិនដំណើរការ background ដោយគ្មាន notification, មិនលាក់ខ្លួន
