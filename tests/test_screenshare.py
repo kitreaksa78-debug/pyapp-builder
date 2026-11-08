@@ -300,6 +300,19 @@ finally:
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
     screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
 
+print("== ឈ្មោះ env ខុស ==")
+os.environ["TELEGRAM_BOT_TOKEN2"] = "dummy-second-token"
+try:
+    ok(screenshare.stray_token_env() == "TELEGRAM_BOT_TOKEN2",
+       "រកឃើញឈ្មោះ env ខុស")
+    ok("TELEGRAM_BOT_TOKEN2" in client.get("/screenshare").get_data(as_text=True),
+       "setup ព្រមានឈ្មោះ env ខុស")
+    os.environ["TELEGRAM_BOT_TOKEN"] = "dummy-token"
+    ok(screenshare.stray_token_env() == "", "មាន token ត្រឹមត្រូវ → គ្មានព្រមាន")
+finally:
+    os.environ.pop("TELEGRAM_BOT_TOKEN2", None)
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+
 print()
 if fails:
     print("%d CHECK(S) FAILED" % fails)

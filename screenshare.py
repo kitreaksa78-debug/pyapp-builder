@@ -215,6 +215,17 @@ def bot_username() -> str:
     return name
 
 
+def stray_token_env() -> str:
+    """ឈ្មោះ env ខុស (ឧ. `TELEGRAM_BOT_TOKEN2`) ដែលកូដមិនអាន — គ្មាន → ខ្សែទទេ។"""
+    if (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip():
+        return ""
+    for name in ("TELEGRAM_BOT_TOKEN2", "TELEGRAM_BOT_TOKEN_2",
+                 "TELEGRAM_TOKEN", "BOT_TOKEN"):
+        if (os.environ.get(name) or "").strip():
+            return name
+    return ""
+
+
 def miniapp_name() -> str:
     """short name របស់ Telegram Mini App (env `TELEGRAM_MINIAPP_NAME`, ឧ. `share`)។"""
     return (os.environ.get("TELEGRAM_MINIAPP_NAME") or "").strip().lstrip("@")
@@ -398,6 +409,7 @@ def create_blueprint() -> Blueprint:
             found_chat=str(_CHAT_CACHE.get("chat") or ""),
             reason=str(_DISCOVER.get("reason") or ""),
             miniapp=miniapp_name(),
+            stray_token=stray_token_env(),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
         return page

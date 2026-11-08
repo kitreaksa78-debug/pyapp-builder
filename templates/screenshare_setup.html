@@ -54,6 +54,13 @@
     <button type="button" id="tgTest">សាកល្បងផ្ញើទៅ bot</button>
     <span id="tgOut" class="badge"></span>
   </p>
+  {% if stray_token %}
+  <p class="warn">
+    រកឃើញ <code>{{ stray_token }}</code> តែ server អានតែ <code>TELEGRAM_BOT_TOKEN</code> —
+    សូមប្តូរឈ្មោះ key នោះទៅជា <code>TELEGRAM_BOT_TOKEN</code>
+    (ឬបន្ថែម key ថ្មីឈ្មោះបែបនះ រួចលុប key ចាស់) ហើយ Save ម្តងទៀត។
+  </p>
+  {% endif %}
   <p class="note">
     <b>Telegram Mini App:</b>
     {% if miniapp and bot %}
