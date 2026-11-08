@@ -23,7 +23,7 @@ import urllib.error
 import urllib.request
 
 from flask import (Blueprint, Response, jsonify, make_response, render_template,
-                   request)
+                   request, send_file)
 
 LOG = logging.getLogger(__name__)
 
@@ -526,5 +526,18 @@ def create_blueprint() -> Blueprint:
                         headers={"Content-Disposition":
                                  'attachment; filename="screenshare.zip"',
                                  "Cache-Control": "no-store"})
+
+    @bp.get("/api/screenshare/app.apk")
+    def share_app_apk():
+        """APK ដែល build រួច (server URL បង្កប់) — ទាញ → ដំឡើង → ប្រើបានភ្លាម។"""
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "static", "screen-share.apk")
+        if not os.path.isfile(path):
+            return jsonify({"error": "APK មិនទាន់មាន — ទាញ ZIP វិញ"}), 404
+        resp = send_file(path, mimetype="application/vnd.android.package-archive",
+                         as_attachment=True, download_name="screen-share.apk",
+                         max_age=0)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     return bp

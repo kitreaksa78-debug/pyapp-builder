@@ -332,7 +332,7 @@ try:
     ok(screenshare.notify_alt_telegram(
         "hi", "https://t.me/app_bot_name/share") is True, "ផ្ញើទៅ bot ទី២បាន")
     url, body = calls[-1]
-    ok(url.endswith("/botal-token/sendMessage"), "ប្រើ token របស់ bot ទី២")
+    ok(url.endswith("/botalt-token/sendMessage"), "ប្រើ token របស់ bot ទី២")
     ok(body["chat_id"] == "987654321", "ទៅ chat របស់ bot ទី២")
     ok(body["reply_markup"]["inline_keyboard"][0][0]["url"].endswith("/share"),
        "ប៊ូតុង Mini App នៅក្នុងសាររបស់ bot ទី២")
@@ -353,6 +353,17 @@ try:
 finally:
     os.environ.pop("TELEGRAM_BOT_TOKEN2", None)
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+
+print("== ទាញ APK ដំឡើងផ្ទាល់ ==")
+apk = client.get("/api/screenshare/app.apk")
+ok(apk.status_code == 200, "APK → 200")
+ok(apk.data[:2] == b"PK" and len(apk.data) > 100_000, "APK ជា ZIP ពេញលេញ")
+ok("android.package-archive" in (apk.headers.get("Content-Type") or ""),
+   "Content-Type ជា APK")
+ok("screen-share.apk" in (apk.headers.get("Content-Disposition") or ""),
+   "ឈ្មោះ file ត្រឹមត្រូវ")
+setup = client.get("/screenshare").get_data(as_text=True)
+ok("/api/screenshare/app.apk" in setup, "setup មានប៊ូតុងទាញ APK")
 
 print()
 if fails:
