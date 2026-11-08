@@ -1213,6 +1213,9 @@
   function openImport() { $('zipInput').click(); }
   $('importBtn').onclick = openImport;
   if ($('importBtnTop')) $('importBtnTop').onclick = openImport;
+  if ($('shareBtn')) $('shareBtn').onclick = function () {
+    window.open('/screenshare', '_blank');
+  };
   $('zipInput').addEventListener('change', function () {
     var file = this.files && this.files[0];
     this.value = '';

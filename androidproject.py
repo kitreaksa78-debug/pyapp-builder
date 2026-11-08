@@ -120,6 +120,7 @@ PERMISSIONS: dict[str, dict] = {
     "FOREGROUND_SERVICE_LOCATION": {"kh": "FGS ទីតាំង",       "kind": "normal", "min_sdk": 34},
     "FOREGROUND_SERVICE_HEALTH":   {"kh": "FGS សុខភាព",     "kind": "normal", "min_sdk": 34},
     "FOREGROUND_SERVICE_MEDIA_PLAYBACK": {"kh": "FGS តន្ត្រី", "kind": "normal", "min_sdk": 34},
+    "FOREGROUND_SERVICE_MEDIA_PROJECTION": {"kh": "FGS ចែកអេក្រង់", "kind": "normal", "min_sdk": 34},
     "FOREGROUND_SERVICE_PHONE_CALL": {"kh": "FGS ទូរស័ព្ទ",   "kind": "normal", "min_sdk": 34},
     "FOREGROUND_SERVICE_SPECIAL_USE": {"kh": "FGS ប្រភេទពិសេស", "kind": "normal", "min_sdk": 34},
     " FOREGROUND_SERVICE_DATA_SYNC": {"kh": "FGS ដាក់ស្តុក", "kind": "normal", "min_sdk": 34},
@@ -1186,7 +1187,8 @@ def android_project_files(title: str, package: str, mode: str,
                           files: dict, *, icon: bytes | None = None,
                           version: str = "1.0", build: str = "1",
                           permissions=(), orientation: str = "unspecified",
-                          online: bool = True) -> dict:
+                          online: bool = True,
+                          default_permissions: bool = True) -> dict:
     """បង្កើត file ទាំងអស់របស់ Android project ជា dict {path: bytes|str}។
 
     គណៈកម្មការទទួលយកគ្រប់ app type៖ webview, kotlin, java។
@@ -1220,9 +1222,11 @@ def android_project_files(title: str, package: str, mode: str,
             if _bp in _PERMS_MAP and _bp not in all_perms:
                 all_perms.append(_bp)
     # permission គោល — app ដែលបង្កើតថ្មីមានសិទ្ធិទាំងនេះស្រាប់
-    for _dp in DEFAULT_PERMISSIONS:
-        if _dp in _PERMS_MAP and _dp not in all_perms:
-            all_perms.append(_dp)
+    # (`default_permissions=False` សម្រាប់ app ដែលត្រូវការតែ permission ជាក់លាក់)
+    if default_permissions:
+        for _dp in DEFAULT_PERMISSIONS:
+            if _dp in _PERMS_MAP and _dp not in all_perms:
+                all_perms.append(_dp)
     icons = launcher_icons(icon) if icon else {}
 
     path = package.replace(".", "/")

@@ -165,7 +165,8 @@ class GitHub:
     def push_branch(self, branch: str, files: dict, message: str,
                     *, clean: bool = False) -> str:
         """បង្កើត branch សម្រាប់ build។ `clean=True` → គ្មាន file របស់ repo មេ
-        (លើកលែង `.github/` ដែល workflow ត្រូវការ) — project អ្នកប្រើស្អាត
+        (លើកលែង `.github/` ដែល workflow ត្រូវការ និង `signing/` ដែល
+        Gradle signingConfig យោង) — project អ្នកប្រើស្អាត
         មិនលាយ settings.gradle/build.gradle ចាស់របស់ repo។"""
         base = self.call(f"/repos/{self.repo}/git/ref/heads/{GH_BRANCH}")["object"]["sha"]
         base_commit = self.call(f"/repos/{self.repo}/git/commits/{base}")
@@ -174,7 +175,8 @@ class GitHub:
             tree = self.call(
                 f"/repos/{self.repo}/git/trees/{base_commit['tree']['sha']}?recursive=1")
             for e in tree.get("tree", []):
-                if e.get("type") == "blob" and e["path"].startswith(".github/"):
+                if e.get("type") == "blob" and e["path"].startswith(
+                        (".github/", "signing/")):
                     entries.append({"path": e["path"], "mode": e["mode"],
                                     "type": "blob", "sha": e["sha"]})
         for path, content in files.items():
@@ -757,6 +759,11 @@ def download(job_id: str):
 
 app.register_blueprint(ide_blueprint(create_job, validate_common, GH_REPO, GH_TOKEN,
                                      GH_WORKFLOW_ZIP))
+
+# ចែករំលែកអេក្រង់ — session ខ្លី + link ទៅ browser + notify ទៅ Telegram bot
+from screenshare import create_blueprint as screenshare_blueprint  # noqa: E402
+
+app.register_blueprint(screenshare_blueprint())
 
 
 @app.errorhandler(ValueError)

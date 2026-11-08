@@ -22,3 +22,9 @@ services:
         sync: false
       - key: R2_REGION
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: SCREENSHARE_BASE_URL
+        sync: false

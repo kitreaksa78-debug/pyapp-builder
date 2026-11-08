@@ -99,11 +99,39 @@ python app.py                 # http://localhost:8000
 | GET | `/dl/<id>` | ទាញយក APK |
 | GET | `/api/health` | health check |
 
+## ចែករំលែកអេក្រង់ទូរស័ព្ទ (`/screenshare`)
+app Android **ចែករំលែកអេក្រង់ទៅ browser** — ម្ចាស់ទូរស័ព្ទចុច «ចាប់ផ្តើម» ហើយយល់ព្រម
+លើ dialog របស់ Android រាល់ដង; foreground service មាន notification ជាប់ជានិច្ច
+(ប៊ូតុង «ឈប់») ហើយ link live ផ្ញើទៅ bot Telegram។ គ្មានការចាប់ផ្តើមដោយសម្ងាត់។
+
+- UI៖ ប៊ូតុង **📡** លើ toolbar របស់ IDE → `/screenshare` (របៀបប្រើ + ទាញ app ZIP)
+- App source៖ `screenshare_app.py` (Kotlin `MediaProjection` + FGS `mediaProjection`)
+- Server៖ `screenshare.py` — session ខ្លីក្នុង memory, គ្មាន frame ចុះ disk
+
+| Method | Path | ការងារ |
+|---|---|---|
+| POST | `/api/screenshare/start` | `{title}` → `{code, token, viewer_url, telegram}` |
+| POST | `/api/screenshare/<code>/frame` | app ផ្ញើ JPEG (header `X-Session-Token`) |
+| GET | `/api/screenshare/<code>/frame.jpg` | frame ចុងក្រោយ (viewer poll) |
+| GET | `/api/screenshare/<code>/state` | ស្ថានភាព session |
+| POST | `/api/screenshare/<code>/stop` | បញ្ចប់ session (token) |
+| GET | `/s/<code>` | ទំព័រមើល live ក្នុង browser |
+| GET | `/api/screenshare/app.zip` | ទាញ ZIP របស់ app (import ចូល IDE) |
+
+env (ស្រេចចិត្ត)៖ `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (ផ្ញើ link ទៅ bot),
+`SCREENSHARE_BASE_URL` (origin សម្រាប់ link — បើគ្មានប្រើ host របស់ request),
+`SCREENSHARE_TTL` (អាយុកាល session, លំនាំដើម 1800 វិនាទី)។ session រក្សាក្នុង
+memory ⇒ ត្រូវការ worker តែមួយ (render.yaml ប្រើ `--workers 1`)។
+
 ## សុវត្ថិភាព
 - `GH_TOKEN` ជា secret របស់ server — កុំដាក់ក្នុង code ឬ commit។
 - IDE API ពិនិត្យ path (គ្មាន `..`, គ្មាន absolute), ប្រភេទ file, ទំហំ (5 MB/file · 30 MB/project)
   និងបើក ZIP ដោយបដិសេធ member ដែលរត់ចេញក្រៅ folder។
 - កូដរបស់អ្នក build ក្នុង GitHub Actions និងរត់តែលើទូរស័ព្ទរបស់អ្នក។
+- ចែករំលែកអេក្រង់៖ session ត្រូវការ token (app), link ជាកូដ ១០ តួដែលអាចទាយមិនបាន,
+  ផុតកំណត់, `no-store` + `noindex` + `no-referrer`; frame រក្សាតែមួយ (ចុងក្រោយ)
+  ក្នុង memory ហើយមិនត្រូវសរសេរចុះ disk — អេក្រង់ចាប់ផ្តើមបានតែដោយការយល់ព្រម
+  របស់អ្នកកាន់ទូរស័ព្ទប៉ុណ្ណោះ។
 
 ## AppForge dashboard (React SPA)
 - `/` → **AppForge** dashboard (preview + file tree + Monaco) — built assets នៅ `static/dashboard/`
