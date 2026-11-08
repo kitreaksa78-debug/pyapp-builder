@@ -41,6 +41,8 @@ _SESSIONS: dict[str, dict] = {}
 _CHAT_CACHE: dict = {"chat": "", "at": 0.0}
 CHAT_CACHE_SECONDS = 600
 _BOT_CACHE: dict = {"username": "", "at": 0.0}
+# មូលហេតុដែលរក chat មិនឃើញ — បង្ហាញលើទំព័រ setup
+_DISCOVER: dict = {"reason": ""}
 _TEST_SENT: dict[str, float] = {}
 
 
@@ -167,7 +169,14 @@ def _recent_chat_id(token: str) -> str:
     try:
         with urllib.request.urlopen(url, timeout=8) as resp:
             data = json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        _DISCOVER["reason"] = ("webhook" if exc.code == 409 else
+                              "token" if exc.code in (401, 403, 404) else
+                              "http_%d" % exc.code)
+        LOG.warning("Telegram getUpdates failed: HTTP %s", exc.code)
+        return ""
     except (urllib.error.URLError, OSError, ValueError) as exc:
+        _DISCOVER["reason"] = "network"
         LOG.warning("Telegram getUpdates failed: %s", type(exc).__name__)
         return ""
     chat = ""
@@ -178,6 +187,9 @@ def _recent_chat_id(token: str) -> str:
             chat = str(chat_id)
     if chat:
         _CHAT_CACHE.update({"chat": chat, "at": now})
+        _DISCOVER["reason"] = ""
+    else:
+        _DISCOVER["reason"] = "no_chat"
     return chat
 
 
@@ -208,6 +220,7 @@ def notify_telegram(text: str) -> bool:
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
     chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
+        _DISCOVER["reason"] = "no_token"
         return False
     if not chat:
         chat = _recent_chat_id(token)
@@ -341,6 +354,7 @@ def create_blueprint() -> Blueprint:
             telegram_chat=(os.environ.get("TELEGRAM_CHAT_ID") or "").strip(),
             bot=bot_username(),
             found_chat=str(_CHAT_CACHE.get("chat") or ""),
+            reason=str(_DISCOVER.get("reason") or ""),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
         return page
@@ -356,13 +370,20 @@ def create_blueprint() -> Blueprint:
         token = bool((os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip())
         sent = notify_telegram(
             "✅ សាកល្បងពី PyApp Builder — bot នេះនឹងទទួល link ចែកអេក្រង់។")
-        resp = jsonify({"ok": sent, "token_set": token,
+        reason = "" if sent else str(_DISCOVER.get("reason") or "")
+        hints = {
+            "no_token": "គ្មាន TELEGRAM_BOT_TOKEN — ដាក់វានៅ Render → Environment",
+            "no_chat": "bot មិនទាន់ទទួលសារពីអ្នក — បើក bot ហើយចុច Start ម្តង",
+            "webhook": "bot មាន webhook — បើក https://api.telegram.org/bot<TOKEN>/deleteWebhook ក្នុង browser រួចសាកម្តងទៀត",
+            "token": "TOKEN មិនត្រឹមត្រូវ/ត្រូវ revoke — យក token ថ្មីពី BotFather",
+            "network": "server ភ្ជាប់ Telegram មិនបាន — សាកម្តងទៀតបន្តិចទៀត",
+        }
+        resp = jsonify({"ok": sent, "token_set": token, "reason": reason,
                         "bot": bot_username(),
                         "chat_id_set": bool((os.environ.get("TELEGRAM_CHAT_ID")
                                             or "").strip()),
-                        "hint": "" if sent else (
-                            "មិនទាន់បានផ្ញើទេ — ពិនិត្យ TELEGRAM_BOT_TOKEN នៅ Render → "
-                            "Environment រួចផ្ញើសារ /start ទៅ bot ម្តង ហើយសាកម្តងទៀត")})
+                        "hint": "" if sent else hints.get(
+                            reason, "មិនទាន់បានផ្ញើទេ — សាកម្តងទៀត")})
         resp.headers["Cache-Control"] = "no-store"
         return resp
 

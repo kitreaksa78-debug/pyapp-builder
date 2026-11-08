@@ -214,6 +214,43 @@ finally:
     screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
     screenshare._TEST_SENT.clear()
 
+print("== ហេតុផលពេលរក chat មិនឃើញ ==")
+import urllib.error  # noqa: E402
+
+screenshare.urllib.request.urlopen = fake_urlopen
+try:
+    os.environ["TELEGRAM_BOT_TOKEN"] = "test-token"
+    os.environ.pop("TELEGRAM_CHAT_ID", None)
+
+    def empty_updates(req, timeout=None):  # noqa: ARG001
+        return FakeResponse('{"ok":true,"result":[]}')
+
+    screenshare.urllib.request.urlopen = empty_updates
+    screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    screenshare._DISCOVER["reason"] = ""
+    ok(screenshare.notify_telegram("x") is False and
+       screenshare._DISCOVER["reason"] == "no_chat", "chat ទទេ → reason=no_chat")
+
+    def conflict(req, timeout=None):  # noqa: ARG001
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        raise urllib.error.HTTPError(url, 409, "Conflict", {}, None)
+
+    screenshare.urllib.request.urlopen = conflict
+    screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    screenshare._TEST_SENT.clear()
+    body = client.post("/api/screenshare/telegram/test").get_json()
+    ok(body["reason"] == "webhook", "HTTP 409 → reason=webhook")
+    ok("deleteWebhook" in body["hint"], "hint ប្រាបពី deleteWebhook")
+    ok(screenshare._BOT_CACHE.get("username") != "test-token", "username មិនមែន token")
+finally:
+    screenshare.urllib.request.urlopen = real_urlopen
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    os.environ.pop("TELEGRAM_CHAT_ID", None)
+    screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
+    screenshare._DISCOVER["reason"] = ""
+    screenshare._TEST_SENT.clear()
+
 print()
 if fails:
     print("%d CHECK(S) FAILED" % fails)

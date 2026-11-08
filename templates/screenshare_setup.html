@@ -56,9 +56,17 @@
   </p>
   {% if telegram_token and not found_chat and not telegram_chat %}
   <p class="warn">
-    bot មិនទាន់ទទួលសារពីអ្នកសោះ — ដូច្នេះមិនដឹងថាត្រូវផ្ញើ link ទៅណា។ ចុច
-    {% if bot %}<a href="https://t.me/{{ bot }}" target="_blank" rel="noopener">@{{ bot }}</a>{% else %}bot របស់អ្នក{% endif %}
-    → ចុច <b>Start</b> (ឬផ្ញើសារណាមួយ) → ត្រឡប់មកទំព័រនេះ → ចុច «សាកល្បងផ្ញើទៅ bot»។
+    {% if reason == 'webhook' %}
+      bot នេះកំពុងប្រើ webhook — server មិនអាចរក chat បានទេ។ បើក
+      <b>https://api.telegram.org/bot&lt;TOKEN&gt;/deleteWebhook</b> ក្នុង browser (ដាក់ token របស់អ្នក)
+      រួចចុច «សាកល្បងផ្ញើទៅ bot» ម្តងទៀត។
+    {% elif reason == 'token' %}
+      TELEGRAM_BOT_TOKEN មិនត្រឹមត្រូវ ឬត្រូវ revoke — យក token ថ្មីពី BotFather ដាក់ក្នុង Render → Environment។
+    {% else %}
+      bot មិនទាន់ទទួលសារពីអ្នកសោះ — ដូច្នេះមិនដឹងថាត្រូវផ្ញើ link ទៅណា។ ចុច
+      {% if bot %}<a href="https://t.me/{{ bot }}" target="_blank" rel="noopener">@{{ bot }}</a>{% else %}bot របស់អ្នក{% endif %}
+      → ចុច <b>Start</b> (ឬផ្ញើសារណាមួយ) → ត្រឡប់មកទំព័រនេះ → ចុច «សាកល្បងផ្ញើទៅ bot»។
+    {% endif %}
   </p>
   {% endif %}
   <script>
