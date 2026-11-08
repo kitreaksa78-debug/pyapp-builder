@@ -4,36 +4,15 @@ plugins {
 }
 
 android {
-    namespace = "com.nearby.networkscanner"
+    namespace = "com.example.poolmodmenu"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.nearby.networkscanner"
+        applicationId = "com.example.poolmodmenu"
         minSdk = 21
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-    }
-
-    signingConfigs {
-        create("stable") {
-            storeFile = file("../signing/debug.p12")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-            storeType = "PKCS12"
-        }
-    }
-
-    buildTypes {
-        getByName("debug") {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("stable")
-        }
-        getByName("release") {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("stable")
-        }
     }
 
     compileOptions {
@@ -47,11 +26,5 @@ android {
 
     lint {
         abortOnError = false
-    }
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    kotlinOptions {
-        jvmTarget = "17"
     }
 }
