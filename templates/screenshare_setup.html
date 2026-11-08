@@ -23,7 +23,11 @@
     .note { color: #8b949e; font-size: 13px; border-top: 1px solid #21262d;
       margin-top: 26px; padding-top: 16px; }
     .badge { display: inline-block; font-size: 12px; padding: 2px 9px;
-      border-radius: 999px; border: 1px solid #30363d; color: #8b949e; }
+      border-radius: 999px; border: 1px solid #30363d; color: #8b949e;
+      text-decoration: none; margin-right: 4px; }
+    a.badge { color: #7ee787; border-color: #1f6f3a; }
+    .warn { background: #2a2113; border: 1px solid #6b4b12; color: #f0d08a;
+      border-radius: 10px; padding: 12px 14px; font-size: 13.5px; }
   </style>
 </head>
 <body>
@@ -45,10 +49,18 @@
   </form>
   <p>
     <span class="badge">Telegram token: {{ 'មាន' if telegram_token else 'គ្មាន' }}</span>
-    <span class="badge">chat id: {{ telegram_chat if telegram_chat else 'រកដោយស្វ័យប្រវត្តិ' }}</span>
+    <span class="badge">chat id: {{ telegram_chat if telegram_chat else (found_chat if found_chat else 'រកមិនឃើញ') }}</span>
+    {% if bot %}<a class="badge" href="https://t.me/{{ bot }}" target="_blank" rel="noopener">បើក bot: @{{ bot }}</a>{% endif %}
     <button type="button" id="tgTest">សាកល្បងផ្ញើទៅ bot</button>
     <span id="tgOut" class="badge"></span>
   </p>
+  {% if telegram_token and not found_chat and not telegram_chat %}
+  <p class="warn">
+    bot មិនទាន់ទទួលសារពីអ្នកសោះ — ដូច្នេះមិនដឹងថាត្រូវផ្ញើ link ទៅណា។ ចុច
+    {% if bot %}<a href="https://t.me/{{ bot }}" target="_blank" rel="noopener">@{{ bot }}</a>{% else %}bot របស់អ្នក{% endif %}
+    → ចុច <b>Start</b> (ឬផ្ញើសារណាមួយ) → ត្រឡប់មកទំព័រនេះ → ចុច «សាកល្បងផ្ញើទៅ bot»។
+  </p>
+  {% endif %}
   <script>
   document.getElementById('tgTest').onclick = function () {
     var out = document.getElementById('tgOut');
@@ -58,6 +70,11 @@
       .then(function (j) {
         out.textContent = j.ok ? '✅ ផ្ញើបាន — ពិនិត្យ Telegram'
                               : ('❌ ' + (j.error || j.hint || 'មិនបានផ្ញើ'));
+        if (!j.ok && j.bot) {
+          out.insertAdjacentHTML('afterend',
+            '<a class="badge" href="https://t.me/' + j.bot + '" target="_blank" ' +
+            'rel="noopener">បើក @' + j.bot + '</a>');
+        }
       })
       .catch(function () { out.textContent = '❌ ភ្ជាប់ server មិនបាន'; });
   };

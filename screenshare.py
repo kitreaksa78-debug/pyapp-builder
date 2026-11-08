@@ -40,6 +40,7 @@ _SESSIONS: dict[str, dict] = {}
 # chat ចុងក្រោយដែលបានផ្ញើសារទៅ bot — បើគ្មាន TELEGRAM_CHAT_ID
 _CHAT_CACHE: dict = {"chat": "", "at": 0.0}
 CHAT_CACHE_SECONDS = 600
+_BOT_CACHE: dict = {"username": "", "at": 0.0}
 _TEST_SENT: dict[str, float] = {}
 
 
@@ -180,6 +181,28 @@ def _recent_chat_id(token: str) -> str:
     return chat
 
 
+def bot_username() -> str:
+    """@username របស់ bot (getMe) — សម្រាប់បង្ហាញ link ឲ្យអ្នកប្រើចុច Start។"""
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        return ""
+    now = time.time()
+    cached = str(_BOT_CACHE.get("username") or "")
+    if cached and now - float(_BOT_CACHE.get("at") or 0) < 3600:
+        return cached
+    try:
+        with urllib.request.urlopen(
+                f"https://api.telegram.org/bot{token}/getMe", timeout=8) as resp:
+            data = json.loads(resp.read() or b"{}")
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        LOG.warning("Telegram getMe failed: %s", type(exc).__name__)
+        return ""
+    name = str(((data.get("result") or {}).get("username")) or "")
+    if name:
+        _BOT_CACHE.update({"username": name, "at": now})
+    return name
+
+
 def notify_telegram(text: str) -> bool:
     """ផ្ញើសារទៅ bot Telegram (env `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` ឬ chat ចុងក្រោយ)។"""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -234,6 +257,7 @@ def create_blueprint() -> Blueprint:
             "viewer_url": viewer_url,
             "ttl": ttl,
             "telegram": telegram,
+            "bot": bot_username(),
         })
         resp.headers["Cache-Control"] = "no-store"
         return resp, 201
@@ -315,6 +339,8 @@ def create_blueprint() -> Blueprint:
             server=_viewer_root().rstrip("/"),
             telegram_token=bool((os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()),
             telegram_chat=(os.environ.get("TELEGRAM_CHAT_ID") or "").strip(),
+            bot=bot_username(),
+            found_chat=str(_CHAT_CACHE.get("chat") or ""),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
         return page
@@ -331,6 +357,7 @@ def create_blueprint() -> Blueprint:
         sent = notify_telegram(
             "✅ សាកល្បងពី PyApp Builder — bot នេះនឹងទទួល link ចែកអេក្រង់។")
         resp = jsonify({"ok": sent, "token_set": token,
+                        "bot": bot_username(),
                         "chat_id_set": bool((os.environ.get("TELEGRAM_CHAT_ID")
                                             or "").strip()),
                         "hint": "" if sent else (

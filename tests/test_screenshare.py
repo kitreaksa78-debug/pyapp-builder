@@ -178,6 +178,8 @@ def fake_urlopen(req, timeout=None):  # noqa: ARG001
     seen.append(url.split("/bot")[1].split("/")[0] if "/bot" in url else url)
     if url.endswith("/getUpdates?limit=20&timeout=0&allowed_updates=%5B%22message%22%5D"):
         return FakeResponse('{"ok":true,"result":[{"message":{"chat":{"id":123456789}}}]}')
+    if url.endswith("/getMe"):
+        return FakeResponse('{"ok":true,"result":{"username":"my_test_bot"}}')
     return FakeResponse('{"ok":true}')
 
 
@@ -196,6 +198,9 @@ try:
     ok(r.status_code == 200 and body["ok"] is True, "សាកល្បងផ្ញើ → ok")
     ok(body["token_set"] is True and body["chat_id_set"] is False,
        "រាយការណ៍ថា token មាន / chat id រកដោយស្វ័យប្រវត្តិ")
+    ok(body.get("bot") == "my_test_bot", "ឆ្លើយតបមាន @username របស់ bot")
+    page = client.get("/screenshare").get_data(as_text=True)
+    ok("https://t.me/my_test_bot" in page, "ទំព័រមាន link បើក bot ដើម្បីចុច Start")
     ok(client.post("/api/screenshare/telegram/test").status_code == 429,
        "សាកល្បងញឹកញាប់ពេក → 429")
     ok("test-token" not in r.get_data(as_text=True), "token មិនបង្ហាញក្នុង response")
@@ -206,6 +211,7 @@ finally:
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
     os.environ.pop("TELEGRAM_CHAT_ID", None)
     screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
     screenshare._TEST_SENT.clear()
 
 print()
