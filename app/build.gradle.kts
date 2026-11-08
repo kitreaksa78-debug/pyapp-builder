@@ -4,15 +4,16 @@ plugins {
 }
 
 android {
-    namespace = "com.nearby.networkscanner"
+    namespace = "org.pyapp.qakotlin"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.nearby.networkscanner"
+        applicationId = "org.pyapp.qakotlin"
         minSdk = 21
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
     }
 
     signingConfigs {
