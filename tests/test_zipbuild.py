@@ -8,6 +8,7 @@ detection និងសារកំហុស (គ្មាន GH_TOKEN ក្ន�
 import io
 import os
 import sys
+import xml.etree.ElementTree as ET
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -299,6 +300,50 @@ ok('src/main/AndroidManifest.xml' in ide.prepare_android_project(src_only, 'A'),
    'wrap មិនប្តូរ path របស់ source')
 wrapped_zip = ide.import_zip(_zip({'MyApp/index.html': '<h1>x</h1>', 'MyApp/app.js': ''}))
 ok(sorted(wrapped_zip) == ['app.js', 'index.html'], 'top folder ជា wrapper → ដកចេញ')
+
+print('== resource ដែល Manifest យោង តែគ្មាន ==')
+_nores = {
+    'settings.gradle.kts': SETTINGS,
+    'build.gradle.kts': ROOT_BUILD,
+    'app/build.gradle.kts': APP_BUILD,
+    'app/src/main/AndroidManifest.xml': (
+        '<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
+        'package="com.example.demo">\n'
+        '  <application android:icon="@mipmap/ic_launcher" '
+        'android:roundIcon="@mipmap/ic_launcher_round" '
+        'android:label="@string/app_name" android:theme="@style/AppTheme" />\n'
+        '</manifest>'),
+    'app/src/main/java/com/example/demo/MainActivity.kt': 'package com.example.demo\n',
+}
+_fixed = ide.ensure_android_resources(_nores, 'Pool Mod')
+for _dens in ('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'):
+    ok(isinstance(_fixed.get('app/src/main/res/mipmap-%s/ic_launcher.png' % _dens), bytes),
+       'បង្កើត ic_launcher.png (%s)' % _dens)
+ok('app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png' in _fixed,
+   'បង្កើត ic_launcher_round.png')
+ok('<string name="app_name">' in _fixed.get('app/src/main/res/values/strings.xml', ''),
+   'បង្កើត @string/app_name')
+ok('<style name="AppTheme"' in _fixed.get('app/src/main/res/values/styles.xml', ''),
+   'បង្កើត @style/AppTheme')
+for _p in ('app/src/main/res/values/strings.xml', 'app/src/main/res/values/styles.xml'):
+    ET.fromstring(_fixed[_p])
+ok(True, 'XML ដែលបង្កើត parse បាន')
+_kept = ide.ensure_android_resources(dict(_fixed, **{
+    'app/src/main/res/values/strings.xml': '<resources><string name="app_name">Mine</string></resources>'}),
+    'Pool Mod')
+ok(_kept['app/src/main/res/values/strings.xml'].count('app_name') == 1,
+   'resource ដែលមានស្រាប់មិនត្រូវសរសេរជំនួស')
+ok(not any('res/' in n for n in ide.ensure_android_resources(
+    dict(_nores, **{'app/src/main/AndroidManifest.xml': MANIFEST}), 'A')),
+   'project ដែល Manifest មិនយោង resource → មិនបន្ថែមអ្វី')
+
+print('== កែកំហុស Kotlin ដែលបញ្ឈប់ build ==')
+_kt = {'A.kt': 'class A {\n    const val K = 1\n    fun f() {\n        const val r = 22f\n    }\n}\n'}
+_fx = ide.repair_android_sources(_kt)['A.kt']
+ok('    const val K = 1' in _fx, 'const ក្នុង class នៅដើម')
+ok('        val r = 22f' in _fx, 'const នៅ local ត្រូវដកចេញ')
+ok(ide.repair_android_sources({'a.java': 'class A {}'})['a.java'] == 'class A {}',
+   'file មិនមែន Kotlin មិនត្រូវប៉ះ')
 
 print('== workflow សម្រាប់ ZIP ==')
 wf = open(os.path.join(ROOT, '.github/workflows/build-zip-apk.yml'), encoding='utf-8').read()

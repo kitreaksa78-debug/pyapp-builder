@@ -58,6 +58,121 @@ def is_android_project(files: dict) -> bool:
     return bool(_manifests(files))
 
 
+# resource ដែល Manifest សំដៅ តែ project គ្មាន (ឧ. project គ្មាន res/ ទាល់តែសោះ)
+_RES_REF_RE = re.compile(r"@(mipmap|drawable|string|style|color|xml)/([A-Za-z0-9_]+)")
+_RES_DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+
+
+def _default_icon_png(size: int, letter: str) -> bytes:
+    """Launcher icon ធម្មតា (រង្វង់មូលមួយ) ពេល project គ្មាន mipmap។"""
+    import io as _io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=max(4, size // 5),
+                           fill=(25, 118, 210, 255))
+    try:
+        font = ImageFont.load_default(size=int(size * 0.52))
+    except TypeError:  # Pillow ចាស់
+        font = ImageFont.load_default()
+    box = draw.textbbox((0, 0), letter, font=font)
+    draw.text(((size - (box[2] - box[0])) / 2 - box[0],
+               (size - (box[3] - box[1])) / 2 - box[1]),
+              letter, font=font, fill=(255, 255, 255, 255))
+    buf = _io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def ensure_android_resources(files: dict, title: str) -> dict:
+    """បំពេញ resource ដែល Manifest សំដៅ (`@mipmap/ic_launcher`, `@style/...`…) តែគ្មាន។
+
+    AAPT បរាជ័យភ្លាមបើ icon ឬ theme ដែល Manifest យោងមិនមាន — project ជាច្រើន
+    (ឧ. ZIP ដែលមានតែ source) គ្មាន folder `res/` ទាល់តែសោះ។ យើងបង្កើតតែ file
+    ដែល *ខ្វះ* ហើយមិនសរសេរជំនួស file របស់អ្នកប្រើឡើយ។
+    """
+    out = dict(files or {})
+    letter = next((c for c in str(title or "A") if c.isalnum()), "A").upper()
+    cache: dict[int, bytes] = {}
+    for manifest in _manifests(out):
+        text = out.get(manifest)
+        if not isinstance(text, str):
+            continue
+        prefix = manifest[: -len("AndroidManifest.xml")]
+        refs = set(_RES_REF_RE.findall(text))
+        if not refs:
+            continue
+        existing: set[tuple[str, str]] = set()
+        for path, content in out.items():
+            if not path.startswith(prefix + "res/"):
+                continue
+            rel = path[len(prefix + "res/"):]
+            folder, _, name = rel.partition("/")
+            if not name or "/" in name:
+                continue
+            if folder.startswith("values"):
+                if not isinstance(content, str):
+                    continue
+                for rtype in ("string", "style", "color"):
+                    for m in re.finditer(r'<%s\b[^>]*\bname="([^"]+)"' % rtype, content):
+                        existing.add((rtype, m.group(1)))
+            elif "." in name:
+                existing.add((folder.split("-")[0], name.rsplit(".", 1)[0]))
+        added: dict[str, list[str]] = {}
+        for rtype, name in sorted(refs - existing):
+            if rtype in ("mipmap", "drawable"):
+                for density, px in _RES_DENSITIES.items():
+                    path = f"{prefix}res/{rtype}-{density}/{name}.png"
+                    if path in out:
+                        continue
+                    if px not in cache:
+                        cache[px] = _default_icon_png(px, letter)
+                    out[path] = cache[px]
+            elif rtype == "string":
+                added.setdefault(f"{prefix}res/values/strings.xml", []).append(
+                    f'    <string name="{name}">{xml_escape(title or "App")}</string>')
+            elif rtype == "style":
+                added.setdefault(f"{prefix}res/values/styles.xml", []).append(
+                    f'    <style name="{name}" '
+                    'parent="android:Theme.Material.Light.NoActionBar" />')
+            elif rtype == "color":
+                added.setdefault(f"{prefix}res/values/colors.xml", []).append(
+                    f'    <color name="{name}">#FF1976D2</color>')
+            # @xml/... មិនអាចប្រឌិតបាន — ទុកឲ្យ Gradle រាយកំហុសពិត
+        for path, lines in added.items():
+            current = out.get(path)
+            body = "\n".join(lines)
+            if isinstance(current, str) and "</resources>" in current:
+                out[path] = current.replace("</resources>", body + "\n</resources>")
+            elif isinstance(current, str):
+                out[path] = current + "\n" + body + "\n"
+            else:
+                out[path] = ('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
+                             + body + "\n</resources>\n")
+    return out
+
+
+_LOCAL_CONST_RE = re.compile(r"(?m)^(\s{8,})const\s+val\s+")
+
+
+def repair_android_sources(files: dict) -> dict:
+    """ដោះកំហុស Kotlin ដែលឃើញញឹកញាប់បំផុត: `const val` នៅក្នុង function (Kotlin មិនអនុញ្ញាត)។
+
+    `const` នៅ local ជា compile error ជានិច្ច — ដកចេញតែ modifier ហើយអត្ថន័យដូចដើម
+    (ក្លាយជា local `val`)។ បន្ទាត់ក្នុង class/object (indent 4) មិនត្រូវប៉ះឡើយ។
+    """
+    out = dict(files or {})
+    for path, content in list(out.items()):
+        if not path.endswith(".kt") or not isinstance(content, str):
+            continue
+        fixed = _LOCAL_CONST_RE.sub(r"\1val ", content)
+        if fixed != content:
+            out[path] = fixed
+    return out
+
+
 def project_kind(files: dict) -> str:
     """ប្រភេទ project ដែល import ចូល → ផ្លូវ build ត្រឹមត្រូវ (គ្រប់ app ទាំងអស់)។
 
@@ -638,6 +753,9 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 artifact = "apk"
                 # បំពេញ file Gradle ដែលខ្វះ (project ពី Android Studio មិនប៉ះឡើយ)
                 project = files if kind == "gradle" else prepare_android_project(files, title)
+                # icon/theme ដែល Manifest យោង តែគ្មាន → AAPT បរាជ័យ; បង្កើតឲ្យតែខ្វះ
+                project = ensure_android_resources(project, title)
+                project = repair_android_sources(project)
                 meta = create_job(title, package, project, artifact=artifact,
                                   kind="zip", workflow=zip_workflow, clean=True)
             else:

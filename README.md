@@ -15,6 +15,11 @@ IDE ពេញលេញក្នុង browser (VS Code style) សម្រាប
 - **Build គ្រប់ប្រភេទ app** — Android project ដែលខ្វះ `settings.gradle`/`build.gradle` ទទួលបាន
   Gradle wrapper បំពេញដោយស្វ័យប្រវត្តិ (file អ្នកប្រើមិនប៉ះ), HTML/CSS/JS → WebView,
   `.kt` → Kotlin, `.java` → Java, `.c/.cpp` → NDK, ហើយ project ភាសាផ្សេងក៏មិនត្រូវបានបដិសេធ
+- **បំពេញ resource ដែលខ្វះ** — បើ `AndroidManifest.xml` យោង `@mipmap/ic_launcher`,
+  `@style/…`, `@string/…` តែ project គ្មាន `res/` ទេ → server បង្កើត icon/theme/string
+  ឲ្យ (តែ file ដែលខ្វះ, មិនសរសេរជំនួស file របស់អ្នកប្រើ) ដូច្នេះ AAPT មិនបរាជ័យ
+- **កែ `const val` នៅ local** — Kotlin មិនអនុញ្ញាត `const` នៅក្នុង function;
+  build ដក modifier នេះចេញ (ក្លាយជា local `val`, អត្ថន័យដូចដើម)
 - **File badges** — Explorer និង tab បង្ហាញ badge ពណ៌តាមប្រភេទ (`KT`, `JV`, `CSS`, `HTML`, `XML`, `GR`…)
 - **Editor** — Monaco (CDN) មាន syntax highlighting, autocomplete, multi-tab, search/replace,
   line numbers; បើ CDN មិនអាចផ្ទុកបាន ប្រើ textarea fallback
