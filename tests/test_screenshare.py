@@ -318,6 +318,29 @@ finally:
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
     screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
 
+print("== ផ្ញើទៅ bot ទី២ ==")
+os.environ["TELEGRAM_ALT_BOT_TOKEN"] = "alt-token"
+os.environ["TELEGRAM_ALT_CHAT_ID"] = "987654321"
+try:
+    calls = []
+
+    def capture_alt(req, timeout=None):  # noqa: ARG001
+        calls.append((req.full_url, json.loads(req.data.decode())))
+        return FakeResponse('{"ok":true}')
+
+    screenshare.urllib.request.urlopen = capture_alt
+    ok(screenshare.notify_alt_telegram(
+        "hi", "https://t.me/app_bot_name/share") is True, "ផ្ញើទៅ bot ទី២បាន")
+    url, body = calls[-1]
+    ok(url.endswith("/botal-token/sendMessage"), "ប្រើ token របស់ bot ទី២")
+    ok(body["chat_id"] == "987654321", "ទៅ chat របស់ bot ទី២")
+    ok(body["reply_markup"]["inline_keyboard"][0][0]["url"].endswith("/share"),
+       "ប៊ូតុង Mini App នៅក្នុងសាររបស់ bot ទី២")
+finally:
+    screenshare.urllib.request.urlopen = real_urlopen
+    os.environ.pop("TELEGRAM_ALT_BOT_TOKEN", None)
+    os.environ.pop("TELEGRAM_ALT_CHAT_ID", None)
+
 print("== ឈ្មោះ env ខុស ==")
 os.environ["TELEGRAM_BOT_TOKEN2"] = "dummy-second-token"
 try:

@@ -49,6 +49,8 @@
   </form>
   <p>
     <span class="badge">Telegram token: {{ 'មាន' if telegram_token else 'គ្មាន' }}</span>
+    <span class="badge">bot ទី២: {{ 'មាន' if alt_bot else 'គ្មាន' }}</span>
+    <span class="badge">bot ទី២: {{ 'មាន' if alt_bot else 'គ្មាន' }}</span>
     <span class="badge">chat id: {{ telegram_chat if telegram_chat else (found_chat if found_chat else 'រកមិនឃើញ') }}</span>
     {% if bot %}<a class="badge" href="https://t.me/{{ bot }}" target="_blank" rel="noopener">បើក bot: @{{ bot }}</a>{% endif %}
     <button type="button" id="tgTest">សាកល្បងផ្ញើទៅ bot</button>

@@ -39,6 +39,7 @@ _LOCK = threading.Lock()
 _SESSIONS: dict[str, dict] = {}
 # chat ចុងក្រោយដែលបានផ្ញើសារទៅ bot — បើគ្មាន TELEGRAM_CHAT_ID
 _CHAT_CACHE: dict = {"chat": "", "at": 0.0}
+_CHAT_CACHE2: dict = {"chat": "", "at": 0.0}
 CHAT_CACHE_SECONDS = 600
 _BOT_CACHE: dict = {"username": "", "at": 0.0}
 # មូលហេតុដែលរក chat មិនឃើញ — បង្ហាញលើទំព័រ setup
@@ -267,6 +268,12 @@ def notify_telegram(text: str, button_url: str = "") -> bool:
         chat = _recent_chat_id(token)
     if not chat:
         return False
+    return _send_message(token, chat, text, button_url)
+
+
+def _send_message(token: str, chat: str, text: str,
+                  button_url: str = "") -> bool:
+    """POST sendMessage ទៅ token/chat ដែលបានផ្ដល់ (ប៊ូតុង URL បើមាន)។"""
     message = {
         "chat_id": chat,
         "text": text,
@@ -289,6 +296,48 @@ def notify_telegram(text: str, button_url: str = "") -> bool:
         # កុំ log URL (មាន token) — log តែប្រភេទ error
         LOG.warning("Telegram notify failed: %s", type(exc).__name__)
         return False
+
+
+def _alt_chat_id(token: str) -> str:
+    """chat id សម្រាប់ bot ទីពីរ (getUpdates របស់វា) — cache ១០ នាទី។"""
+    now = time.time()
+    cached = str(_CHAT_CACHE2.get("chat") or "")
+    if cached and now - float(_CHAT_CACHE2.get("at") or 0) < CHAT_CACHE_SECONDS:
+        return cached
+    url = (f"https://api.telegram.org/bot{token}/getUpdates"
+           "?limit=20&timeout=0&allowed_updates=%5B%22message%22%5D")
+    try:
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = json.loads(resp.read() or b"{}")
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        LOG.warning("Alt bot getUpdates failed: %s", type(exc).__name__)
+        return ""
+    chat = ""
+    for update in data.get("result") or []:
+        message = update.get("message") or update.get("edited_message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        if chat_id is not None:
+            chat = str(chat_id)
+    if chat:
+        _CHAT_CACHE2.update({"chat": chat, "at": now})
+    return chat
+
+
+def notify_alt_telegram(text: str, button_url: str = "") -> bool:
+    """ផ្ញើ link ទៅ bot ទីពីរដែរ (env `TELEGRAM_ALT_BOT_TOKEN`) — គ្មាន → False។
+
+    ប្រើពេលអ្នកប្រើចង់ឲ្យ link មកដល់ chat របស់ bot មួយទៀត ជាមួយប៊ូតុង
+    Telegram Mini App ដែលដំណើរការលើ bot នោះ។
+    """
+    token = (os.environ.get("TELEGRAM_ALT_BOT_TOKEN") or "").strip()
+    if not token:
+        return False
+    chat = (os.environ.get("TELEGRAM_ALT_CHAT_ID") or "").strip()
+    if not chat:
+        chat = _alt_chat_id(token)
+    if not chat:
+        return False
+    return _send_message(token, chat, text, button_url)
 
 
 def _telegram_text(title: str, viewer_url: str, minutes: int,
@@ -316,12 +365,15 @@ def create_blueprint() -> Blueprint:
         mini = miniapp_link(session["code"])
         telegram = notify_telegram(_telegram_text(
             title, viewer_url, max(1, ttl // 60), bool(mini)), mini)
+        alt = notify_alt_telegram(
+            _telegram_text(title, viewer_url, max(1, ttl // 60), bool(mini)), mini)
         resp = jsonify({
             "code": session["code"],
             "token": session["token"],
             "viewer_url": viewer_url,
             "ttl": ttl,
             "telegram": telegram,
+            "telegram_alt": alt,
             "bot": bot_username(),
             "miniapp_url": mini,
         })
@@ -420,6 +472,7 @@ def create_blueprint() -> Blueprint:
             reason=str(_DISCOVER.get("reason") or ""),
             miniapp=miniapp_name(),
             app_bot=miniapp_bot(),
+            alt_bot=bool((os.environ.get("TELEGRAM_ALT_BOT_TOKEN") or "").strip()),
             stray_token=stray_token_env(),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
