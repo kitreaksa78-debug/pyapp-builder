@@ -353,6 +353,54 @@ ok('build.log' in wf, 'workflow ផ្សព្វផ្សាយ build.log')
 ok('out/app.apk' in wf, 'workflow ផ្សព្វផ្សាយ app.apk')
 ok('${{ inputs.tag }}' in wf, 'workflow ប្រើ tag ពី dispatch')
 
+print('== project ដើមគ្រប់ mode (IDE) build បាន ==')
+import androidproject  # noqa: E402
+import re as _re  # noqa: E402
+
+_samples = {
+    'webview': {'index.html': '<!doctype html><h1>x</h1>'},
+    'kotlin': {},
+    'java': {},
+    'ndk': {},
+}
+for _mode, _files in _samples.items():
+    _pkg = 'org.pyapp.qa' + _mode
+    try:
+        _proj = androidproject.android_project_files(
+            'QA ' + _mode, _pkg, _mode, dict(_files))
+        _err = ''
+    except Exception as _exc:  # noqa: BLE001
+        _proj, _err = {}, str(_exc)
+    ok(_err == '', 'mode %s → បង្កើត project បាន %s' % (_mode, _err))
+    if not _proj:
+        continue
+    for _need in ('app/build.gradle.kts', 'settings.gradle.kts',
+                  'app/src/main/AndroidManifest.xml'):
+        ok(_need in _proj, 'mode %s មាន %s' % (_mode, _need))
+    try:
+        ET.fromstring(_proj['app/src/main/AndroidManifest.xml'])
+        ok(True, 'mode %s manifest ជា XML ត្រឹមត្រូវ' % _mode)
+    except ET.ParseError as _exc:
+        ok(False, 'mode %s manifest XML: %s' % (_mode, _exc))
+    _srcs = {n: c for n, c in _proj.items()
+             if isinstance(c, str) and n.endswith(('.kt', '.java'))}
+    ok(bool(_srcs), 'mode %s មាន source ដើម' % _mode)
+    for _name, _code in _srcs.items():
+        if not _name.endswith('.kt'):
+            continue
+        ok(_code.count('{') == _code.count('}'),
+           'mode %s %s braces balance' % (_mode, _name.rsplit('/', 1)[-1]))
+        # local `val X` ក្នុង scope ជាមួយ `apply { X = ... }` → Kotlin error ពិត
+        for _var in _re.findall(r'\bval\s+(\w+)\s*=', _code):
+            if _re.search(r'^\s{8,}' + _var + r'\s*=\s', _code, _re.M):
+                ok(False, 'mode %s: local val %s ត្រូវ property ក្នុង apply '
+                          '(Val cannot be reassigned)' % (_mode, _var))
+                break
+    ok('hint' not in _re.findall(r'\bval\s+(\w+)\s*=\s*TextView',
+                                 _proj.get('app/src/main/java/org/pyapp/qa'
+                                           + _mode + '/MainActivity.kt', '')),
+       'mode %s មិនមាន local val hint (shadow EditText.hint)' % _mode)
+
 print('')
 if fails:
     print('FAILED %d checks' % fails)

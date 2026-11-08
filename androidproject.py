@@ -718,7 +718,9 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         }
 
-        val hint = TextView(this).apply {
+        // ឈ្មោះមិនត្រូវត្រូវនឹង property របស់ View (ឧ. hint) — Kotlin នឹងយក local
+        // val ជំនួស setter ក្នុង apply { } → "Val cannot be reassigned" ពេល build
+        val subtitle = TextView(this).apply {
             text = "app នេះសរសេរដោយ Kotlin"
             textSize = 15f
             setTextColor(Color.parseColor("#8B949E"))
@@ -742,7 +744,7 @@ class MainActivity : Activity() {
         }
 
         root.addView(title)
-        root.addView(hint)
+        root.addView(subtitle)
         root.addView(name, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         root.addView(btn, LinearLayout.LayoutParams(

@@ -786,7 +786,9 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                     build=build_no, permissions=[str(p) for p in perms],
                     orientation=str(data.get("orientation") or "unspecified"),
                     online=bool(data.get("online", True)))
-                meta = create_job(title, package, project, artifact=artifact)
+                # clean=True → branch ចាប់ផ្តើមពី tree ស្អាត (តែ .github/ + signing/)
+                # ដើម្បីកុំឲ្យ source ចាស់ពី repo លាយចូល project ថ្មី (compile បរាជ័យ)
+                meta = create_job(title, package, project, artifact=artifact, clean=True)
         except (FileError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({

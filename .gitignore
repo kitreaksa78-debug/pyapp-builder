@@ -1,3 +1,12 @@
+__pycache__/
+*.pyc
+jobs/
+venv/
+.env
+files/
+.test/
+
+# build artifacts of generated Android projects (never commit)
 .gradle/
 build/
 app/build/
