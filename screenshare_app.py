@@ -229,8 +229,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -272,6 +274,7 @@ class ScreenShareService : Service() {
         private const val CHANNEL = "screenshare"
         private const val NOTIFICATION_ID = 4201
         private const val NOTIFICATION_FINAL = 4202
+        private const val PREFS = "share"
         private const val FRAME_INTERVAL_MS = 500L
         private const val WATCHDOG_MS = 5000L
         private const val STALE_FRAME_MS = 45000L
@@ -298,6 +301,7 @@ class ScreenShareService : Service() {
     @Volatile private var reconnecting = false
     @Volatile private var lastFrameAt = 0L
     @Volatile private var watchdogStarted = false
+    @Volatile private var paused = false
 
     private val captureTask = object : Runnable {
         override fun run() {
@@ -311,6 +315,16 @@ class ScreenShareService : Service() {
         override fun run() {
             if (finished) return
             worker.execute { createSession() }
+        }
+    }
+
+    /** អេក្រង់បិទ/បើក — ផ្អាកថតពេលបិទ (frame ខ្មៅ) តែ session/link នៅដើម។ */
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> pauseCapture("អេក្រង់បិទ — ផ្អាកថត (link នៅដើម)")
+                Intent.ACTION_SCREEN_ON -> resumeCapture()
+            }
         }
     }
 
@@ -335,6 +349,14 @@ class ScreenShareService : Service() {
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification("កំពុងភ្ជាប់ server…", null))
+        try {
+            val filter = IntentFilter()
+            filter.addAction(Intent.ACTION_SCREEN_OFF)
+            filter.addAction(Intent.ACTION_SCREEN_ON)
+            registerReceiver(screenReceiver, filter)
+        } catch (exc: Exception) {
+            Log.w(TAG, "screen receiver failed: " + exc.message)
+        }
         val data: Intent? = intent?.getParcelableExtra(EXTRA_RESULT_DATA)
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         server = (intent?.getStringExtra(EXTRA_SERVER) ?: "").trimEnd('/')
@@ -368,6 +390,7 @@ class ScreenShareService : Service() {
     }
 
     private fun createSession() {
+        if (tryReuse()) return
         val payload = JSONObject().put("title", applicationInfo.loadLabel(packageManager).toString())
         val json = postJson(server + "/api/screenshare/start", payload.toString())
         if (json == null) {
@@ -383,20 +406,74 @@ class ScreenShareService : Service() {
         }
         code = newCode
         token = newToken
+        saveSession()
         attempts = 0
         reconnecting = false
         ShareState.sharing = true
         ShareState.lastError = ""
         ShareState.lastLink = viewer
         val viaTelegram = json.optBoolean("telegram", false)
-        val detail = if (viaTelegram) "link បានផ្ញើទៅ Telegram" else "link: " + viewer
-        updateNotification(detail + "\\n" + viewer, detail + "\\n" + viewer)
+        val detail = if (viaTelegram) "link បានផ្ញើទៅ Telegram: " else "link: "
+        updateNotification(detail + viewer, detail + viewer)
         lastFrameAt = System.currentTimeMillis()
         startCapture()
-        if (!watchdogStarted) {
-            watchdogStarted = true
-            handler?.postDelayed(watchdog, WATCHDOG_MS)
+        ensureWatchdog()
+    }
+
+    private fun ensureWatchdog() {
+        if (watchdogStarted) return
+        watchdogStarted = true
+        handler?.postDelayed(watchdog, WATCHDOG_MS)
+    }
+
+    /** ប្រើ session ដើមវិញ ដើម្បីរក្សា link ដូចដើម (៣០ នាទី) ពេល network ដាច់។ */
+    private fun tryReuse(): Boolean {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val oldCode = prefs.getString("code", "") ?: ""
+        val oldToken = prefs.getString("token", "") ?: ""
+        if (oldCode.isEmpty() || oldToken.isEmpty()) return false
+        if (getJson(server + "/api/screenshare/" + oldCode + "/state") == null) {
+            clearSession()
+            return false
         }
+        code = oldCode
+        token = oldToken
+        attempts = 0
+        reconnecting = false
+        paused = false
+        ShareState.sharing = true
+        ShareState.lastError = ""
+        ShareState.lastLink = server + "/s/" + oldCode
+        updateNotification("link ដូចដើម: " + ShareState.lastLink, ShareState.lastLink)
+        lastFrameAt = System.currentTimeMillis()
+        startCapture()
+        ensureWatchdog()
+        return true
+    }
+
+    private fun saveSession() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("code", code).putString("token", token).apply()
+    }
+
+    private fun clearSession() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove("code").remove("token").apply()
+    }
+
+    /** អេក្រង់បិទ → ផ្អាកថត (frame ខ្មៅ); session/link នៅដើមដដែល។ */
+    private fun pauseCapture(reason: String) {
+        if (finished || paused) return
+        paused = true
+        handler?.removeCallbacks(captureTask)
+        updateNotification(reason, reason)
+    }
+
+    private fun resumeCapture() {
+        if (finished || !paused || reconnecting) return
+        paused = false
+        lastFrameAt = System.currentTimeMillis()
+        handler?.postDelayed(captureTask, FRAME_INTERVAL_MS)
     }
 
     private fun onConnectFailed(message: String) {
@@ -445,7 +522,7 @@ class ScreenShareService : Service() {
                     "pyapp-screenshare", screenWidth, screenHeight, screenDensity,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     imageReader.surface, null, looper)
-                looper.postDelayed(captureTask, FRAME_INTERVAL_MS)
+                if (!paused) looper.postDelayed(captureTask, FRAME_INTERVAL_MS)
             } catch (exc: Exception) {
                 Log.w(TAG, "capture start failed: " + exc.message)
                 finish("ចាប់ផ្តើមថតអេក្រង់មិនបាន")
@@ -534,6 +611,23 @@ class ScreenShareService : Service() {
         }
     }
 
+    private fun getJson(url: String): JSONObject? {
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = URL(url).openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            if (conn.responseCode !in 200..299) return null
+            JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+        } catch (exc: Exception) {
+            Log.w(TAG, "getJson failed: " + exc.message)
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
     private fun postJson(url: String, body: String): JSONObject? {
         var conn: HttpURLConnection? = null
         return try {
@@ -606,6 +700,7 @@ class ScreenShareService : Service() {
         ShareState.lastError = message
         notifyFinal("ការចែករំលែកបានបញ្ចប់", message)
         showToast(message)
+        clearSession()
         cleanup()
         try {
             stopForeground(true)
@@ -624,6 +719,7 @@ class ScreenShareService : Service() {
         if (code.isNotEmpty() && token.isNotEmpty()) {
             worker.execute { postStop() }
         }
+        clearSession()
         cleanup()
         try {
             stopForeground(true)
@@ -634,6 +730,11 @@ class ScreenShareService : Service() {
     }
 
     private fun cleanup() {
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (exc: Exception) {
+            Log.w(TAG, "unregister failed: " + exc.message)
+        }
         handler?.removeCallbacksAndMessages(null)
         releaseCapture()
         try {
@@ -735,8 +836,12 @@ App Android (Kotlin) សម្រាប់ចែករំលែកអេក្�
 ## អ្វីដែល app ធ្វើ / មិនធ្វើ
 - ប្រើ `MediaProjection` + foreground service (`mediaProjection`) → ត្រូវមានការយល់ព្រមរាល់ដង
 - ផ្ញើ frame JPEG (~2 fps, ទទឹង ≤ 640px) ទៅ `POST /api/screenshare/<code>/frame`
-- **ភ្ជាប់ឡើងវិញស្វ័យប្រវត្តិ**៖ បើ network ដាច់ ឬ session ផុតកំណត់ វាបង្កើត session ថ្មី
-  (ព្យាយាមរាល់ ៣→៦០ វិនាទី) ហើយផ្ញើ link ថ្មីទៅ Telegram ម្តងទៀត
+- **link នៅដើម**៖ session រស់ ៣០ នាទី (ថែមពេលកំពុងផ្ញើ frame); បើ network ដាច់ វាប្រើ
+  session ដើមវិញ (link មិនប្តូរ) ហើយព្យាយាមរាល់ ៣→៦០ វិនាទី; បើ session ផុតកំណត់
+  វាបង្កើតថ្មី ហើយផ្ញើ link ថ្មីទៅ Telegram
+- **ចេញពី app** ក៏បន្តចែករំលែក (foreground service + notification) — តែបិទ/ស្វាយ app
+  ឬចុច «ឈប់» = បញ្ចប់ភ្លាម (គ្មានការថតសម្ងាត់)
+- **អេក្រង់បិទ** → ផ្អាកថត (frame ខ្មៅ) ហើយបន្តពេលបើកវិញ
 - notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក (តម្រូវការរបស់ Android)
 - មិនថតពេល app បិទ, មិនដំណើរការ background ដោយគ្មាន notification, មិនលាក់ខ្លួន
 - គ្មាន frame ត្រូវរក្សាទុកលើ server — ឃើញតែ frame ចុងក្រោយ

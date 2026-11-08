@@ -142,6 +142,13 @@ ok("normalizeServer" in act and '"https://" + url' in act,
    "app បន្ថែម https:// ដោយស្វ័យប្រវត្តិ")
 ok("retrySession" in srv and "retryTask" in srv and "watchdog" in srv,
    "app ភ្ជាប់ឡើងវិញស្វ័យប្រវត្តិពេលដាច់")
+ok("tryReuse" in srv and "saveSession" in srv and "clearSession" in srv,
+   "ភ្ជាប់ឡើងវិញប្រើ session ដើម (link មិនប្តូរ)")
+ok("ACTION_SCREEN_OFF" in srv and "pauseCapture" in srv and "resumeCapture" in srv,
+   "អេក្រង់បិទ → ផ្អាកថត, បើក → បន្ត (session នៅដើម)")
+ok("unregisterReceiver" in srv, "receiver ត្រូវ unregister ពេលបញ្ចប់")
+ok(screenshare.DEFAULT_TTL == 1800 and screenshare._ttl() == 1800,
+   "session មានអាយុ ៣០ នាទី (ស្រេចលើ frame)")
 ok("STALE_FRAME_MS" in srv and "minOf(60000L" in srv, "retry មាន backoff ដល់ ៦០s")
 ok(act.count("{") == act.count("}"), "MainActivity.kt braces balance")
 ok(srv.count("{") == srv.count("}"), "ScreenShareService.kt braces balance")
