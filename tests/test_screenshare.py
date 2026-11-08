@@ -300,6 +300,24 @@ finally:
     os.environ.pop("TELEGRAM_BOT_TOKEN", None)
     screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
 
+print("== Mini App នៅ bot ផ្សេង ==")
+os.environ["TELEGRAM_MINIAPP_NAME"] = "share"
+os.environ["TELEGRAM_MINIAPP_BOT"] = "app_bot_name"
+os.environ["TELEGRAM_BOT_TOKEN"] = "test-token"
+try:
+    screenshare._BOT_CACHE.update({"username": "sender_bot", "at": time.time()})
+    ok(screenshare.miniapp_bot() == "app_bot_name", "Mini App ប្រើ bot ដែលកំណត់")
+    ok(screenshare.miniapp_link("ABCD234567") ==
+       "https://t.me/app_bot_name/share?startapp=ABCD234567",
+       "link បង្កើតលើ bot ផ្សេង (មិនមែន bot ផ្ញើ)")
+    page3 = client.get("/screenshare").get_data(as_text=True)
+    ok("t.me/app_bot_name/share" in page3, "setup បង្ហាញ Mini App នៅ bot ផ្សេង")
+finally:
+    os.environ.pop("TELEGRAM_MINIAPP_NAME", None)
+    os.environ.pop("TELEGRAM_MINIAPP_BOT", None)
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
+
 print("== ឈ្មោះ env ខុស ==")
 os.environ["TELEGRAM_BOT_TOKEN2"] = "dummy-second-token"
 try:

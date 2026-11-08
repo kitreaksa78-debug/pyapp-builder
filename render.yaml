@@ -30,3 +30,5 @@ services:
         sync: false
       - key: TELEGRAM_MINIAPP_NAME
         sync: false
+      - key: TELEGRAM_MINIAPP_BOT
+        sync: false

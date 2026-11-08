@@ -63,16 +63,20 @@
   {% endif %}
   <p class="note">
     <b>Telegram Mini App:</b>
-    {% if miniapp and bot %}
+    {% if miniapp and app_bot %}
       បានកំណត់ — link នឹងមកជាមួយប៊ូតុង «មើលអេក្រង់»
-      (<a href="https://t.me/{{ bot }}/{{ miniapp }}" target="_blank" rel="noopener">t.me/{{ bot }}/{{ miniapp }}</a>)។
-    {% elif not bot %}
+      (<a href="https://t.me/{{ app_bot }}/{{ miniapp }}" target="_blank" rel="noopener">t.me/{{ app_bot }}/{{ miniapp }}</a>)។
+      {% if bot and app_bot != bot %}Mini App នៅ bot <b>@{{ app_bot }}</b> —
+        ដាក់ <code>TELEGRAM_MINIAPP_BOT={{ app_bot }}</code> ហើយបើក bot នោះចុច Start ម្តង។{% endif %}
+    {% elif not app_bot %}
       ត្រូវការ TELEGRAM_BOT_TOKEN ជាមុន ទើបបង្កើត Mini App បាន។
     {% else %}
-      ដើមី្បមើលក្នុង Telegram៖
+      ដើម្ី្បមើលក្នុង Telegram៖
       <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> →
       <b>Configure Mini Apps</b> → URL <code>{{ server }}/s/app</code> → short name ឧ. <code>share</code> →
       បន្ទាប់មកដាក់ <code>TELEGRAM_MINIAPP_NAME=share</code> នៅ Render → Environment។
+      បើ Mini App នៅ bot មួយផ្សេងពី bot ផ្ញើ → បន្ថែម
+      <code>TELEGRAM_MINIAPP_BOT=&lt;username&gt;</code>។
     {% endif %}
   </p>
   {% if telegram_token and not found_chat and not telegram_chat %}

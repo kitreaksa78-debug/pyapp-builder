@@ -231,10 +231,20 @@ def miniapp_name() -> str:
     return (os.environ.get("TELEGRAM_MINIAPP_NAME") or "").strip().lstrip("@")
 
 
+def miniapp_bot() -> str:
+    """username របស់ bot ដែលផ្ទុក Mini App — `TELEGRAM_MINIAPP_BOT` ឬ bot របស់ token។
+
+    បើអ្នកប្រើ bot ពីរ (មួយផ្ញើ link, មួយទៀតជា Mini App) → ដាក់ username
+    របស់ bot ទីពីរក្នុង `TELEGRAM_MINIAPP_BOT`។
+    """
+    host = (os.environ.get("TELEGRAM_MINIAPP_BOT") or "").strip().lstrip("@")
+    return host or bot_username()
+
+
 def miniapp_link(code: str = "") -> str:
     """Link ទៅ Mini App — `t.me/<bot>/<app>?startapp=<code>`; គ្មាន env → ខ្សែទទេ។"""
     name = miniapp_name()
-    bot = bot_username()
+    bot = miniapp_bot()
     if not name or not bot:
         return ""
     link = f"https://t.me/{bot}/{name}"
@@ -376,7 +386,7 @@ def create_blueprint() -> Blueprint:
     def share_miniapp():
         """ច្រកចូល Telegram Mini App — អាន `startapp` ហើយបើក `/s/<code>`។"""
         page = make_response(render_template(
-            "screenshare_miniapp.html", bot=bot_username()))
+            "screenshare_miniapp.html", bot=miniapp_bot()))
         page.headers["Cache-Control"] = "no-store"
         page.headers["Referrer-Policy"] = "no-referrer"
         page.headers["X-Robots-Tag"] = "noindex, nofollow"
@@ -409,6 +419,7 @@ def create_blueprint() -> Blueprint:
             found_chat=str(_CHAT_CACHE.get("chat") or ""),
             reason=str(_DISCOVER.get("reason") or ""),
             miniapp=miniapp_name(),
+            app_bot=miniapp_bot(),
             stray_token=stray_token_env(),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
