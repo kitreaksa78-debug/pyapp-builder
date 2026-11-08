@@ -4,15 +4,32 @@ plugins {
 }
 
 android {
-    namespace = "com.nearby.networkscanner"
+    namespace = "org.pyapp.qandk"
     compileSdk = 34
 
+    ndkVersion = "26.1.10909125"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
     defaultConfig {
-        applicationId = "com.nearby.networkscanner"
+        applicationId = "org.pyapp.qandk"
         minSdk = 21
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += listOf("-DANDROID_STL=c++_shared")
+            }
+        }
+
     }
 
     signingConfigs {
