@@ -83,7 +83,7 @@ class MainActivity : Activity() {
         title.textSize = 22f
 
         val hint = TextView(this)
-        hint.text = "អេក្រង់ចែករំលែកបានតែពេលអ្នកចុចប៊ូតុង ហើយយល់ព្រមលើ dialog របស់ Android។ " +
+        hint.text = "បើក app → Android សួរ → ចុច «ចាប់ផ្តើមឥឡូវ» → link ទៅ Telegram ស្វ័យប្រវត្តិ។ " +
             "Notification ជាប់ជានិច្ច ហើយអ្នកឈប់បានពេលណាក៏បាន។"
         hint.textSize = 14f
         hint.setPadding(0, pad / 2, 0, pad)
@@ -97,7 +97,9 @@ class MainActivity : Activity() {
         serverInput.hint = "https://your-app.onrender.com"
         serverInput.setSingleLine(true)
         val prefs = getSharedPreferences("share", Context.MODE_PRIVATE)
-        serverInput.setText(prefs.getString("server", DEFAULT_SERVER))
+        // server URL ត្រូវបានបង្កប់ពេល build — បង្ហាញប្រអប់តែពេលគ្មានសោះ
+        serverInput.setText(if (DEFAULT_SERVER.isEmpty())
+            prefs.getString("server", "") else DEFAULT_SERVER)
 
         val startButton = Button(this)
         startButton.text = "ចាប់ផ្តើមចែករំលែកអេក្រង់"
@@ -121,13 +123,19 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         root.addView(title)
         root.addView(hint)
-        root.addView(label)
-        root.addView(serverInput, row)
+        if (DEFAULT_SERVER.isEmpty()) {
+            root.addView(label)
+            root.addView(serverInput, row)
+        }
         root.addView(startButton, row)
         root.addView(stopButton, row)
         root.addView(statusView)
         setContentView(root)
         renderStatus()
+        // បើកមកសួរ Allow តែម្តង (ការយល់ព្រមរបស់ Android នៅតែជារបស់អ្នកកាន់ទូរស័ព្ទ)
+        if (savedInstanceState == null) {
+            ui.postDelayed({ if (!ShareState.sharing) askCapture() }, 600)
+        }
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=

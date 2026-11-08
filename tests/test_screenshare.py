@@ -120,6 +120,11 @@ srv = files[service].decode()
 ok('const val DEFAULT_SERVER = "https://pyapp.example.com"' in act,
    "server URL ដាក់ក្នុង app (គ្មាន / ចុងក្រោយ)")
 ok("createScreenCaptureIntent" in act, "app សុំការយល់ព្រមពី Android")
+ok("if (DEFAULT_SERVER.isEmpty())" in act,
+   "app លាក់ប្រអប់ URL ពេល server URL បង្កប់ស្រាប់")
+ok("askCapture() }, 600)" in act, "បើក app → សួរ Allow ដោយស្វ័យប្រវត្តិ")
+ok("TELEGRAM" not in act and "api.telegram.org" not in act,
+   "គ្មាន bot token / Telegram API ក្នុង app")
 ok("startForegroundService" in act, "បើក foreground service")
 ok("registerCallback" in srv, "registerCallback មុន createVirtualDisplay (Android 14)")
 ok("setOngoing(ongoing)" in srv and "ongoing: Boolean = true" in srv,
