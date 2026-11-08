@@ -118,7 +118,9 @@ app Android **ចែករំលែកអេក្រង់ទៅ browser** — 
 | GET | `/s/<code>` | ទំព័រមើល live ក្នុង browser |
 | GET | `/api/screenshare/app.zip` | ទាញ ZIP របស់ app (import ចូល IDE) |
 
-env (ស្រេចចិត្ត)៖ `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (ផ្ញើ link ទៅ bot),
+env (ស្រេចចិត្ត)៖ `TELEGRAM_BOT_TOKEN` (ផ្ញើ link ទៅ bot — បើគ្មាន `TELEGRAM_CHAT_ID`
+server យក chat ចុងក្រោយដែលបានផ្ញើសារទៅ bot ដោយស្វ័យប្រវត្តិ; ទំព័រ `/screenshare`
+មានប៊ូតុង «សាកល្បងផ្ញើ»), `TELEGRAM_CHAT_ID` (ជ្រើស chat/group ជាក់លាក់),
 `SCREENSHARE_BASE_URL` (origin សម្រាប់ link — បើគ្មានប្រើ host របស់ request),
 `SCREENSHARE_TTL` (អាយុកាល session, លំនាំដើម 1800 វិនាទី)។ session រក្សាក្នុង
 memory ⇒ ត្រូវការ worker តែមួយ (render.yaml ប្រើ `--workers 1`)។

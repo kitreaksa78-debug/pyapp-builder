@@ -37,6 +37,10 @@ JPEG_MAGIC = b"\xff\xd8\xff"
 
 _LOCK = threading.Lock()
 _SESSIONS: dict[str, dict] = {}
+# chat ចុងក្រោយដែលបានផ្ញើសារទៅ bot — បើគ្មាន TELEGRAM_CHAT_ID
+_CHAT_CACHE: dict = {"chat": "", "at": 0.0}
+CHAT_CACHE_SECONDS = 600
+_TEST_SENT: dict[str, float] = {}
 
 
 # ---------------------------------------------------------------- session store
@@ -146,11 +150,45 @@ def _viewer_root() -> str:
     return root
 
 
+def _recent_chat_id(token: str) -> str:
+    """chat id ចុងក្រោយដែលបានផ្ញើសារទៅ bot (getUpdates) — cache ១០ នាទី។
+
+    ជួយឲ្យអ្នកប្រើកំណត់តែ bot token; គាត់គ្រាន់តែចុច Start/ផ្ញើសារទៅ bot
+    ម្តង ហើយ server ដឹងថាត្រូវផ្ញើទៅណា។ `TELEGRAM_CHAT_ID` នៅតែអាចកំណត់
+    បាន ដើម្បីជ្រើស chat ជាក់លាក់ (ឧ. group)។
+    """
+    now = time.time()
+    cached = str(_CHAT_CACHE.get("chat") or "")
+    if cached and now - float(_CHAT_CACHE.get("at") or 0) < CHAT_CACHE_SECONDS:
+        return cached
+    url = (f"https://api.telegram.org/bot{token}/getUpdates"
+           "?limit=20&timeout=0&allowed_updates=%5B%22message%22%5D")
+    try:
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = json.loads(resp.read() or b"{}")
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        LOG.warning("Telegram getUpdates failed: %s", type(exc).__name__)
+        return ""
+    chat = ""
+    for update in data.get("result") or []:
+        message = update.get("message") or update.get("edited_message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        if chat_id is not None:
+            chat = str(chat_id)
+    if chat:
+        _CHAT_CACHE.update({"chat": chat, "at": now})
+    return chat
+
+
 def notify_telegram(text: str) -> bool:
-    """ផ្ញើសារទៅ bot Telegram (env `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`)។"""
+    """ផ្ញើសារទៅ bot Telegram (env `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` ឬ chat ចុងក្រោយ)។"""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
     chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-    if not token or not chat:
+    if not token:
+        return False
+    if not chat:
+        chat = _recent_chat_id(token)
+    if not chat:
         return False
     payload = json.dumps({
         "chat_id": chat,
@@ -275,11 +313,31 @@ def create_blueprint() -> Blueprint:
         page = make_response(render_template(
             "screenshare_setup.html",
             server=_viewer_root().rstrip("/"),
-            telegram=bool((os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-                          and (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()),
+            telegram_token=bool((os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()),
+            telegram_chat=(os.environ.get("TELEGRAM_CHAT_ID") or "").strip(),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
         return page
+
+    @bp.post("/api/screenshare/telegram/test")
+    def share_telegram_test():
+        """សាកល្បងផ្ញើសារទៅ bot (មិនបង្ហាញ token ឡើងវិញឡើយ)។"""
+        ip = request.remote_addr or "?"
+        now = time.time()
+        if now - _TEST_SENT.get(ip, 0.0) < 15:
+            return jsonify({"error": "រង់ចាំ ១៥ វិនាទី រួចព្យាយាមម្តងទៀត"}), 429
+        _TEST_SENT[ip] = now
+        token = bool((os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip())
+        sent = notify_telegram(
+            "✅ សាកល្បងពី PyApp Builder — bot នេះនឹងទទួល link ចែកអេក្រង់។")
+        resp = jsonify({"ok": sent, "token_set": token,
+                        "chat_id_set": bool((os.environ.get("TELEGRAM_CHAT_ID")
+                                            or "").strip()),
+                        "hint": "" if sent else (
+                            "មិនទាន់បានផ្ញើទេ — ពិនិត្យ TELEGRAM_BOT_TOKEN នៅ Render → "
+                            "Environment រួចផ្ញើសារ /start ទៅ bot ម្តង ហើយសាកម្តងទៀត")})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     @bp.get("/api/screenshare/app.zip")
     def share_app_zip():

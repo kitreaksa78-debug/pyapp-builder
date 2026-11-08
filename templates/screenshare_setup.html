@@ -43,12 +43,32 @@
     <input name="server" value="{{ server }}" placeholder="https://your-app.onrender.com">
     <button type="submit">ទាញ app ZIP</button>
   </form>
-  <p><span class="badge">Telegram: {{ 'បានភ្ជាប់' if telegram else 'មិនទាន់កំណត់' }}</span></p>
+  <p>
+    <span class="badge">Telegram token: {{ 'មាន' if telegram_token else 'គ្មាន' }}</span>
+    <span class="badge">chat id: {{ telegram_chat if telegram_chat else 'រកដោយស្វ័យប្រវត្តិ' }}</span>
+    <button type="button" id="tgTest">សាកល្បងផ្ញើទៅ bot</button>
+    <span id="tgOut" class="badge"></span>
+  </p>
+  <script>
+  document.getElementById('tgTest').onclick = function () {
+    var out = document.getElementById('tgOut');
+    out.textContent = 'កំពុងផ្ញើ…';
+    fetch('/api/screenshare/telegram/test', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        out.textContent = j.ok ? '✅ ផ្ញើបាន — ពិនិត្យ Telegram'
+                              : ('❌ ' + (j.error || j.hint || 'មិនបានផ្ញើ'));
+      })
+      .catch(function () { out.textContent = '❌ ភ្ជាប់ server មិនបាន'; });
+  };
+  </script>
 
   <div class="note">
-    ត្រូវការ env <code>TELEGRAM_BOT_TOKEN</code> និង <code>TELEGRAM_CHAT_ID</code> ដើម្បីផ្ញើ link
-    ទៅ bot ដោយស្វ័យប្រវត្តិ (បើគ្មាន link នៅតែបង្ហាញក្នុង notification លើទូរស័ព្ទ)។
-    app បង្ហាញ notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក ហើយអ្នកកាន់ទូរស័ព្ទឈប់បានពេលណាក៏បាន។
+    <p><b>Telegram</b> — កំណត់ <code>TELEGRAM_BOT_TOKEN</code> (ពី @BotFather) នៅ Render →
+      Environment។ បើមិនកំណត់ <code>TELEGRAM_CHAT_ID</code> ទេ server យក chat ចុងក្រោយដែល
+      បានផ្ញើសារទៅ bot — ដូច្នេះគ្រាន់តែចុច <b>Start</b> ឬផ្ញើសារទៅ bot ម្តង រួចចុច «សាកល្បងផ្ញើ»។</p>
+    <p>បើគ្មាន Telegram ក៏ link នៅតែបង្ហាញក្នុង notification លើទូរស័ព្ទ។
+      app មាន notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក ហើយអ្នកកាន់ទូរស័ព្ទឈប់បានពេលណាក៏បាន។</p>
   </div>
 </main>
 </body>

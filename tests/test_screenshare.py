@@ -134,6 +134,63 @@ import ide  # noqa: E402
 text = {n: c.decode(errors="ignore") for n, c in files.items()}
 ok(ide.project_kind(text) == "gradle", "ZIP → build ជា Gradle (ដូចដើម)")
 
+print("== Telegram (bot token ដោយគ្មាន chat id) ==")
+
+
+class FakeResponse:
+    status = 200
+
+    def __init__(self, payload):
+        self._raw = payload.encode() if isinstance(payload, str) else payload
+
+    def read(self):
+        return self._raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+seen = []
+
+
+def fake_urlopen(req, timeout=None):  # noqa: ARG001
+    url = req.full_url if hasattr(req, "full_url") else str(req)
+    seen.append(url.split("/bot")[1].split("/")[0] if "/bot" in url else url)
+    if url.endswith("/getUpdates?limit=20&timeout=0&allowed_updates=%5B%22message%22%5D"):
+        return FakeResponse('{"ok":true,"result":[{"message":{"chat":{"id":123456789}}}]}')
+    return FakeResponse('{"ok":true}')
+
+
+real_urlopen = screenshare.urllib.request.urlopen
+screenshare.urllib.request.urlopen = fake_urlopen
+try:
+    os.environ["TELEGRAM_BOT_TOKEN"] = "test-token"
+    os.environ.pop("TELEGRAM_CHAT_ID", None)
+    screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    ok(screenshare.notify_telegram("សាកល្បង") is True,
+       "គ្មាន chat id → រកឃើញ chat ពី getUpdates ហើយផ្ញើបាន")
+    ok(screenshare._CHAT_CACHE["chat"] == "123456789", "chat id ត្រូវបាន cache")
+    screenshare._TEST_SENT.clear()
+    r = client.post("/api/screenshare/telegram/test")
+    body = r.get_json()
+    ok(r.status_code == 200 and body["ok"] is True, "សាកល្បងផ្ញើ → ok")
+    ok(body["token_set"] is True and body["chat_id_set"] is False,
+       "រាយការណ៍ថា token មាន / chat id រកដោយស្វ័យប្រវត្តិ")
+    ok(client.post("/api/screenshare/telegram/test").status_code == 429,
+       "សាកល្បងញឹកញាប់ពេក → 429")
+    ok("test-token" not in r.get_data(as_text=True), "token មិនបង្ហាញក្នុង response")
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    ok(screenshare.notify_telegram("x") is False, "គ្មាន token → មិនផ្ញើ (មិន error)")
+finally:
+    screenshare.urllib.request.urlopen = real_urlopen
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    os.environ.pop("TELEGRAM_CHAT_ID", None)
+    screenshare._CHAT_CACHE.update({"chat": "", "at": 0.0})
+    screenshare._TEST_SENT.clear()
+
 print()
 if fails:
     print("%d CHECK(S) FAILED" % fails)
