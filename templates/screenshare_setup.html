@@ -54,6 +54,20 @@
     <button type="button" id="tgTest">សាកល្បងផ្ញើទៅ bot</button>
     <span id="tgOut" class="badge"></span>
   </p>
+  <p class="note">
+    <b>Telegram Mini App:</b>
+    {% if miniapp and bot %}
+      បានកំណត់ — link នឹងមកជាមួយប៊ូតុង «មើលអេក្រង់»
+      (<a href="https://t.me/{{ bot }}/{{ miniapp }}" target="_blank" rel="noopener">t.me/{{ bot }}/{{ miniapp }}</a>)។
+    {% elif not bot %}
+      ត្រូវការ TELEGRAM_BOT_TOKEN ជាមុន ទើបបង្កើត Mini App បាន។
+    {% else %}
+      ដើមី្បមើលក្នុង Telegram៖
+      <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> →
+      <b>Configure Mini Apps</b> → URL <code>{{ server }}/s/app</code> → short name ឧ. <code>share</code> →
+      បន្ទាប់មកដាក់ <code>TELEGRAM_MINIAPP_NAME=share</code> នៅ Render → Environment។
+    {% endif %}
+  </p>
   {% if telegram_token and not found_chat and not telegram_chat %}
   <p class="warn">
     {% if reason == 'webhook' %}

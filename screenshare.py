@@ -215,8 +215,28 @@ def bot_username() -> str:
     return name
 
 
-def notify_telegram(text: str) -> bool:
-    """ផ្ញើសារទៅ bot Telegram (env `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` ឬ chat ចុងក្រោយ)។"""
+def miniapp_name() -> str:
+    """short name របស់ Telegram Mini App (env `TELEGRAM_MINIAPP_NAME`, ឧ. `share`)។"""
+    return (os.environ.get("TELEGRAM_MINIAPP_NAME") or "").strip().lstrip("@")
+
+
+def miniapp_link(code: str = "") -> str:
+    """Link ទៅ Mini App — `t.me/<bot>/<app>?startapp=<code>`; គ្មាន env → ខ្សែទទេ។"""
+    name = miniapp_name()
+    bot = bot_username()
+    if not name or not bot:
+        return ""
+    link = f"https://t.me/{bot}/{name}"
+    if code:
+        link += "?startapp=" + code.strip().upper()
+    return link
+
+
+def notify_telegram(text: str, button_url: str = "") -> bool:
+    """ផ្ញើសារទៅ bot Telegram (env `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` ឬ chat ចុងក្រោយ)។
+
+    `button_url` (បើមាន) → បន្ថែមប៊ូតុងបើក Telegram Mini App នៅក្រោមសារ។
+    """
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
     chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     if not token:
@@ -226,11 +246,17 @@ def notify_telegram(text: str) -> bool:
         chat = _recent_chat_id(token)
     if not chat:
         return False
-    payload = json.dumps({
+    message = {
         "chat_id": chat,
         "text": text,
         "disable_web_page_preview": False,
-    }).encode("utf-8")
+    }
+    if button_url:
+        message["reply_markup"] = {"inline_keyboard": [[{
+            "text": "▶️ មើលអេក្រង់ (Mini App)",
+            "url": button_url,
+        }]]}
+    payload = json.dumps(message).encode("utf-8")
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{token}/sendMessage",
         data=payload, method="POST",
@@ -244,11 +270,15 @@ def notify_telegram(text: str) -> bool:
         return False
 
 
-def _telegram_text(title: str, viewer_url: str, minutes: int) -> str:
+def _telegram_text(title: str, viewer_url: str, minutes: int,
+                   miniapp: bool = False) -> str:
     name = title or "ទូរស័ព្ទ"
-    return (f"📱 ចែករំលែកអេក្រង់បានចាប់ផ្តើម — {name}\n"
+    text = (f"📱 ចែករំលែកអេក្រង់បានចាប់ផ្តើម — {name}\n"
             f"មើល live ក្នុង browser៖ {viewer_url}\n"
             f"link ផុតកំណត់ក្នុង {minutes} នាទី (ឬពេលម្ចាស់ទូរស័ព្ទចុចឈប់)។")
+    if miniapp:
+        text += "\nឬចុចប៊ូតុងខាងក្រោម → មើលក្នុង Telegram"
+    return text
 
 
 # ---------------------------------------------------------------- routes
@@ -262,8 +292,9 @@ def create_blueprint() -> Blueprint:
         session = new_session(title)
         viewer_url = _viewer_root() + "s/" + session["code"]
         ttl = _ttl()
+        mini = miniapp_link(session["code"])
         telegram = notify_telegram(_telegram_text(
-            title, viewer_url, max(1, ttl // 60)))
+            title, viewer_url, max(1, ttl // 60), bool(mini)), mini)
         resp = jsonify({
             "code": session["code"],
             "token": session["token"],
@@ -271,6 +302,7 @@ def create_blueprint() -> Blueprint:
             "ttl": ttl,
             "telegram": telegram,
             "bot": bot_username(),
+            "miniapp_url": mini,
         })
         resp.headers["Cache-Control"] = "no-store"
         return resp, 201
@@ -329,6 +361,16 @@ def create_blueprint() -> Blueprint:
         resp.headers["Cache-Control"] = "no-store, max-age=0"
         return resp
 
+    @bp.get("/s/app")
+    def share_miniapp():
+        """ច្រកចូល Telegram Mini App — អាន `startapp` ហើយបើក `/s/<code>`។"""
+        page = make_response(render_template(
+            "screenshare_miniapp.html", bot=bot_username()))
+        page.headers["Cache-Control"] = "no-store"
+        page.headers["Referrer-Policy"] = "no-referrer"
+        page.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return page
+
     @bp.get("/s/<code>")
     def share_view(code: str):
         """ទំព័រមើល live — បើកបានតែអ្នកមាន link (code ជាសម្ងាត់)។"""
@@ -355,6 +397,7 @@ def create_blueprint() -> Blueprint:
             bot=bot_username(),
             found_chat=str(_CHAT_CACHE.get("chat") or ""),
             reason=str(_DISCOVER.get("reason") or ""),
+            miniapp=miniapp_name(),
             ttl=_ttl()))
         page.headers["Cache-Control"] = "no-store"
         return page

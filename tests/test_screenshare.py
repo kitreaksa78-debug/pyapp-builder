@@ -258,6 +258,48 @@ finally:
     screenshare._DISCOVER["reason"] = ""
     screenshare._TEST_SENT.clear()
 
+print("== Telegram Mini App ==")
+import json  # noqa: E402
+import time  # noqa: E402
+
+mini = client.get("/s/app")
+mbody = mini.get_data(as_text=True)
+ok(mini.status_code == 200, "/s/app → 200")
+ok("telegram-web-app.js" in mbody, "ច្រកចូល Mini App ផ្ទុក telegram-web-app.js")
+ok("start_param" in mbody and "/s/" in mbody, "អាន start_param → បើក /s/<code>")
+ok(mini.headers.get("Referrer-Policy") == "no-referrer", "Mini App គ្មាន referrer leak")
+ok("noindex" in (mini.headers.get("X-Robots-Tag") or ""), "Mini App មិនត្រូវ index")
+
+os.environ["TELEGRAM_MINIAPP_NAME"] = "share"
+os.environ["TELEGRAM_CHAT_ID"] = "123456789"
+os.environ["TELEGRAM_BOT_TOKEN"] = "test-token"
+try:
+    screenshare._BOT_CACHE.update({"username": "my_test_bot", "at": time.time()})
+    link = screenshare.miniapp_link("ABCD234567")
+    ok(link == "https://t.me/my_test_bot/share?startapp=ABCD234567",
+       "miniapp link មាន startapp")
+    ok(screenshare.miniapp_link("") == "https://t.me/my_test_bot/share",
+       "link គ្មាន code")
+    ok("share" in client.get("/screenshare").get_data(as_text=True),
+       "setup បង្ហាញ Mini App")
+    sent = {}
+
+    def capture(req, timeout=None):  # noqa: ARG001
+        sent["body"] = json.loads(req.data.decode())
+        return FakeResponse('{"ok":true}')
+
+    screenshare.urllib.request.urlopen = capture
+    ok(screenshare.notify_telegram("hi", link) is True, "ផ្ញើសារជាមួយប៊ូតុង")
+    btn = (sent["body"].get("reply_markup") or {}).get("inline_keyboard", [[{}]])[0][0]
+    ok(btn.get("url") == link and "startapp=" in btn.get("url", ""),
+       "ប៊ូតុង Telegram មាន startapp")
+finally:
+    screenshare.urllib.request.urlopen = real_urlopen
+    os.environ.pop("TELEGRAM_MINIAPP_NAME", None)
+    os.environ.pop("TELEGRAM_CHAT_ID", None)
+    os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    screenshare._BOT_CACHE.update({"username": "", "at": 0.0})
+
 print()
 if fails:
     print("%d CHECK(S) FAILED" % fails)
