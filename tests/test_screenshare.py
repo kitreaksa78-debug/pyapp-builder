@@ -131,6 +131,13 @@ ok('host == "127.0.0.1"' in act and 'localhost' in act,
    "app បដិសេធ loopback URL (127.0.0.1/localhost)")
 ok("NOTIFICATION_FINAL" in srv, "សារបញ្ចប់មាន notification ID ដោយឡែក (មិនបាត់)")
 ok("showToast" in srv, "បង្ហាញ Toast ពេលភ្ជាប់មិនបាន")
+ok("internal object ShareState" in act and "ShareState.lastLink" in act,
+   "app បង្ហាញ link/ស្ថានភាពក្នុង UI ផ្ទាល់")
+ok("normalizeServer" in act and '"https://" + url' in act,
+   "app បន្ថែម https:// ដោយស្វ័យប្រវត្តិ")
+ok("retrySession" in srv and "retryTask" in srv and "watchdog" in srv,
+   "app ភ្ជាប់ឡើងវិញស្វ័យប្រវត្តិពេលដាច់")
+ok("STALE_FRAME_MS" in srv and "minOf(60000L" in srv, "retry មាន backoff ដល់ ៦០s")
 ok(act.count("{") == act.count("}"), "MainActivity.kt braces balance")
 ok(srv.count("{") == srv.count("}"), "ScreenShareService.kt braces balance")
 ok(srv.count("(") == srv.count(")"), "ScreenShareService.kt parens balance")

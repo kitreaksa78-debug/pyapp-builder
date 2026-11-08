@@ -4,6 +4,7 @@
 app នេះចែករំលែកអេក្រង់ទូរស័ព្ទ **តែពេលម្ចាស់ទូរស័ព្ទចុចចាប់ផ្តើម ហើយយល់ព្រម**
 លើ dialog របស់ Android។ Foreground service មាន notification ជាប់ជានិច្ច
 (មានប៊ូតុង «ឈប់») ហើយផ្ញើ frame JPEG ទៅ server ដើម្បីមើលក្នុង browser។
+បើ network ដាច់ វាភ្ជាប់ឡើងវិញដោយស្វ័យប្រវត្តិ (session ថ្មី + link ថ្មី)។
 គ្មានការលាក់ខ្លួន គ្មានការចាប់ផ្តើមដោយស្ងាត់ គ្មានការថតពេល app បិទ។
 """
 from __future__ import annotations
@@ -38,6 +39,8 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
@@ -49,10 +52,24 @@ import android.widget.Toast
 // server ដែល ZIP នេះត្រូវបានទាញចេញ (អាចប្តូរបានក្នុង app)
 private const val DEFAULT_SERVER = "@@SERVER@@"
 
+/** ស្ថានភាពដែល service ចែកជាមួយ UI (ដើម្បីបង្ហាញ link / កំហុសក្នុង app)។ */
+internal object ShareState {
+    @Volatile var sharing: Boolean = false
+    @Volatile var lastError: String = ""
+    @Volatile var lastLink: String = ""
+}
+
 class MainActivity : Activity() {
 
     private lateinit var serverInput: EditText
     private lateinit var statusView: TextView
+    private val ui = Handler(Looper.getMainLooper())
+    private val ticker = object : Runnable {
+        override fun run() {
+            renderStatus()
+            ui.postDelayed(this, 2000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,7 +108,9 @@ class MainActivity : Activity() {
         stopButton.setOnClickListener {
             startService(Intent(this, ScreenShareService::class.java)
                 .setAction(ScreenShareService.ACTION_STOP))
-            statusView.text = "បានបញ្ជាឈប់ — notification នឹងបាត់"
+            ShareState.sharing = false
+            ShareState.lastError = ""
+            renderStatus()
         }
 
         statusView = TextView(this)
@@ -108,6 +127,7 @@ class MainActivity : Activity() {
         root.addView(stopButton, row)
         root.addView(statusView)
         setContentView(root)
+        renderStatus()
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
@@ -116,10 +136,40 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun askCapture() {
-        val url = serverInput.text.toString().trim().trimEnd('/')
+    override fun onResume() {
+        super.onResume()
+        ui.post(ticker)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ui.removeCallbacks(ticker)
+    }
+
+    private fun renderStatus() {
+        statusView.text = when {
+            ShareState.lastError.isNotEmpty() -> "⚠ " + ShareState.lastError
+            ShareState.sharing && ShareState.lastLink.isNotEmpty() ->
+                "កំពុងចែករំលែក — link: " + ShareState.lastLink
+            ShareState.sharing -> "កំពុងចែករំលែកអេក្រង់ — link បង្ហាញក្នុង notification"
+            else -> "មិនទាន់ចាប់ផ្តើមចែករំលែក"
+        }
+    }
+
+    /** បើអ្នកប្រើវាយតែ `app.onrender.com` → បន្ថែម `https://` ដោយស្វ័យប្រវត្តិ។ */
+    private fun normalizeServer(raw: String): String {
+        var url = raw.trim().trimEnd('/')
+        if (url.isEmpty()) return ""
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            Toast.makeText(this, "សរសេរ Server URL ជាមុន (http:// ឬ https://)",
+            url = "https://" + url
+        }
+        return url
+    }
+
+    private fun askCapture() {
+        val url = normalizeServer(serverInput.text.toString())
+        if (url.isEmpty()) {
+            Toast.makeText(this, "សរសេរ Server URL ជាមុន (ឧ. https://your-app.onrender.com)",
                 Toast.LENGTH_LONG).show()
             return
         }
@@ -133,10 +183,11 @@ class MainActivity : Activity() {
                 Toast.LENGTH_LONG).show()
             return
         }
+        serverInput.setText(url)
         getSharedPreferences("share", Context.MODE_PRIVATE).edit()
             .putString("server", url).apply()
+        ShareState.lastError = ""
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        statusView.text = "រង់ចាំការយល់ព្រមពី Android…"
         startActivityForResult(manager.createScreenCaptureIntent(), 2001)
     }
 
@@ -145,17 +196,20 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != 2001) return
         if (resultCode != RESULT_OK || data == null) {
-            statusView.text = "មិនបានយល់ព្រម — គ្មានការចែករំលែក"
+            ShareState.lastError = "មិនបានយល់ព្រម — គ្មានការចែករំលែក"
+            renderStatus()
             return
         }
-        val url = serverInput.text.toString().trim().trimEnd('/')
+        val url = normalizeServer(serverInput.text.toString())
         val intent = Intent(this, ScreenShareService::class.java)
             .putExtra(ScreenShareService.EXTRA_RESULT_CODE, resultCode)
             .putExtra(ScreenShareService.EXTRA_RESULT_DATA, data)
             .putExtra(ScreenShareService.EXTRA_SERVER, url)
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
         else startService(intent)
-        statusView.text = "កំពុងចែករំលែក… link បង្ហាញក្នុង notification"
+        ShareState.sharing = true
+        ShareState.lastError = ""
+        renderStatus()
     }
 }
 '''
@@ -195,6 +249,9 @@ import java.util.concurrent.Executors
 /**
  * Foreground service ដែលចែករំលែកអេក្រង់ — ដំណើរការតែពេលម្ចាស់ទូរស័ព្ទបានយល់ព្រម
  * ហើយបង្ហាញ notification ជាប់ជានិច្ច រហូតដល់គាត់ចុច «ឈប់»។
+ *
+ * បើ network ដាច់ ឬ server បិទ session វាបង្កើត session ថ្មីដោយស្វ័យប្រវត្តិ
+ * (ព្យាយាមឡើងវិញរាល់ ៣→៦០ វិនាទី) ដើម្បីឲ្យ link ថ្មីមកដល់ Telegram វិញ។
  */
 class ScreenShareService : Service() {
 
@@ -208,6 +265,8 @@ class ScreenShareService : Service() {
         private const val NOTIFICATION_ID = 4201
         private const val NOTIFICATION_FINAL = 4202
         private const val FRAME_INTERVAL_MS = 500L
+        private const val WATCHDOG_MS = 5000L
+        private const val STALE_FRAME_MS = 45000L
         private const val MAX_WIDTH = 640
         private const val JPEG_QUALITY = 45
     }
@@ -224,15 +283,38 @@ class ScreenShareService : Service() {
     private var screenWidth = 0
     private var screenHeight = 0
     private var screenDensity = 0
+    private var attempts = 0
 
     @Volatile private var uploading = false
     @Volatile private var finished = false
+    @Volatile private var reconnecting = false
+    @Volatile private var lastFrameAt = 0L
+    @Volatile private var watchdogStarted = false
 
     private val captureTask = object : Runnable {
         override fun run() {
             if (finished) return
             grab()
             handler?.postDelayed(this, FRAME_INTERVAL_MS)
+        }
+    }
+
+    private val retryTask = object : Runnable {
+        override fun run() {
+            if (finished) return
+            worker.execute { createSession() }
+        }
+    }
+
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (finished) return
+            val silent = System.currentTimeMillis() - lastFrameAt
+            if (!reconnecting && lastFrameAt > 0 && silent > STALE_FRAME_MS) {
+                Log.w(TAG, "no frame sent for $silent ms — reconnect")
+                retrySession()
+            }
+            handler?.postDelayed(this, WATCHDOG_MS)
         }
     }
 
@@ -281,27 +363,72 @@ class ScreenShareService : Service() {
         val payload = JSONObject().put("title", applicationInfo.loadLabel(packageManager).toString())
         val json = postJson(server + "/api/screenshare/start", payload.toString())
         if (json == null) {
-            finish("ភ្ជាប់ server មិនបាន: " + server +
-                " — ពិនិត្យ URL (ត្រូវជា server ពិត) និង internet")
+            onConnectFailed("ភ្ជាប់ server មិនបាន: " + server)
             return
         }
-        code = json.optString("code")
-        token = json.optString("token")
+        val newCode = json.optString("code")
+        val newToken = json.optString("token")
         val viewer = json.optString("viewer_url")
-        if (code.isEmpty() || token.isEmpty()) {
-            finish("server ឆ្លើយតបមិនត្រឹមត្រូវ")
+        if (newCode.isEmpty() || newToken.isEmpty()) {
+            onConnectFailed("server ឆ្លើយតបមិនត្រឹមត្រូវ: " + server)
             return
         }
+        code = newCode
+        token = newToken
+        attempts = 0
+        reconnecting = false
+        ShareState.sharing = true
+        ShareState.lastError = ""
+        ShareState.lastLink = viewer
         val viaTelegram = json.optBoolean("telegram", false)
         val detail = if (viaTelegram) "link បានផ្ញើទៅ Telegram" else "link: " + viewer
-        notify(buildNotification("កំពុងចែករំលែកអេក្រង់", detail + "\\n" + viewer))
+        updateNotification(detail + "\\n" + viewer, detail + "\\n" + viewer)
+        lastFrameAt = System.currentTimeMillis()
         startCapture()
+        if (!watchdogStarted) {
+            watchdogStarted = true
+            handler?.postDelayed(watchdog, WATCHDOG_MS)
+        }
+    }
+
+    private fun onConnectFailed(message: String) {
+        ShareState.lastError = message
+        ShareState.sharing = false
+        if (attempts > 0) {
+            val delayMs = minOf(60000L, 3000L * attempts)
+            attempts += 1
+            updateNotification("កំពុងព្យាយាមឡើងវិញ (" + (delayMs / 1000) + "s) — " + message, message)
+            handler?.postDelayed(retryTask, delayMs)
+        } else {
+            finish(message)
+        }
+    }
+
+    /** network ដាច់ ឬ session ផុត → បង្កើត session ថ្មី + link ថ្មី។ */
+    private fun retrySession() {
+        if (finished || reconnecting) return
+        reconnecting = true
+        attempts = 1
+        releaseCapture()
+        ShareState.sharing = false
+        ShareState.lastError = "កំពុងភ្ជាប់ឡើងវិញ…"
+        updateNotification("កំពុងភ្ជាប់ឡើងវិញ…", null)
+        handler?.post(retryTask)
+    }
+
+    private fun updateNotification(text: String, big: String?) {
+        try {
+            notify(buildNotification(text, big))
+        } catch (exc: Exception) {
+            Log.w(TAG, "notify failed: " + exc.message)
+        }
     }
 
     private fun startCapture() {
         val looper = handler ?: return
         looper.post {
             if (finished) return@post
+            releaseCapture()
             try {
                 val imageReader = ImageReader.newInstance(
                     screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
@@ -316,6 +443,22 @@ class ScreenShareService : Service() {
                 finish("ចាប់ផ្តើមថតអេក្រង់មិនបាន")
             }
         }
+    }
+
+    private fun releaseCapture() {
+        handler?.removeCallbacks(captureTask)
+        try {
+            virtualDisplay?.release()
+        } catch (exc: Exception) {
+            Log.w(TAG, "display release failed: " + exc.message)
+        }
+        virtualDisplay = null
+        try {
+            reader?.close()
+        } catch (exc: Exception) {
+            Log.w(TAG, "reader close failed: " + exc.message)
+        }
+        reader = null
     }
 
     private fun grab() {
@@ -369,7 +512,18 @@ class ScreenShareService : Service() {
         if (scaled !== cropped) scaled.recycle()
         cropped.recycle()
         if (code.isEmpty() || token.isEmpty()) return
-        postBytes(server + "/api/screenshare/" + code + "/frame", bytes, token)
+        val status = postBytes(server + "/api/screenshare/" + code + "/frame", bytes, token)
+        if (status in 200..299) {
+            lastFrameAt = System.currentTimeMillis()
+            if (reconnecting) {
+                reconnecting = false
+                attempts = 0
+                ShareState.lastError = ""
+            }
+        } else if (status == 404 || status == 403) {
+            // session ផុតកំណត់/ត្រូវលុប → បង្កើតថ្មី (link ថ្មីទៅ Telegram)
+            handler?.post { retrySession() }
+        }
     }
 
     private fun postJson(url: String, body: String): JSONObject? {
@@ -395,7 +549,7 @@ class ScreenShareService : Service() {
         }
     }
 
-    private fun postBytes(url: String, body: ByteArray, sessionToken: String): Boolean {
+    private fun postBytes(url: String, body: ByteArray, sessionToken: String): Int {
         var conn: HttpURLConnection? = null
         return try {
             conn = URL(url).openConnection() as HttpURLConnection
@@ -407,10 +561,10 @@ class ScreenShareService : Service() {
             conn.setRequestProperty("X-Session-Token", sessionToken)
             conn.setFixedLengthStreamingMode(body.size)
             conn.outputStream.use { it.write(body) }
-            conn.responseCode in 200..299
+            conn.responseCode
         } catch (exc: Exception) {
             Log.w(TAG, "postBytes failed: " + exc.message)
-            false
+            -1
         } finally {
             conn?.disconnect()
         }
@@ -440,6 +594,8 @@ class ScreenShareService : Service() {
     private fun finish(message: String) {
         if (finished) return
         finished = true
+        ShareState.sharing = false
+        ShareState.lastError = message
         notifyFinal("ការចែករំលែកបានបញ្ចប់", message)
         showToast(message)
         cleanup()
@@ -454,6 +610,8 @@ class ScreenShareService : Service() {
     private fun shutdown() {
         if (finished) return
         finished = true
+        ShareState.sharing = false
+        ShareState.lastError = ""
         notifyFinal("បានឈប់ចែករំលែកអេក្រង់", null)
         if (code.isNotEmpty() && token.isNotEmpty()) {
             worker.execute { postStop() }
@@ -469,18 +627,7 @@ class ScreenShareService : Service() {
 
     private fun cleanup() {
         handler?.removeCallbacksAndMessages(null)
-        try {
-            virtualDisplay?.release()
-        } catch (exc: Exception) {
-            Log.w(TAG, "display release failed: " + exc.message)
-        }
-        virtualDisplay = null
-        try {
-            reader?.close()
-        } catch (exc: Exception) {
-            Log.w(TAG, "reader close failed: " + exc.message)
-        }
-        reader = null
+        releaseCapture()
         try {
             projection?.stop()
         } catch (exc: Exception) {
@@ -495,6 +642,7 @@ class ScreenShareService : Service() {
 
     override fun onDestroy() {
         finished = true
+        ShareState.sharing = false
         cleanup()
         super.onDestroy()
     }
@@ -569,17 +717,22 @@ App Android (Kotlin) សម្រាប់ចែករំលែកអេក្�
 
 ## របៀបប្រើ
 1. ដំឡើង APK → បើក app → សរសេរ server URL៖ `@@SERVER@@`
+   (បើវាយតែ `app.onrender.com` app បន្ថែម `https://` ឲ្យខ្លួនឯង)
 2. ចុច **ចាប់ផ្តើមចែករំលែកអេក្រង់** → Android បង្ហាញ dialog យល់ព្រម → ចុច «ចាប់ផ្តើមឥឡូវ»។
 3. Notification «កំពុងចែករំលែកអេក្រង់» បង្ហាញ link (ហើយ link ក៏ផ្ញើទៅ bot Telegram)។
+   ស្ថានភាព (កំពុងចែករំលែក / កំហុស / link) ក៏បង្ហាញក្នុង app ដែរ។
 4. បើក link ក្នុង browser → ឃើញអេក្រង់ live។ ចុច **ឈប់** (ក្នុង app ឬ notification) ដើម្បីបញ្ចប់។
 5. server៖ `@@SERVER@@/screenshare` សម្រាប់ទាញ app នេះឡើងវិញ និងណែនាំ។
 
 ## អ្វីដែល app ធ្វើ / មិនធ្វើ
 - ប្រើ `MediaProjection` + foreground service (`mediaProjection`) → ត្រូវមានការយល់ព្រមរាល់ដង
 - ផ្ញើ frame JPEG (~2 fps, ទទឹង ≤ 640px) ទៅ `POST /api/screenshare/<code>/frame`
+- **ភ្ជាប់ឡើងវិញស្វ័យប្រវត្តិ**៖ បើ network ដាច់ ឬ session ផុតកំណត់ វាបង្កើត session ថ្មី
+  (ព្យាយាមរាល់ ៣→៦០ វិនាទី) ហើយផ្ញើ link ថ្មីទៅ Telegram ម្តងទៀត
 - notification ជាប់ជានិច្ច ពេលកំពុងចែករំលែក (តម្រូវការរបស់ Android)
 - មិនថតពេល app បិទ, មិនដំណើរការ background ដោយគ្មាន notification, មិនលាក់ខ្លួន
 - គ្មាន frame ត្រូវរក្សាទុកលើ server — ឃើញតែ frame ចុងក្រោយ
+- **គ្មាន bot token ក្នុង app** — token ជាកម្មសិទ្ធិ server (Render env `TELEGRAM_BOT_TOKEN`)
 
 ## Build
 Import ZIP នេះក្នុង IDE → **Build APK** (GitHub Actions, AGP 8.5 · Kotlin 1.9 · compileSdk 34 · minSdk 21)។
