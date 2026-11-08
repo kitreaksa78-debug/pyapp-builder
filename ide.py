@@ -32,6 +32,40 @@ BINARY_EXT = binary_extensions()
 ALLOWED_EXT = all_extensions()
 
 DATA_URL_RE = re.compile(r"^data:([\w.+-]+/[\w.+-]+)?;base64,(.*)$", re.DOTALL)
+PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
+
+# Android project ពិត (Gradle root + Manifest) — ត្រូវ build ដូចដើម
+# មិនមែន generate project ថ្មីជំនួស file របស់អ្នកប្រើ។
+_ANDROID_SETTINGS = ("settings.gradle", "settings.gradle.kts")
+
+
+def is_android_project(files: dict) -> bool:
+    """True បើ file ទាំងនេះជា Android project ដែល build បានដោយ Gradle។"""
+    names = set(files)
+    if not any(n in names for n in _ANDROID_SETTINGS):
+        return False
+    return any(n.rsplit("/", 1)[-1] == "AndroidManifest.xml" for n in names)
+
+
+def android_app_id(files: dict) -> str:
+    """applicationId (ឬ namespace) ពី build.gradle(.kts) — ទំនេរបើរកមិនឃើញ។"""
+    text = "\n".join(c for c in files.values() if isinstance(c, str))
+    for pattern in (r"""applicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']""",
+                    r"""namespace\s*=?\s*["']([A-Za-z0-9_.]+)["']"""):
+        m = re.search(pattern, text)
+        if m and PKG_RE.match(m.group(1)):
+            return m.group(1)
+    return ""
+
+
+def android_title(raw: str, files: dict) -> str:
+    """ឈ្មោះ app សម្រាប់ job — សម្អាតតួអក្សរដែលធ្វើឲ្យ file/XML ខូច។"""
+    title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", str(raw or "")).strip()
+    if not title:
+        text = "\n".join(c for c in files.values() if isinstance(c, str))
+        m = re.search(r"""rootProject\.name\s*=\s*["']([^"']+)["']""", text)
+        title = (m.group(1).strip() if m else "") or "Android App"
+    return title[:48] or "Android App"
 
 
 class FileError(ValueError):
@@ -351,7 +385,8 @@ def parse_problems(logs: str) -> list[dict]:
     return out
 
 
-def create_blueprint(create_job, validate_common, repo: str, token: str):
+def create_blueprint(create_job, validate_common, repo: str, token: str,
+                     zip_workflow: str = "build-zip-apk.yml"):
     bp = Blueprint("ide", __name__)
 
     @bp.get("/api/ide/info")
@@ -372,28 +407,38 @@ def create_blueprint(create_job, validate_common, repo: str, token: str):
     def ide_build():
         data = request.get_json(silent=True) or {}
         try:
-            title, package = validate_common(data.get("title", ""), data.get("package", ""))
             files = decode_files(data.get("files") or {})
-            mode = str(data.get("mode") or "webview").lower()
-            version = str(data.get("version") or "1.0").strip()
-            if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
-                version = "1.0"
-            artifact = str(data.get("artifact") or "apk").strip().lower()
-            if artifact not in ("apk", "aab", "both"):
+            if is_android_project(files):
+                # Android project ដែល import ចូល → compile ដូចដើម (Gradle + Manifest)
+                title = android_title(data.get("title"), files)
+                package = android_app_id(files) or "org.pyapp.zipbuild"
+                mode = "android"
                 artifact = "apk"
-            build_no = str(data.get("build") or "1").strip()
-            if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
-                build_no = "1"
-            perms = data.get("permissions") or []
-            if not isinstance(perms, list):
-                perms = []
-            icon = _decode_icon(str(data.get("icon") or ""), MAX_FILE_BYTES)
-            project = android_project_files(
-                title, package, mode, files, icon=icon, version=version,
-                build=build_no, permissions=[str(p) for p in perms],
-                orientation=str(data.get("orientation") or "unspecified"),
-                online=bool(data.get("online", True)))
-            meta = create_job(title, package, project, artifact=artifact)
+                meta = create_job(title, package, files, artifact=artifact,
+                                  kind="zip", workflow=zip_workflow, clean=True)
+            else:
+                title, package = validate_common(data.get("title", ""),
+                                                 data.get("package", ""))
+                mode = str(data.get("mode") or "webview").lower()
+                version = str(data.get("version") or "1.0").strip()
+                if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
+                    version = "1.0"
+                artifact = str(data.get("artifact") or "apk").strip().lower()
+                if artifact not in ("apk", "aab", "both"):
+                    artifact = "apk"
+                build_no = str(data.get("build") or "1").strip()
+                if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
+                    build_no = "1"
+                perms = data.get("permissions") or []
+                if not isinstance(perms, list):
+                    perms = []
+                icon = _decode_icon(str(data.get("icon") or ""), MAX_FILE_BYTES)
+                project = android_project_files(
+                    title, package, mode, files, icon=icon, version=version,
+                    build=build_no, permissions=[str(p) for p in perms],
+                    orientation=str(data.get("orientation") or "unspecified"),
+                    online=bool(data.get("online", True)))
+                meta = create_job(title, package, project, artifact=artifact)
         except (FileError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({

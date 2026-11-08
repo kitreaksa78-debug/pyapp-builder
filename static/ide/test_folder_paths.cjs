@@ -144,25 +144,27 @@ ok(src.indexOf("if (state.selFolder && name.indexOf('/') < 0) name = state.selFo
 ok(src.indexOf('function createFileIn(folder)') > 0 &&
   src.indexOf('createFileIn(state.selFolder)') > 0, 'toolbar ＋file → createFileIn(selFolder)');
 
-console.log('== ZIP → APK wiring ==');
+console.log('== Import → Build APK wiring (Android project) ==');
 const ideHtml = fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'ide.html'), 'utf8');
-ok(ideHtml.indexOf('id="zipApkBtn"') > 0, 'toolbar មានប៊ូតុង ZIP→APK');
-ok(src.indexOf("$('zipApkBtn').onclick = zipApk") > 0, 'ប៊ូតុងភ្ជាប់ zipApk()');
-ok(src.indexOf("fetch('/api/zip/build'") > 0, 'upload ទៅ /api/zip/build');
-ok(src.indexOf("fetch('/api/zip/inspect'") > 0, 'inspect ដំបូង → /api/zip/inspect');
-ok(src.indexOf("$('z2aBuild').onclick = startBuild") > 0, 'ប៊ូតុង «Build APK» ដាច់ដោយឡែក');
-ok(src.indexOf("$('z2aBuildRow').hidden = false") > 0, 'Build លេចឡើងក្រោយពិនិត្យ file');
-ok(src.indexOf("body.append('upload_id', uploadId)") > 0, 'build ប្រើ upload_id (មិន upload ទ្វេ)');
-ok(src.indexOf("res.code === 410") > 0, 'upload ផុតកំណត់ → upload ម្តងទៀតស្វ័យប្រវត្តិ');
-ok(src.indexOf('function z2aFiles(') > 0 && src.indexOf("$('z2aFiles')") > 0,
-  'បង្ហាញបញ្ជីឯកសារក្នុង modal');
-ok(src.indexOf('What went wrong') > 0, 'ដកស្រង់មូលហេតុ build បរាជ័យពី log');
-ok(src.indexOf("'/api/jobs/' + id + '/log'") > 0, 'ទាញ build log ពី job');
-ok(src.indexOf("'/api/jobs/' + id") > 0, 'poll status របស់ job');
-ok(src.indexOf("dl.href = '/dl/' + id") > 0, 'ប៊ូតុងទាញយក /dl/<id>');
-ok(['upload', 'validate', 'build', 'download'].every(function (s) {
-  return src.indexOf("['" + s + "',") > 0;
-}), 'ជំហាន ៤ តាមលំដាប់ upload → validate → build → download');
+const idePy = fs.readFileSync(path.join(__dirname, '..', '..', 'ide.py'), 'utf8');
+const appPy = fs.readFileSync(path.join(__dirname, '..', '..', 'app.py'), 'utf8');
+ok(ideHtml.indexOf('id="importBtnTop"') > 0, 'toolbar មានប៊ូតុង Import');
+ok(ideHtml.indexOf('id="zipApkBtn"') < 0, 'គ្មានប៊ូតុង ZIP→APK ដាច់ដោយឡែក');
+ok(src.indexOf("$('importBtnTop').onclick = openImport") > 0 &&
+  src.indexOf("$('importBtn').onclick = openImport") > 0, 'ប៊ូតុង Import បើក file picker');
+ok(src.indexOf("fetch('/api/ide/import'") > 0, 'import ZIP → /api/ide/import');
+ok(src.indexOf('function isAndroidProject(') > 0 && src.indexOf('function androidAppId(') > 0,
+  'រកឃើញ Android project ពី file');
+ok(src.indexOf('payload.android = androidProject') > 0, 'Build APK ដឹងថាជា Android project');
+ok(src.indexOf('pollJob(res.j, androidProject)') > 0, 'poll job ជា Android project');
+ok(src.indexOf("'/api/jobs/' + jobId + '/logs'") > 0, 'ទាញ build log ពី job');
+ok(src.indexOf('fetch(job.status_url)') > 0, 'poll status របស់ job');
+ok(src.indexOf("dl.href = '/dl/' + j.id") > 0, 'ប៊ូតុងទាញយក /dl/<id>');
+ok(src.indexOf('z2a') < 0, 'គ្មាន modal ZIP→APK ចាស់');
+ok(idePy.indexOf('def is_android_project(') > 0 &&
+  idePy.indexOf('kind="zip", workflow=zip_workflow, clean=True') > 0,
+  'server build Android project ដូចដើម (zip workflow)');
+ok(appPy.indexOf('GH_WORKFLOW_ZIP)') > 0, 'blueprint ទទួល GH_WORKFLOW_ZIP');
 
 console.log('');
 if (fails) {

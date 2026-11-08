@@ -755,7 +755,8 @@ def download(job_id: str):
                     or meta.get("apk_url") or release_asset_url(job_id, "apk"))
 
 
-app.register_blueprint(ide_blueprint(create_job, validate_common, GH_REPO, GH_TOKEN))
+app.register_blueprint(ide_blueprint(create_job, validate_common, GH_REPO, GH_TOKEN,
+                                     GH_WORKFLOW_ZIP))
 
 
 @app.errorhandler(ValueError)

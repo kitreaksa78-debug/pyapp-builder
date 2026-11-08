@@ -9,6 +9,9 @@ IDE ពេញលេញក្នុង browser (VS Code style) សម្រាប
 
 - **File explorer** — បង្កើត file/folder, rename, delete, upload, import ZIP, ទាញយក file, export ZIP
   (folder ត្រូវបានរក្សាទុកក្នុង IndexedDB រួមនឹង file ⇒ refresh មិនបាត់)
+- **Import Android project** — ចុច **⬆ Import** ជ្រើស ZIP របស់ Android project (`settings.gradle`, `build.gradle`,
+  `AndroidManifest.xml`) → file ចូល Explorer ដូចដើម រួចចុច **Build APK** ⇒ project ត្រូវ compile ដូចដើម
+  (មិន generate project ថ្មីជំនួស) តាម workflow `build-zip-apk.yml` (JDK 17 + Android SDK + Gradle)
 - **Editor** — Monaco (CDN) មាន syntax highlighting, autocomplete, multi-tab, search/replace,
   line numbers; បើ CDN មិនអាចផ្ទុកបាន ប្រើ textarea fallback
 - **Live preview** — បញ្ចូល `index.html`, CSS, JS, រូបភាពក្នុង project ចូល iframe sandbox,
@@ -66,7 +69,7 @@ python app.py                 # http://localhost:8000
 | Method | Path | ការងារ |
 |---|---|---|
 | GET | `/ide` | **PyApp IDE** — explorer, Monaco, preview, build panel |
-| POST | `/api/ide/build` | JSON `{title, package, mode, version, build, permissions, orientation, online, icon, files}` → job |
+| POST | `/api/ide/build` | JSON `{title, package, mode, version, build, permissions, orientation, online, icon, files}` → job។ បើ `files` ជា Android project ពិត → build project ដូចដើម (`build-zip-apk.yml`) |
 | POST | `/api/ide/zip` | ZIP ពី project files (`{name, files}`) |
 | POST | `/api/ide/import` | upload ZIP → files (safe extract, បដិសេធ traversal) |
 | GET | `/api/ide/info` | modes / permissions / limits |
