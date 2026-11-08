@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request, send_file, url_for
 
 from androidproject import (MODES, ORIENTATIONS, PERMISSIONS,
                             _PERMS_MAP, android_project_files)
+from androidutil import xml_escape
 from languages import (all_extensions, binary_extensions, language_list,
                        monaco_map, text_extensions)
 
@@ -31,31 +32,247 @@ TEXT_EXT = text_extensions()
 BINARY_EXT = binary_extensions()
 ALLOWED_EXT = all_extensions()
 
+# folder កំពូលដែលមិនត្រូវដកចេញពេល import (ជា folder ពិតរបស់ project)
+_PROJECT_DIRS = {"src", "app", "res", "java", "kotlin", "assets", "www", "lib",
+                 "main", "android", "ios", "web", "public", "test", "debug", "release"}
+
 DATA_URL_RE = re.compile(r"^data:([\w.+-]+/[\w.+-]+)?;base64,(.*)$", re.DOTALL)
 PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
 
 # Android project ពិត (Gradle root + Manifest) — ត្រូវ build ដូចដើម
 # មិនមែន generate project ថ្មីជំនួស file របស់អ្នកប្រើ។
 _ANDROID_SETTINGS = ("settings.gradle", "settings.gradle.kts")
+_ANDROID_GRADLE = ("build.gradle", "build.gradle.kts")
+
+
+def _base(path: str) -> str:
+    return path.rsplit("/", 1)[-1]
+
+
+def _manifests(files: dict) -> list[str]:
+    return sorted(n for n in files if _base(n) == "AndroidManifest.xml")
 
 
 def is_android_project(files: dict) -> bool:
-    """True បើ file ទាំងនេះជា Android project ដែល build បានដោយ Gradle។"""
-    names = set(files)
-    if not any(n in names for n in _ANDROID_SETTINGS):
-        return False
-    return any(n.rsplit("/", 1)[-1] == "AndroidManifest.xml" for n in names)
+    """True បើ file ទាំងនេះជា Android project (មាន AndroidManifest.xml)។"""
+    return bool(_manifests(files))
+
+
+def project_kind(files: dict) -> str:
+    """ប្រភេទ project ដែល import ចូល → ផ្លូវ build ត្រឹមត្រូវ (គ្រប់ app ទាំងអស់)។
+
+    gradle  — Android project ពិត (Manifest + settings.gradle) → build ដូចដើម
+    android — Android project ខ្វះ file Gradle → បំពេញឲ្យ រួច build
+    ndk/kotlin/java — source សុទ្ធ → generate host app ហើយ compile
+    webview — HTML/CSS/JS → WebView app
+    other   — អ្វីៗផ្សេង → WebView app (មិនបដិសេធ)
+    """
+    names = list(files)
+    if is_android_project(files):
+        if any(_base(n) in _ANDROID_SETTINGS for n in names):
+            return "gradle"
+        return "android"
+    if any(n.lower().endswith((".c", ".cc", ".cpp", ".cxx")) for n in names):
+        return "ndk"
+    if any(n.endswith(".kt") for n in names):
+        return "kotlin"
+    if any(n.endswith(".java") for n in names):
+        return "java"
+    if any(_base(n).lower() in ("index.html", "index.htm") for n in names):
+        return "webview"
+    if any(n.lower().endswith((".html", ".htm", ".css", ".js")) for n in names):
+        return "webview"
+    return "other"
 
 
 def android_app_id(files: dict) -> str:
-    """applicationId (ឬ namespace) ពី build.gradle(.kts) — ទំនេរបើរកមិនឃើញ។"""
+    """applicationId / namespace ពី build.gradle(.kts) ឬ package ពី Manifest។"""
     text = "\n".join(c for c in files.values() if isinstance(c, str))
     for pattern in (r"""applicationId\s*=?\s*["']([A-Za-z0-9_.]+)["']""",
-                    r"""namespace\s*=?\s*["']([A-Za-z0-9_.]+)["']"""):
+                    r"""namespace\s*=?\s*["']([A-Za-z0-9_.]+)["']""",
+                    r"""<(?:manifest|package)[^>]*\spackage\s*=\s*["']([A-Za-z0-9_.]+)["']"""):
         m = re.search(pattern, text)
         if m and PKG_RE.match(m.group(1)):
             return m.group(1)
     return ""
+
+
+def _android_module(files: dict) -> tuple[str, str]:
+    """(module dir, manifest path) សម្រាប់ Android project ដែល import ចូល។
+
+    Project Android Studio ធម្មតា: app/src/main/AndroidManifest.xml → module "app"។
+    """
+    manifests = _manifests(files)
+    if not manifests:
+        return "", ""
+    for path in manifests:
+        if path.endswith("src/main/AndroidManifest.xml"):
+            return path[: -len("src/main/AndroidManifest.xml")].rstrip("/"), path
+    path = manifests[0]
+    return path.rsplit("/", 1)[0], path
+
+
+_SETTINGS_PLUGINS = '''pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+'''
+
+_APP_PLUGINS_KT = '''plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+'''
+
+_APP_PLUGINS_JAVA = '''plugins {
+    id("com.android.application")
+}
+'''
+
+
+def _app_gradle(pkg: str, kotlin: bool, dependencies: str, *, versioned: bool = False) -> str:
+    """build.gradle.kts អប្បបរមាសម្រាប់ project ដែល import ចូល (គ្មាន signing config
+    ព្រោះ build branch ស្អាតគ្មាន `signing/debug.p12` — debug keystore ស្វ័យប្រវត្តិ)។
+
+    `versioned=True` ពេល file នេះជា root build ដែរ (project module តែមួយនៅ root)។
+    """
+    jvm = ('''
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+''' if kotlin else "")
+    if versioned:
+        plugins = 'plugins {\n    id("com.android.application") version "8.5.2"\n'
+        if kotlin:
+            plugins += '    id("org.jetbrains.kotlin.android") version "1.9.24"\n'
+        plugins += '}\n'
+    else:
+        plugins = _APP_PLUGINS_KT if kotlin else _APP_PLUGINS_JAVA
+    return (plugins + '''
+android {
+    namespace = "%s"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "%s"
+        minSdk = 21
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+%s
+    lint {
+        abortOnError = false
+    }
+}
+%s''' % (pkg, pkg, jvm, dependencies))
+
+
+def prepare_android_project(files: dict, title: str) -> dict:
+    """បំពេញ file Gradle ដែល Android project import ខ្វះ — មិនប៉ះ file របស់អ្នកប្រើ។
+
+    Project ពី Android Studio រក្សា build.gradle ដើម ១០០%; project ដែលមានតែ source
+    (ឬ ZIP ដែលបាត់ settings.gradle) ទទួលបាន wrapper អប្បបរមាដើម្បី compile បាន។
+    """
+    out = dict(files)
+    names = set(out)
+    module, manifest = _android_module(out)
+    pkg = android_app_id(out) or "org.pyapp.zipbuild"
+    root = re.sub(r"[^A-Za-z0-9_.-]+", "_",
+                  android_title(title, out).replace(" ", "_")).strip("_") or "app"
+    code = "\n".join(c for c in out.values() if isinstance(c, str))
+    kotlin = any(n.endswith(".kt") for n in names)
+
+    deps = ""
+    if "AppCompatActivity" in code or "Theme.AppCompat" in code:
+        deps = ('\ndependencies {\n'
+                '    implementation("androidx.appcompat:appcompat:1.6.1")\n'
+                '}\n')
+    elif "androidx." in code:
+        deps = ('\ndependencies {\n'
+                '    implementation("androidx.core:core-ktx:1.13.1")\n'
+                '}\n')
+
+    has_settings = any(_base(n) in _ANDROID_SETTINGS for n in names)
+    has_root_build = any(_base(n) in _ANDROID_GRADLE for n in names)
+
+    if not has_settings:
+        include = 'include(":app")\n'
+        if module and module != "app":
+            include += 'project(":app").projectDir = file("%s")\n' % module
+        if not module:
+            include = ""
+        out["settings.gradle.kts"] = (_SETTINGS_PLUGINS
+                                      + 'rootProject.name = "%s"\n' % root + include)
+
+    if not module:
+        # Manifest នៅ src/main → project តែមួយនៅ root (គ្មាន module :app)
+        if not has_root_build:
+            out["build.gradle.kts"] = _app_gradle(pkg, kotlin, deps, versioned=True)
+    else:
+        if not has_root_build:
+            plugins = 'plugins {\n    id("com.android.application") version "8.5.2" apply false\n'
+            if kotlin:
+                plugins += '    id("org.jetbrains.kotlin.android") version "1.9.24" apply false\n'
+            out["build.gradle.kts"] = plugins + '}\n'
+        module_build = (module + "/" if module else "") + "build.gradle"
+        if not any(n.startswith(module_build) for n in names):
+            out[module_build + ".kts"] = _app_gradle(pkg, kotlin, deps)
+
+    if not any(_base(n) == "gradle.properties" for n in names):
+        out["gradle.properties"] = ("org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n"
+                                   "android.useAndroidX=true\n"
+                                   "android.nonTransitiveRClass=true\n")
+
+    # Resource ដែល Manifest សំដៅ (@string/…) តែគ្មាន file → aapt2 error
+    res = (module + "/" if module else "") + "src/main/res/values/strings.xml"
+    manifest_text = out.get(manifest, "") if isinstance(out.get(manifest), str) else ""
+    if "@string/" in manifest_text and res not in out:
+        existing = "\n".join(c for k, c in out.items()
+                             if k.endswith("values/strings.xml") and isinstance(c, str))
+        wanted = [m for m in re.findall(r"@string/([A-Za-z0-9_]+)", manifest_text)
+                  if ('name="%s"' % m) not in existing]
+        if wanted:
+            body = "\n".join('    <string name="%s">%s</string>'
+                             % (m, xml_escape(m.replace("_", " ").title()))
+                             for m in dict.fromkeys(wanted))
+            out[res] = ('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
+                        + body + "\n</resources>\n")
+    return out
+
+
+def ensure_index_html(files: dict, title: str) -> dict:
+    """WebView app ត្រូវការ index.html — បង្កើត shim បើ project ដាក់ឈ្មោះផ្សេង។"""
+    out = dict(files)
+    if any(_base(n).lower() in ("index.html", "index.htm") for n in out):
+        return out
+    pages = sorted(n for n in out if n.lower().endswith((".html", ".htm")))
+    if pages:
+        out["index.html"] = ('<!doctype html>\n<meta charset="utf-8">\n<title>%s</title>\n'
+                             '<script>location.replace(%s);</script>\n'
+                             % (xml_escape(title), json.dumps(pages[0])))
+    else:
+        out["index.html"] = ('<!doctype html>\n<html><head><meta charset="utf-8">\n'
+                             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+                             '<title>%s</title></head><body><h1>%s</h1></body></html>\n'
+                             % (xml_escape(title), xml_escape(title)))
+    return out
 
 
 def android_title(raw: str, files: dict) -> str:
@@ -247,7 +464,11 @@ def import_zip(data: bytes) -> dict:
     if names and all("/" in n for n in names):
         roots = {n.split("/", 1)[0] for n in names}
         if len(roots) == 1:
-            stripped_root = roots.pop()
+            only = roots.pop()
+            # `src/`, `app/`, `res/`… ជា folder ពិតរបស់ project — មិនដកចេញ
+            # (បើដក project បាត់ path → build ខូច)
+            if only.lower() not in _PROJECT_DIRS:
+                stripped_root = only
     for info in zf.infolist():
         if info.is_dir():
             continue
@@ -408,18 +629,24 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
         data = request.get_json(silent=True) or {}
         try:
             files = decode_files(data.get("files") or {})
-            if is_android_project(files):
+            kind = project_kind(files)
+            if kind in ("gradle", "android"):
                 # Android project ដែល import ចូល → compile ដូចដើម (Gradle + Manifest)
                 title = android_title(data.get("title"), files)
                 package = android_app_id(files) or "org.pyapp.zipbuild"
                 mode = "android"
                 artifact = "apk"
-                meta = create_job(title, package, files, artifact=artifact,
+                # បំពេញ file Gradle ដែលខ្វះ (project ពី Android Studio មិនប៉ះឡើយ)
+                project = files if kind == "gradle" else prepare_android_project(files, title)
+                meta = create_job(title, package, project, artifact=artifact,
                                   kind="zip", workflow=zip_workflow, clean=True)
             else:
                 title, package = validate_common(data.get("title", ""),
                                                  data.get("package", ""))
-                mode = str(data.get("mode") or "webview").lower()
+                mode = str(data.get("mode") or "").lower()
+                if mode not in MODES:
+                    # "auto" ឬតម្លៃមិនស្គាល់ → ជ្រើសពី file ដែលមាន
+                    mode = kind if kind in MODES else "webview"
                 version = str(data.get("version") or "1.0").strip()
                 if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
                     version = "1.0"
@@ -433,6 +660,9 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 if not isinstance(perms, list):
                     perms = []
                 icon = _decode_icon(str(data.get("icon") or ""), MAX_FILE_BYTES)
+                if mode == "webview":
+                    # គ្រប់ web project (ឈ្មោះ index ផ្សេង ឬគ្មាន HTML) → build បានជានិច្ច
+                    files = ensure_index_html(files, title)
                 project = android_project_files(
                     title, package, mode, files, icon=icon, version=version,
                     build=build_no, permissions=[str(p) for p in perms],

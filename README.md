@@ -12,6 +12,10 @@ IDE ពេញលេញក្នុង browser (VS Code style) សម្រាប
 - **Import Android project** — ចុច **⬆ Import** ជ្រើស ZIP របស់ Android project (`settings.gradle`, `build.gradle`,
   `AndroidManifest.xml`) → file ចូល Explorer ដូចដើម រួចចុច **Build APK** ⇒ project ត្រូវ compile ដូចដើម
   (មិន generate project ថ្មីជំនួស) តាម workflow `build-zip-apk.yml` (JDK 17 + Android SDK + Gradle)
+- **Build គ្រប់ប្រភេទ app** — Android project ដែលខ្វះ `settings.gradle`/`build.gradle` ទទួលបាន
+  Gradle wrapper បំពេញដោយស្វ័យប្រវត្តិ (file អ្នកប្រើមិនប៉ះ), HTML/CSS/JS → WebView,
+  `.kt` → Kotlin, `.java` → Java, `.c/.cpp` → NDK, ហើយ project ភាសាផ្សេងក៏មិនត្រូវបានបដិសេធ
+- **File badges** — Explorer និង tab បង្ហាញ badge ពណ៌តាមប្រភេទ (`KT`, `JV`, `CSS`, `HTML`, `XML`, `GR`…)
 - **Editor** — Monaco (CDN) មាន syntax highlighting, autocomplete, multi-tab, search/replace,
   line numbers; បើ CDN មិនអាចផ្ទុកបាន ប្រើ textarea fallback
 - **Live preview** — បញ្ចូល `index.html`, CSS, JS, រូបភាពក្នុង project ចូល iframe sandbox,

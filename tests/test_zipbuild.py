@@ -235,6 +235,71 @@ fake2 = FakeGH()
 fake2.push_branch('build/y', {'a.txt': 'x'}, 'm')
 ok('base_tree' in (fake2.tree or {}), 'ធម្មតា → base_tree នៅដូចដើម')
 
+print('== ចាត់ប្រភេទ project ពេល import (គ្រប់ app ទាំងអស់) ==')
+import ide  # noqa: E402 — ត្រូវការបន្ទាប់ពី app/zipbuild
+
+ok(ide.project_kind(FLAT) == 'gradle', 'Android project ពេញលេញ → gradle (build ដូចដើម)')
+ok(ide.is_android_project({'AndroidManifest.xml': '<manifest/>'}),
+   'Manifest មួយក៏រាប់ជា Android project')
+SRC_ONLY = {
+    'app/src/main/AndroidManifest.xml':
+        '<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
+        'package="com.example.pool"><application android:label="@string/app_name"/></manifest>',
+    'app/src/main/java/com/example/pool/OverlayService.java':
+        'package com.example.pool;\nclass OverlayService {}\n',
+}
+ok(ide.project_kind(SRC_ONLY) == 'android', 'source សុទ្ធ (គ្មាន settings.gradle) → android')
+wrapped = ide.prepare_android_project(SRC_ONLY, 'Pool Floating')
+ok(all(k in wrapped for k in SRC_ONLY), 'file អ្នកប្រើមិនត្រូវបាត់/របួស')
+ok('settings.gradle.kts' in wrapped and 'include(":app")' in wrapped['settings.gradle.kts'],
+   'បំពេញ settings.gradle.kts')
+ok('app/build.gradle.kts' in wrapped and
+   'applicationId = "com.example.pool"' in wrapped['app/build.gradle.kts'],
+   'build.gradle.kts ប្រើ package ពី Manifest')
+ok('signing/debug.p12' not in wrapped['app/build.gradle.kts'],
+   'គ្មាន signing config ដែលខ្វះ file ក្នុង build branch')
+ok('com.android.application' in wrapped['build.gradle.kts'], 'root build.gradle.kts មាន AGP')
+ok('@string/app_name' in wrapped['app/src/main/AndroidManifest.xml'] and
+   'res/values/strings.xml' in "".join(wrapped.keys()),
+   'បំពេញ string ដែល Manifest សំដៅ')
+KEEP = {'app/build.gradle.kts': 'android { }\n'}
+ok(ide.prepare_android_project(dict(SRC_ONLY, **KEEP), 'x')['app/build.gradle.kts'] == 'android { }\n',
+   'build.gradle របស់អ្នកប្រើមិនត្រូវសរសេរជំនួស')
+ROOTMOD = {'src/main/AndroidManifest.xml': SRC_ONLY['app/src/main/AndroidManifest.xml'],
+           'src/main/java/A.kt': 'package com.example.pool\n'}
+root_out = ide.prepare_android_project(ROOTMOD, 'Root')
+ok('include(":app")' not in root_out['settings.gradle.kts'] and
+   'id("com.android.application") version "8.5.2"' in root_out['build.gradle.kts'],
+   'project module តែមួយនៅ root → build.gradle.kts មាន version ដែរ')
+ok(ide.project_kind({'index.html': ''}) == 'webview', 'HTML → webview')
+ok(ide.project_kind({'site/home.html': ''}) == 'webview', 'HTML ឈ្មោះផ្សេង → webview')
+ok(ide.project_kind({'MainActivity.kt': ''}) == 'kotlin', '.kt → kotlin')
+ok(ide.project_kind({'native-lib.cpp': ''}) == 'ndk', '.cpp → ndk')
+ok(ide.project_kind({'main.py': ''}) == 'other', 'ភាសាផ្សេង → other (មិនបដិសេធ)')
+shim = ide.ensure_index_html({'site/home.html': '<h1>x</h1>'}, 'My App')
+ok('site/home.html' in shim['index.html'], 'បង្កើត index.html ជា shim ទៅ page ដែលមាន')
+ok('index.html' in ide.ensure_index_html({'main.py': 'x'}, 'Py'), 'គ្មាន HTML → index.html អប្បបរមា')
+
+print('== import ZIP រក្សា path ពិត ==')
+
+def _zip(entries):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
+src_only = ide.import_zip(_zip({'src/main/AndroidManifest.xml': '<manifest/>',
+                                'src/main/java/A.kt': 'package a\n'}))
+ok('src/main/AndroidManifest.xml' in src_only,
+   'folder src/ មិនត្រូវដកចេញ (path ពិតរបស់ project)')
+ok(ide.project_kind(src_only) == 'android', 'project ដែលមានតែ src/ → android')
+ok('src/main/AndroidManifest.xml' in ide.prepare_android_project(src_only, 'A'),
+   'wrap មិនប្តូរ path របស់ source')
+wrapped_zip = ide.import_zip(_zip({'MyApp/index.html': '<h1>x</h1>', 'MyApp/app.js': ''}))
+ok(sorted(wrapped_zip) == ['app.js', 'index.html'], 'top folder ជា wrapper → ដកចេញ')
+
 print('== workflow សម្រាប់ ZIP ==')
 wf = open(os.path.join(ROOT, '.github/workflows/build-zip-apk.yml'), encoding='utf-8').read()
 ok('assembleDebug' in wf, 'workflow រត់ assembleDebug')

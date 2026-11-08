@@ -98,6 +98,16 @@ a { color: var(--accent); }
 .row.indent-5 { padding-left: 72px; } .row.indent-6 { padding-left: 86px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: 0 0 7px; }
 
+/* badge តាមប្រភេទ file — KT, CSS, HTML, JS… (ដូច VS Code) */
+.fic {
+  width: 19px; height: 19px; flex: 0 0 19px; border-radius: 4px;
+  display: inline-grid; place-items: center; padding: 0 1px;
+  background: var(--c, #6e7681); color: #fff;
+  font: 700 9px/1 var(--mono); letter-spacing: .2px;
+  text-shadow: 0 1px 1px #0006; overflow: hidden;
+}
+.tab .fic { width: 16px; height: 16px; flex: 0 0 16px; font-size: 8px; border-radius: 3px; }
+
 /* ---------------- editor ---------------- */
 .work { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--editor); }
 .tabs {

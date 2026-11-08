@@ -166,6 +166,27 @@ ok(idePy.indexOf('def is_android_project(') > 0 &&
   'server build Android project ដូចដើម (zip workflow)');
 ok(appPy.indexOf('GH_WORKFLOW_ZIP)') > 0, 'blueprint ទទួល GH_WORKFLOW_ZIP');
 
+console.log('== Import គ្រប់ប្រភេទ app (គ្មាន error) ==');
+ok(idePy.indexOf('def project_kind(') > 0, 'server ចាត់ប្រភេទ project (gradle/android/ndk/kotlin/java/webview)');
+ok(idePy.indexOf('def prepare_android_project(') > 0 &&
+  idePy.indexOf('def _app_gradle(') > 0, 'server បំពេញ file Gradle ដែលខ្វះ');
+ok(idePy.indexOf('if module and module != "app"') > 0, 'settings.gradle ដាក់ projectDir តែពេលចាំបាច់');
+ok(idePy.indexOf('def ensure_index_html(') > 0, 'server បង្កើត index.html បើ project ឈ្មោះផ្សេង');
+ok(idePy.indexOf('files = ensure_index_html(files, title)') > 0, 'webview build មិន error ពេលគ្មាន index.html');
+
+console.log('== រូប file តាមប្រភេទ (tree + tabs) ==');
+const ideCss = fs.readFileSync(path.join(__dirname, 'ide.css'), 'utf8');
+ok(src.indexOf('function fileBadge(') > 0, 'fileBadge() សម្រាប់រូប file');
+ok(src.indexOf("kt: ['KT'") > 0 && src.indexOf("css: ['CSS'") > 0 &&
+  src.indexOf("java: ['JV'") > 0 && src.indexOf("html: ['<>'") > 0,
+  'badge មាន KT / CSS / Java / HTML');
+ok(src.indexOf("gradle: ['GR'") > 0 && src.indexOf("so: ['SO'") > 0,
+  'badge សម្រាប់ Gradle និង .so');
+ok(src.indexOf('row.innerHTML = fileBadge(f.path)') > 0, 'Explorer ប្រើ badge តាមប្រភេទ file');
+ok(src.indexOf('tab.innerHTML = fileBadge(path)') > 0, 'tab ប្រើ badge តាមប្រភេទ file');
+ok(ideCss.indexOf('.fic {') > 0 && ideCss.indexOf('.tab .fic') > 0,
+  'CSS badge ទាំង tree និង tab');
+
 console.log('');
 if (fails) {
   console.log('FAILED ' + fails + ' checks');

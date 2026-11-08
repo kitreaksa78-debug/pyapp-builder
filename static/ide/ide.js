@@ -665,7 +665,45 @@
     if (state.files[firstFile]) openFile(firstFile);
     else { var keys = Object.keys(state.files).sort(); if (keys[0]) openFile(keys[0]); }
     renderPreview();
-  }  /* ---------------- tree ---------------- */
+  }
+
+  /* ---------------- file badges (រូបតាមប្រភេទ file) ---------------- */
+  // ext → [label, ពណ៌] — បង្ហាញដូច VS Code/AppForge: KT, CSS, HTML, JS…
+  var FILE_BADGES = {
+    kt: ['KT', '#a97bff'], kts: ['KTS', '#a97bff'], java: ['JV', '#e76f00'],
+    gradle: ['GR', '#0f9d76'], groovy: ['GR', '#0f9d76'], pro: ['PRO', '#8b949e'],
+    properties: ['CFG', '#8b949e'], xml: ['XML', '#f1662a'],
+    html: ['<>', '#e44d26'], htm: ['<>', '#e44d26'], vue: ['VUE', '#41b883'],
+    css: ['CSS', '#2f6fed'], scss: ['SC', '#cd6799'],
+    js: ['JS', '#d9b81a'], mjs: ['JS', '#d9b81a'], cjs: ['JS', '#d9b81a'],
+    jsx: ['JSX', '#61dafb'], ts: ['TS', '#3178c6'], tsx: ['TSX', '#3178c6'],
+    json: ['{}', '#cbcb41'], json5: ['{}', '#cbcb41'], yml: ['YML', '#cb171e'],
+    yaml: ['YML', '#cb171e'], toml: ['TML', '#9c4221'], ini: ['INI', '#8b949e'],
+    conf: ['CFG', '#8b949e'], env: ['ENV', '#ecd53f'], csv: ['CSV', '#217346'],
+    md: ['MD', '#519aba'], txt: ['TXT', '#8b949e'], log: ['LOG', '#8b949e'],
+    py: ['PY', '#3572a5'], rb: ['RB', '#701516'], php: ['PHP', '#777bb4'],
+    lua: ['LUA', '#2c2d72'], go: ['GO', '#00add8'], rs: ['RS', '#dea584'],
+    c: ['C', '#5a5f66'], h: ['H', '#5a5f66'], cc: ['C++', '#f34b7d'],
+    cpp: ['C++', '#f34b7d'], cxx: ['C++', '#f34b7d'], hpp: ['C++', '#f34b7d'],
+    hxx: ['C++', '#f34b7d'], cs: ['C#', '#178600'], swift: ['SW', '#f05138'],
+    dart: ['D', '#00b4ab'], sql: ['SQL', '#e38c00'], sh: ['SH', '#89e051'],
+    bash: ['SH', '#89e051'], zsh: ['SH', '#89e051'], bat: ['BAT', '#c1f12e'],
+    cmd: ['BAT', '#c1f12e'], ps1: ['PS', '#27618c'],
+    png: ['IMG', '#3fb950'], jpg: ['IMG', '#3fb950'], jpeg: ['IMG', '#3fb950'],
+    webp: ['IMG', '#3fb950'], gif: ['IMG', '#3fb950'], ico: ['ICO', '#3fb950'],
+    svg: ['SVG', '#ffb13b'],
+    jar: ['JAR', '#d29922'], aar: ['AAR', '#d29922'], zip: ['ZIP', '#d29922'],
+    apk: ['APK', '#3fb950'], aab: ['AAB', '#3fb950'], so: ['SO', '#8957e5'],
+    ttf: ['FT', '#8957e5'], woff: ['FT', '#8957e5'], woff2: ['FT', '#8957e5'],
+    pdf: ['PDF', '#f85149'], keystore: ['KEY', '#d29922'], jks: ['KEY', '#d29922']
+  };
+  function fileBadge(path) {
+    var e = ext(path).toLowerCase();
+    var info = FILE_BADGES[e] || [(e ? e.slice(0, 3).toUpperCase() : 'FILE'), '#6e7681'];
+    return '<span class="fic" style="--c:' + info[1] + '">' + esc(info[0]) + '</span>';
+  }
+
+  /* ---------------- tree ---------------- */
   var collapsed = {};
   function treeModel() { return buildTree(state.folders, state.files); }
   function renderTree() {
@@ -710,12 +748,7 @@
           row.className = 'row indent-' + Math.min(depth + 1, 6) +
             (state.active === f.path ? ' active' : '');
           row.title = f.path;
-          var icon = /\.(png|jpe?g|webp|gif|ico)$/i.test(f.name) ? '🖼' :
-            /\.(kt)$/i.test(f.name) ? '🟣' : /\.(java)$/i.test(f.name) ? '☕' :
-            /\.(html?)$/i.test(f.name) ? '🌐' : /\.(css)$/i.test(f.name) ? '🎨' :
-            /\.(js|mjs)$/i.test(f.name) ? '🟨' : /\.(json)$/i.test(f.name) ? '{}' :
-            /\.(md)$/i.test(f.name) ? '📘' : '📄';
-          row.innerHTML = '<span class="ic">' + icon + '</span><span class="nm">' +
+          row.innerHTML = fileBadge(f.path) + '<span class="nm">' +
             esc(f.name) + '</span><button class="more" title="menu">⋮</button>';
           row.onclick = function (e) {
             if (e.target.classList.contains('more')) { e.stopPropagation(); fileMenu(f.path); return; }
@@ -883,7 +916,8 @@
     state.open.forEach(function (path) {
       var tab = document.createElement('div');
       tab.className = 'tab' + (path === state.active ? ' on' : '');
-      tab.innerHTML = '<span>' + esc(path.split('/').pop()) + '</span>' +
+      tab.innerHTML = fileBadge(path) +
+        '<span>' + esc(path.split('/').pop()) + '</span>' +
         '<button class="x" title="Close">✕</button>';
       tab.onclick = function (e) {
         if (e.target.classList.contains('x')) {
