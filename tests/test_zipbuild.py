@@ -443,7 +443,7 @@ for _name, _want in _matrix.items():
     eq(ide.project_kind({_name: ''}), _want, '%s → %s' % (_name, _want))
 # ភាសាដែល Android មិន compile ផ្ទាល់ (Dart, Rust, Go, C#, Ruby, PHP, Lua, Swift,
 # shell, SQL…) → មិនបដិសេធ: build ជា WebView app ដែលបើកបានជានិច្ច
-for _name in ('lib/main.dart', 'main.rs', 'main.go', 'Program.cs', 'main.rb',
+for _name in ('main.rs', 'main.go', 'Program.cs', 'main.rb',
               'index.php', 'init.lua', 'app.swift', 'run.sh', 'query.sql',
               'notes.txt', 'app.ts', 'app.vue'):
     _kind = ide.project_kind({_name: ''})
@@ -459,6 +459,88 @@ for _name in ('lib/main.dart', 'main.rs', 'main.go', 'Program.cs', 'main.rb',
         ok(False, '%s → %s' % (_name, _exc))
 ok(ide.project_kind({'main.py': '', 'index.html': ''}) == 'python',
    'Python + HTML → python (code ពិតមិនបាត់)')
+
+print('== Flutter / React Native project (SDK ពិត) ==')
+import json as _json  # noqa: E402
+import mobileproject  # noqa: E402
+
+_fl = mobileproject.flutter_project_files('Todo Flutter', 'org.pyapp.todo', {
+    'lib/main.dart': 'void main() => runApp(const App());\n',
+    'lib/screens/home.dart': 'class Home {}\n',
+    'pubspec.yaml': 'name: todo\n',
+    'logo.png': b'\x89PNG',
+}, version='2.1', build='7')
+ok('pubspec.yaml' in _fl, 'flutter → pubspec.yaml')
+ok(_fl['lib/main.dart'] == 'void main() => runApp(const App());\n',
+   'flutter រក្សា main.dart របស់អ្នកប្រើ')
+ok('lib/screens/home.dart' in _fl, 'flutter រក្សា path ក្រោម lib/')
+ok('environment:' in _fl['pubspec.yaml'], 'pubspec មាន environment (ខ្វះ → pub get បរាជ័យ)')
+ok('2.1.0+7' in _fl['pubspec.yaml'], 'version/build ចូល pubspec')
+_fmark = _json.loads(_fl['.pyapp-build.json'])
+eq(_fmark['type'], 'flutter', 'marker type=flutter')
+eq(_fmark['package'], 'org.pyapp.todo', 'marker package')
+eq(_fmark['org'], 'org.pyapp', 'marker org (flutter create --org)')
+eq(_fmark['name'], 'todo_flutter', 'marker name (project-name)')
+ok(not any(n.endswith('.png') for n in _fl), 'binary មិនបំផ្លាញ project')
+ok('void main(' in mobileproject.flutter_project_files(
+    'App 2', 'org.pyapp.a2', {'notes.txt': 'x'})['lib/main.dart'],
+   'គ្មាន main() → runner ដើម (compile បាន)')
+
+_rn = mobileproject.reactnative_project_files('Chat', 'org.pyapp.chat', {
+    'src/chat.js': 'export const x = 1;\n',
+    'package.json': '{"dependencies": {"react-native-vector-icons": "^10.0.0"}}',
+})
+_rpkg = _json.loads(_rn['package.json'])
+ok('expo' in _rpkg['dependencies'] and 'react-native' in _rpkg['dependencies'],
+   'RN package.json មាន expo + react-native')
+ok('react-native-vector-icons' in _rpkg['dependencies'],
+   'dependency របស់អ្នកប្រើ រួមបញ្ចូល (កុំខូច app)')
+ok('registerRootComponent' in _rn['index.js'], 'index.js registerRootComponent')
+ok('src/chat.js' in _rn, 'RN រក្សា source របស់អ្នកប្រើ')
+ok('org.pyapp.chat' in _rn['app.json'], 'app.json android.package')
+eq(_json.loads(_rn['.pyapp-build.json'])['type'], 'reactnative', 'marker type=reactnative')
+
+print('== app type detection (Flutter/RN មិនធ្លាក់ទៅ WebView) ==')
+eq(ide.project_kind({'pubspec.yaml': 'name: x', 'lib/main.dart': ''}), 'flutter',
+   'pubspec.yaml → flutter')
+eq(ide.project_kind({'lib/main.dart': 'void main() {}'}), 'flutter', 'main.dart → flutter')
+eq(ide.project_kind({'package.json': '{"dependencies":{"expo":"~51.0.0"}}',
+                     'App.js': ''}), 'reactnative', 'expo dep → reactnative')
+eq(ide.project_kind({'package.json': '{"dependencies":{"react":"18"}}',
+                     'index.html': ''}), 'webview', 'web ធម្មតា → webview')
+ok('flutter' in ide.BUILD_MODES and 'reactnative' in ide.BUILD_MODES,
+   'BUILD_MODES មាន flutter/reactnative')
+
+print('== repair settings.gradle (build error ពិតពី CI) ==')
+_bad = {'settings.gradle': (
+    'pluginManagement {\n    repositories {\n        google()\n    }\n}\n\n'
+    'dependencyResolutionManagement {\n'
+    '    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOSISORIES)\n'
+    '    repositories {\n        google()\n    }\n}\n'
+    'rootProject.name = "pool"\ninclude(":app")\n')}
+_fixed = ide.repair_gradle_scripts(_bad)['settings.gradle']
+ok('FAIL_ON_PROJECT_REPOSISORIES' not in _fixed, 'typo ត្រូវកែ')
+ok('RepositoriesMode.FAIL_ON_PROJECT_REPOSITORIES' in _fixed,
+   'constant ត្រឹមត្រូវ (Gradle មិនបរាជ័យ)')
+ok('import org.gradle.api.initialization.resolve.RepositoriesMode' in _fixed,
+   'import បន្ថែម')
+ok('rootProject.name = "pool"' in _fixed, 'បន្ទាត់ផ្សេងរក្សាដើម')
+_clean_settings = {'settings.gradle': 'rootProject.name = "a"\n'}
+eq(ide.repair_gradle_scripts(_clean_settings), _clean_settings,
+   'settings ត្រឹមត្រូវមិនប៉ះ')
+eq(ide.repair_gradle_scripts({'MainActivity.kt': 'class A {}'}),
+   {'MainActivity.kt': 'class A {}'}, 'file មិនមែន settings មិនប៉ះ')
+
+print('== workflow គាំទ្រ Android + Flutter + React Native ==')
+wf_sdk = open(os.path.join(ROOT, '.github/workflows/build-zip-apk.yml'),
+              encoding='utf-8').read()
+for _need in ('subosito/flutter-action', 'flutter build apk', 'flutter build appbundle',
+              'expo prebuild', 'assembleDebug', 'bundleRelease', '.pyapp-build.json',
+              'Detect project type'):
+    ok(_need in wf_sdk, 'workflow មាន %s' % _need)
+_tpl = open(os.path.join(ROOT, 'templates/ide.html'), encoding='utf-8').read()
+ok('value="flutter"' in _tpl and 'value="reactnative"' in _tpl,
+   'dropdown មាន Flutter + React Native')
 
 print('')
 if fails:

@@ -560,6 +560,11 @@
   function detectMode(files) {
     var keys = Object.keys(files || {});
     function has(re) { return keys.some(function (p) { return re.test(p); }); }
+    if (has(/(^|\/)pubspec\.ya?ml$/i) || has(/\.dart$/i)) return 'flutter';
+    if (keys.some(function (p) {
+      if (p.split('/').pop() !== 'package.json' || typeof files[p] !== 'string') return false;
+      return /"(react-native|expo)"\s*:/.test(files[p]);
+    })) return 'reactnative';
     if (has(/\.(c|cc|cpp|cxx|h|hh|hpp)$/i)) return 'ndk';
     if (has(/\.kt$/i)) return 'kotlin';
     if (has(/\.java$/i)) return 'java';

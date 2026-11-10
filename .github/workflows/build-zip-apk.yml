@@ -13,9 +13,9 @@ permissions:
 
 jobs:
   apk:
-    name: assembleDebug (user project)
+    name: build user project
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +37,33 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      - name: Detect project type
+        id: kind
+        run: |
+          set -e
+          TYPE=android
+          if [ -f pubspec.yaml ]; then
+            TYPE=flutter
+          elif [ -f package.json ] && grep -Eq '"(react-native|expo)"' package.json; then
+            TYPE=reactnative
+          fi
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+          echo "project type: $TYPE"
+
+      - name: Read app metadata
+        id: meta
+        if: steps.kind.outputs.type != 'android'
+        run: |
+          set -e
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          meta = json.load(open(".pyapp-build.json", encoding="utf-8"))
+          for key in ("package", "title", "name", "org", "version", "artifact"):
+              print("%s=%s" % (key, meta.get(key, "")))
+          PY
+
       - name: Validate project files
+        if: steps.kind.outputs.type == 'android'
         run: |
           set -e
           test -f settings.gradle -o -f settings.gradle.kts || (echo "::error::missing settings.gradle(.kts)" && exit 1)
@@ -46,33 +72,131 @@ jobs:
           echo "project files: $(find . -type f -not -path './.git/*' | wc -l)"
 
       - name: Pick gradle command
+        if: steps.kind.outputs.type == 'android'
         run: |
-          # gradlew ត្រូវការ gradle-wrapper.jar ដែរ — បើខ្វះ ប្រើ Gradle 8.7 ដែលដំឡើងរួច
+          # gradlew ត្រូវការ gradle-wrapper.jar ដែរ — wrapper ចាស់ (< 8) មិន build AGP 8.x
           if [ -f gradlew ] && { [ -f gradle/wrapper/gradle-wrapper.jar ] || [ -f app/gradle/wrapper/gradle-wrapper.jar ]; }; then
-            chmod +x gradlew
-            echo "GRADLE_CMD=./gradlew" >> "$GITHUB_ENV"
-          else
-            echo "GRADLE_CMD=gradle" >> "$GITHUB_ENV"
+            MAJOR=$(grep -oE 'gradle-[0-9]+(\.[0-9]+)+-(bin|all)' gradle/wrapper/gradle-wrapper.properties 2>/dev/null | head -1 | sed -E 's/gradle-([0-9]+).*/\1/')
+            if [ -n "$MAJOR" ] && [ "$MAJOR" -ge 8 ]; then
+              chmod +x gradlew
+              echo "GRADLE_CMD=./gradlew" >> "$GITHUB_ENV"
+            else
+              echo "wrapper ចាស់ (${MAJOR:-?}) → ប្រើ Gradle 8.7 ដែលដំឡើងរួច"
+            fi
           fi
+          [ -n "${GRADLE_CMD:-}" ] || echo "GRADLE_CMD=gradle" >> "$GITHUB_ENV"
 
       - name: Build APK
+        if: steps.kind.outputs.type == 'android'
         run: |
           set -o pipefail
           $GRADLE_CMD assembleDebug --no-daemon --stacktrace --console=plain 2>&1 | tee build.log
 
-      - name: Collect APK
+      - name: Set up Flutter
+        if: steps.kind.outputs.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Flutter android shell
+        if: steps.kind.outputs.type == 'flutter'
+        env:
+          PKG: ${{ steps.meta.outputs.package }}
+          APP_NAME: ${{ steps.meta.outputs.name }}
+          ORG: ${{ steps.meta.outputs.org }}
+          TITLE: ${{ steps.meta.outputs.title }}
+        run: |
+          set -eo pipefail
+          rm -rf .flutter_seed && mkdir -p .flutter_seed
+          ( cd .flutter_seed && flutter create --platforms=android --org "$ORG" --project-name "$APP_NAME" --no-pub . )
+          rm -rf android
+          cp -a .flutter_seed/android android
+          rm -rf .flutter_seed
+          python3 - "$PKG" "$TITLE" <<'PY'
+          import pathlib, re, sys
+
+          pkg, title = sys.argv[1], sys.argv[2]
+          path = pathlib.Path("android/app/build.gradle.kts")
+          if not path.exists():
+              path = pathlib.Path("android/app/build.gradle")
+          text = path.read_text(encoding="utf-8")
+          text = re.sub(r'namespace\s*=?\s*"[^"]*"', 'namespace = "%s"' % pkg, text)
+          text = re.sub(r'applicationId\s*=?\s*"[^"]*"', 'applicationId = "%s"' % pkg, text)
+          path.write_text(text, encoding="utf-8")
+          manifest = pathlib.Path("android/app/src/main/AndroidManifest.xml")
+          if manifest.exists():
+              body = manifest.read_text(encoding="utf-8")
+              label = (title.replace("&", "&amp;").replace('"', "&quot;")
+                       .replace("<", "&lt;").replace("'", "&apos;"))
+              body = re.sub(r'android:label="[^"]*"',
+                            'android:label="%s"' % label, body, count=1)
+              manifest.write_text(body, encoding="utf-8")
+          print("flutter android package:", pkg)
+          PY
+
+      - name: Build Flutter artifacts
+        if: steps.kind.outputs.type == 'flutter'
+        env:
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+        run: |
+          set -o pipefail
+          {
+            flutter pub get
+            flutter build apk --debug
+            if [ "$ARTIFACT" = "aab" ] || [ "$ARTIFACT" = "both" ]; then
+              flutter build appbundle --release
+            fi
+          } 2>&1 | tee build.log
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-debug.apk out/app.apk
+          if [ -f build/app/outputs/bundle/release/app-release.aab ]; then
+            cp build/app/outputs/bundle/release/app-release.aab out/app.aab
+          fi
+
+      - name: Set up Node 20
+        if: steps.kind.outputs.type == 'reactnative'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build React Native artifacts
+        if: steps.kind.outputs.type == 'reactnative'
+        env:
+          CI: "true"
+          ARTIFACT: ${{ steps.meta.outputs.artifact }}
+        run: |
+          set -o pipefail
+          {
+            npm install --no-audit --no-fund --legacy-peer-deps
+            npx --yes expo prebuild --platform android --no-install
+            ( cd android && ./gradlew assembleDebug --no-daemon --stacktrace --console=plain )
+            if [ "$ARTIFACT" = "aab" ] || [ "$ARTIFACT" = "both" ]; then
+              ( cd android && ./gradlew bundleRelease --no-daemon --stacktrace --console=plain )
+            fi
+          } 2>&1 | tee build.log
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/app.apk
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp android/app/build/outputs/bundle/release/app-release.aab out/app.aab
+          fi
+
+      - name: Collect artifacts
         if: always()
         run: |
+          touch build.log
           mkdir -p out
-          echo "build log lines: $(wc -l < build.log || echo 0)"
-          APK=$(find . -path "*/build/outputs/apk/*.apk" -print | head -1)
-          if [ -n "$APK" ]; then
-            cp "$APK" out/app.apk
-            echo "APK: $APK"
-            ls -l out
-          else
-            echo "::warning::no APK produced"
+          echo "build log lines: $(wc -l < build.log)"
+          if [ ! -f out/app.apk ]; then
+            APK=$(find . -path "*/build/outputs/apk/*.apk" -not -path "./out/*" -print 2>/dev/null | head -1)
+            if [ -n "$APK" ]; then
+              cp "$APK" out/app.apk
+              echo "APK: $APK"
+            else
+              echo "::warning::no APK produced"
+            fi
           fi
+          ls -l out || true
 
       - name: Upload artifact
         if: always()
@@ -81,6 +205,7 @@ jobs:
           name: app-artifacts
           path: |
             out/app.apk
+            out/app.aab
             build.log
           if-no-files-found: warn
 
@@ -90,8 +215,9 @@ jobs:
         with:
           tag_name: ${{ inputs.tag }}
           name: ${{ inputs.tag }}
-          body: "APK ពី Android project ZIP — JDK 17 + Android SDK + Gradle (assembleDebug ពិត)។"
+          body: "APK/AAB ពី project របស់អ្នក — Android (Gradle), Flutter (Flutter SDK) ឬ React Native (Expo)។"
           files: |
             out/app.apk
+            out/app.aab
             build.log
           fail_on_unmatched_files: false

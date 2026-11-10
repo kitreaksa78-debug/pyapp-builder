@@ -20,6 +20,7 @@ from androidproject import (MODES, ORIENTATIONS, PERMISSIONS,
 from androidutil import xml_escape
 from languages import (all_extensions, binary_extensions, language_list,
                        monaco_map, text_extensions)
+from mobileproject import (flutter_project_files, reactnative_project_files)
 
 MAX_FILES = 300
 MAX_FILE_BYTES = 5 * 1024 * 1024          # 5 MB / file
@@ -43,6 +44,11 @@ PKG_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$")
 # មិនមែន generate project ថ្មីជំនួស file របស់អ្នកប្រើ។
 _ANDROID_SETTINGS = ("settings.gradle", "settings.gradle.kts")
 _ANDROID_GRADLE = ("build.gradle", "build.gradle.kts")
+
+FLUTTER_MODE = "flutter"
+REACTNATIVE_MODE = "reactnative"
+# mode ទាំងអស់ដែល IDE ផ្តល់ឲ្យ: Android generator + SDK ពិតដែល CI ដំឡើង (Flutter/RN)
+BUILD_MODES = tuple(MODES) + (FLUTTER_MODE, REACTNATIVE_MODE)
 
 
 def _base(path: str) -> str:
@@ -173,6 +179,54 @@ def repair_android_sources(files: dict) -> dict:
     return out
 
 
+# តម្លៃត្រឹមត្រូវតែមួយគត់របស់ RepositoriesMode (Gradle 6.8+)
+_VALID_REPOS_MODES = ("PREFER_PROJECT", "PREFER_SETTINGS", "FAIL_ON_PROJECT_REPOSITORIES")
+_REPOS_MODE_REF = re.compile(r"RepositoriesMode\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)")
+_REPOS_IMPORT = "import org.gradle.api.initialization.resolve.RepositoriesMode"
+
+
+def repair_gradle_scripts(files: dict) -> dict:
+    """ជួសជុល settings.gradle(.kts) ដែលបញ្ឈប់ Gradle មុនពេល compile។
+
+    កំហុសពិតដែលជួបញឹកញាប់: `RepositoriesMode.FAIL_ON_PROJECT_REPOSISORIES` (សរសេរខុស)
+    → "No such property … for class: RepositoriesMode" ហើយ build បរាជ័យទាំងស្រុង។
+    យើងកែឈ្មោះឲ្យត្រូវ (និងបន្ថែម import ដែលខ្វះ) ដោយមិនប៉ះបន្ទាត់ផ្សេង។
+    """
+    out = dict(files or {})
+    for path, content in list(out.items()):
+        if not isinstance(content, str) or _base(path) not in _ANDROID_SETTINGS:
+            continue
+        fixed = _REPOS_MODE_REF.sub(
+            lambda m: "RepositoriesMode." + (m.group(1) if m.group(1) in _VALID_REPOS_MODES
+                                             else "FAIL_ON_PROJECT_REPOSITORIES"), content)
+        if fixed == content:
+            continue
+        if _REPOS_IMPORT not in fixed:
+            fixed = _REPOS_IMPORT + "\n" + fixed
+        out[path] = fixed
+    return out
+
+
+def _is_react_native(files: dict) -> bool:
+    """React Native/Expo project — package.json មាន dependency ពិត។"""
+    for path, content in (files or {}).items():
+        if not isinstance(content, str) or _base(path).lower() != "package.json":
+            continue
+        try:
+            data = json.loads(content)
+        except ValueError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        deps: dict = {}
+        for key in ("dependencies", "devDependencies", "peerDependencies"):
+            if isinstance(data.get(key), dict):
+                deps.update(data[key])
+        if any(k in deps for k in ("react-native", "expo")):
+            return True
+    return False
+
+
 def project_kind(files: dict) -> str:
     """ប្រភេទ project ដែល import ចូល → ផ្លូវ build ត្រឹមត្រូវ (គ្រប់ app ទាំងអស់)។
 
@@ -183,6 +237,12 @@ def project_kind(files: dict) -> str:
     other   — អ្វីៗផ្សេង → WebView app (មិនបដិសេធ)
     """
     names = list(files)
+    # Flutter project (pubspec.yaml) មាន android/ folder ដែរ → ត្រូវពិនិត្យមុន Manifest
+    if any(_base(n).lower() in ("pubspec.yaml", "pubspec.yml") for n in names) \
+            or any(n.lower().endswith(".dart") for n in names):
+        return FLUTTER_MODE
+    if _is_react_native(files):
+        return REACTNATIVE_MODE
     if is_android_project(files):
         if any(_base(n) in _ANDROID_SETTINGS for n in names):
             return "gradle"
@@ -770,7 +830,7 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
     @bp.get("/api/ide/info")
     def ide_info():
         return jsonify({
-            "modes": list(MODES),
+            "modes": list(BUILD_MODES),
             "permissions": _permission_info(),
             "permission_categories": True,
             "orientations": list(ORIENTATIONS),
@@ -787,7 +847,34 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
         try:
             files = decode_files(data.get("files") or {})
             kind = project_kind(files)
-            if kind in ("gradle", "android"):
+            requested = str(data.get("mode") or "").strip().lower()
+            native_kind = (requested if requested in (FLUTTER_MODE, REACTNATIVE_MODE)
+                           else kind if kind in (FLUTTER_MODE, REACTNATIVE_MODE) else "")
+            if native_kind:
+                # Flutter/React Native — CI ដំឡើង SDK ពិត ហើយ compile APK ពិត
+                title = android_title(data.get("title"), files)
+                raw_pkg = str(data.get("package") or "").strip()
+                package = android_app_id(files) or raw_pkg
+                if not PKG_RE.match(package or ""):
+                    package = ("org.pyapp.flutterapp" if native_kind == FLUTTER_MODE
+                               else "org.pyapp.rnapp")
+                version = str(data.get("version") or "1.0").strip()
+                if not re.match(r"^[0-9]{1,3}(\.[0-9]{1,3}){0,3}$", version):
+                    version = "1.0"
+                build_no = str(data.get("build") or "1").strip()
+                if not (build_no.isdigit() and 0 < int(build_no) <= 999_999):
+                    build_no = "1"
+                artifact = str(data.get("artifact") or "apk").strip().lower()
+                if artifact not in ("apk", "aab", "both"):
+                    artifact = "apk"
+                maker = (flutter_project_files if native_kind == FLUTTER_MODE
+                         else reactnative_project_files)
+                project = maker(title, package, files, version=version,
+                                build=build_no, artifact=artifact)
+                mode = native_kind
+                meta = create_job(title, package, project, artifact=artifact,
+                                  kind=native_kind, clean=True)
+            elif kind in ("gradle", "android"):
                 # Android project ដែល import ចូល → compile ដូចដើម (Gradle + Manifest)
                 title = android_title(data.get("title"), files)
                 package = android_app_id(files) or "org.pyapp.zipbuild"
@@ -798,6 +885,8 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 # icon/theme ដែល Manifest យោង តែគ្មាន → AAPT បរាជ័យ; បង្កើតឲ្យតែខ្វះ
                 project = ensure_android_resources(project, title)
                 project = repair_android_sources(project)
+                # settings.gradle ដែលសរសេរខុស (ឧ. FAIL_ON_PROJECT_REPOSISORIES) → build មិនរត់
+                project = repair_gradle_scripts(project)
                 meta = create_job(title, package, project, artifact=artifact,
                                   kind="zip", workflow=zip_workflow, clean=True)
             else:
