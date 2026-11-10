@@ -180,6 +180,13 @@ jobs:
               && sed -i -E 's|^android\.enableJetifier=.*|android.enableJetifier=false|' android/gradle.properties \
               || echo 'android.enableJetifier=false' >> android/gradle.properties
             grep -E 'jvmargs|enableJetifier|useAndroidX' android/gradle.properties
+            # Expo បង្កើត drawable/splashscreen.xml តែមិនបានសរសេរ color ដែលវាយោង → AAPT បរាជ័យ
+            COLR=android/app/src/main/res/values/colors.xml
+            mkdir -p "$(dirname "$COLR")"
+            [ -f "$COLR" ] || printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<resources>' '</resources>' > "$COLR"
+            grep -q 'name="splashscreen_background"' "$COLR" \
+              || sed -i 's|</resources>|    <color name="splashscreen_background">#ffffff</color>\n</resources>|' "$COLR"
+            cat "$COLR"
             ( cd android && ./gradlew assembleDebug --no-daemon --stacktrace --console=plain )
             if [ "$ARTIFACT" = "aab" ] || [ "$ARTIFACT" = "both" ]; then
               ( cd android && ./gradlew bundleRelease --no-daemon --stacktrace --console=plain )
