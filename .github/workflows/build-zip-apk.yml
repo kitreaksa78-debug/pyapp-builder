@@ -187,13 +187,17 @@ jobs:
             grep -q 'name="splashscreen_background"' "$COLR" \
               || sed -i 's|</resources>|    <color name="splashscreen_background">#ffffff</color>\n</resources>|' "$COLR"
             cat "$COLR"
-            ( cd android && ./gradlew assembleDebug --no-daemon --stacktrace --console=plain )
+            # release → JS bundle (index.android.bundle) ចូល APK ដូច្នេះ app ដំណើរការឯករាជ្យ
+            ( cd android && ./gradlew assembleRelease --no-daemon --stacktrace --console=plain )
             if [ "$ARTIFACT" = "aab" ] || [ "$ARTIFACT" = "both" ]; then
               ( cd android && ./gradlew bundleRelease --no-daemon --stacktrace --console=plain )
             fi
           } 2>&1 | tee build.log
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/app-debug.apk out/app.apk
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          [ -f "$APK" ] || APK=android/app/build/outputs/apk/debug/app-debug.apk
+          cp "$APK" out/app.apk
+          echo "APK source: $APK"
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
             cp android/app/build/outputs/bundle/release/app-release.aab out/app.aab
           fi
