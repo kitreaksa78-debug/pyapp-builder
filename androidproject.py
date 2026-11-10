@@ -146,12 +146,64 @@ _PERMS_MAP: dict[str, dict] = {}
 for _k, _v in PERMISSIONS.items():
     _PERMS_MAP[_k.strip()] = _v
 
-# permission គោលដែល app ដែលបង្កើតថ្មីត្រូវមានស្រាប់ ដើម្បីឲ្យ feature ទូទៅដំណើរការដោយមិនត្រូវកែ manifest
-DEFAULT_PERMISSIONS = (
-    "CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION",
-    "POST_NOTIFICATIONS", "VIBRATE", "READ_MEDIA_IMAGES",
-    "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE",
+# គ្រប់ permission ដែល app អាចប្រកាសបាន — បញ្ចូលទាំងអស់ដោយស្វ័យប្រវត្តិ
+# ទៅគ្រប់ APK ដែល build ក្នុង PyApp Builder។ permission ប្រភេទ signature
+# នឹងមិនត្រូវបានផ្តល់ដោយ Android ទេ តែការប្រកាសវាមិនធ្វើឲ្យ build បរាជ័យ។
+ALL_PERMISSIONS = (
+    # network
+    "INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE", "CHANGE_WIFI_STATE",
+    "CHANGE_NETWORK_STATE", "NEARBY_WIFI_DEVICES",
+    # audio / camera
+    "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "CAPTURE_AUDIO_OUTPUT",
+    "CAMERA", "FLASHLIGHT", "CAPTURE_VIDEO_OUTPUT", "CAPTURE_SECURE_VIDEO_OUTPUT",
+    # contacts / accounts
+    "READ_CONTACTS", "WRITE_CONTACTS", "GET_ACCOUNTS", "READ_PROFILE",
+    "WRITE_PROFILE", "READ_SOCIAL_STREAM", "WRITE_SOCIAL_STREAM",
+    "AUTHENTICATE_ACCOUNTS", "MANAGE_ACCOUNTS", "USE_CREDENTIALS",
+    # phone / calls
+    "READ_PHONE_STATE", "READ_PHONE_NUMBERS", "CALL_PHONE", "ANSWER_PHONE_CALLS",
+    "READ_CALL_LOG", "WRITE_CALL_LOG", "ADD_VOICEMAIL", "USE_SIP",
+    "PROCESS_OUTGOING_CALLS", "CALL_PRIVILEGED", "MODIFY_PHONE_STATE",
+    "READ_PRIVILEGED_PHONE_STATE",
+    # sms / mms
+    "SEND_SMS", "RECEIVE_SMS", "READ_SMS", "RECEIVE_MMS", "RECEIVE_WAP_PUSH",
+    # storage / media
+    "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE",
+    "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO",
+    "READ_MEDIA_VISUAL_USER_SELECTED", "ACCESS_MEDIA_LOCATION",
+    # location
+    "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION",
+    "ACCESS_LOCATION_EXTRA_COMMANDS",
+    # bluetooth / nfc / sensors
+    "BLUETOOTH", "BLUETOOTH_ADMIN", "BLUETOOTH_CONNECT", "BLUETOOTH_SCAN",
+    "BLUETOOTH_ADVERTISE", "NFC", "UWB_RANGING", "TRANSMIT_IR",
+    "BODY_SENSORS", "BODY_SENSORS_BACKGROUND", "ACTIVITY_RECOGNITION",
+    "USE_BIOMETRIC", "USE_FINGERPRINT",
+    # device / system / services
+    "VIBRATE", "WAKE_LOCK", "RECEIVE_BOOT_COMPLETED",
+    "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE",
+    "FOREGROUND_SERVICE_MICROPHONE", "FOREGROUND_SERVICE_CAMERA",
+    "FOREGROUND_SERVICE_LOCATION", "FOREGROUND_SERVICE_DATA_SYNC",
+    "FOREGROUND_SERVICE_MEDIA_PLAYBACK", "FOREGROUND_SERVICE_PHONE_CALL",
+    "FOREGROUND_SERVICE_CONNECTED_DEVICE", "FOREGROUND_SERVICE_HEALTH",
+    "FOREGROUND_SERVICE_MEDIA_PROJECTION", "FOREGROUND_SERVICE_REMOTE_MESSAGING",
+    "FOREGROUND_SERVICE_SYSTEM_EXEMPTED",
+    "POST_NOTIFICATIONS", "SYSTEM_ALERT_WINDOW", "WRITE_SETTINGS",
+    "WRITE_SECURE_SETTINGS", "ACCESS_NOTIFICATION_POLICY",
+    "SCHEDULE_EXACT_ALARM", "USE_EXACT_ALARM", "SET_ALARM",
+    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "REQUEST_INSTALL_PACKAGES",
+    "REQUEST_DELETE_PACKAGES", "INSTALL_SHORTCUT", "UNINSTALL_SHORTCUT",
+    "SET_WALLPAPER", "SET_WALLPAPER_HINTS", "EXPAND_STATUS_BAR",
+    "DISABLE_KEYGUARD", "PACKAGE_USAGE_STATS", "QUERY_ALL_PACKAGES",
+    "REORDER_TASKS", "KILL_BACKGROUND_PROCESSES",
+    "READ_SYNC_SETTINGS", "WRITE_SYNC_SETTINGS", "READ_LOGS", "DUMP",
+    "STATUS_BAR", "ACCESS_SURFACE_FLINGER", "HARDWARE_TEST",
+    "READ_CALENDAR", "WRITE_CALENDAR", "READ_USER_DICTIONARY",
+    "WRITE_USER_DICTIONARY", "SET_TIME_ZONE", "SET_TIME",
 )
+
+# គ្រប់ app ថ្មីទទួលបាន permission ទាំងអស់ស្រាប់
+DEFAULT_PERMISSIONS = ALL_PERMISSIONS
 
 ORIENTATIONS = {"unspecified": "", "portrait": "portrait", "landscape": "landscape",
                 "sensor": "sensor", "behind": "behind", "reverse": "reverse",
@@ -1205,46 +1257,73 @@ def _user_manifest(files: dict) -> tuple[list[str], str]:
     return perms, ("\n".join(blocks) + "\n" if blocks else "")
 
 
+def _inject_manifest_permissions(text: str) -> str:
+    """បញ្ចូល permission ទាំងអស់ទៅ AndroidManifest.xml ដែលមានស្រាប់។"""
+    m = re.search(r"<manifest\b[^>]*>", text)
+    if not m or "xmlns:android" not in m.group(0):
+        return text
+    if m.group(0).endswith("/>") and "</manifest>" not in text:
+        opening = m.group(0)[:-2].rstrip() + ">"
+        text = text[:m.start()] + opening + "</manifest>" + text[m.end():]
+        m = re.search(r"<manifest\b[^>]*>", text)
+        if not m:
+            return text
+    existing = set()
+    for tag in ("uses-permission", "uses-permission-sdk-23"):
+        for mm in re.finditer(r"<%s\b[^>]*android:name=\"([^\"]+)\"" % tag, text):
+            existing.add(mm.group(1))
+    lines = [f'    <uses-permission android:name="android.permission.{p}" />'
+             for p in ALL_PERMISSIONS
+             if f"android.permission.{p}" not in existing]
+    if not lines:
+        return text
+    return text[:m.end()] + "\n" + "\n".join(lines) + text[m.end():]
+
+
+def inject_all_permissions(project: dict) -> dict:
+    """ធានាថា AndroidManifest.xml គ្រប់ path មាន permission ទាំងអស់។"""
+    out = dict(project)
+    for path, content in list(out.items()):
+        if (not isinstance(content, str)
+                or not path.endswith("AndroidManifest.xml")):
+            continue
+        out[path] = _inject_manifest_permissions(content)
+    return out
+
+
 def _permission_blocks(perms: list[str], online: bool,
                          full_perms: dict[str, dict] | None = None) -> str:
-    """Generate <uses-permission> lines.
+    """Generate <uses-permission> lines — គ្រប់ app ទទួលបាន permission ទាំងអស់។
 
-    - បញ្ចូល INTERNET ប្រសិនបើ app អាចប្រើ network (online ឬមាន permission ដែលទាក់ទងនឹង network)
-    - បញ្ចូល ACCESS_NETWORK_STATE ប្រសិនបើមាន permission network ណាមួយ ឬ CAMERA/RECORD_AUDIO
-      (ដែលពិតជាត្រូវការវាស់ signal)
-    - ចែកចាយ permission ដោយ জ Categories: normal / dangerous តែប៉ុណ្ណោះ (special និង signature
-      permission មិនដាក់ក្នុង manifest)
-    - ការពារកំហុស៖ បិទឈ្មោះ permission ដែលមិនត្រឹមត្រូវ ឬឈ្មោះខុសគ្នា (ឧ. RECEIVE_SMS មាន space)
+    - ALL_PERMISSIONS ត្រូវបានបញ្ចូលជានិច្ច (normal + dangerous + special + signature)
+    - app offline មិនបាន INTERNET/ACCESS_NETWORK_STATE ដើម្បីរក្សា behavior ដើម
+    - permission ដែលអ្នកប្រើស្នើបន្ថែមត្រូវបានបញ្ចូលដែរ (បើមិនមានស្រាប់)
     """
     active = full_perms if full_perms is not None else _PERMS_MAP
     names: list[str] = []
     if online:
         names.append("android.permission.INTERNET")
-    # ACCESS_NETWORK_STATE មកជាមួយ INTERNET ព្រោះកូដ bridge ប្រើវាដើម្បីដឹងស្ថានភាព network
-    # (app ដែលជ្រើស Offline មិនត្រូវមាន permission network ទេ)
-    perms_set = set(perms)
-    if online or "ACCESS_NETWORK_STATE" in perms_set:
+    if online:
         names.append("android.permission.ACCESS_NETWORK_STATE")
     seen = set(names)
+    for name in ALL_PERMISSIONS:
+        if not online and name in ("INTERNET", "ACCESS_NETWORK_STATE"):
+            continue
+        pname = f"android.permission.{name}"
+        if pname not in seen:
+            seen.add(pname)
+            names.append(pname)
     for name in perms:
         name = name.strip()
-        info = active.get(name)
-        if info is None:
+        if not online and name in ("INTERNET", "ACCESS_NETWORK_STATE"):
             continue
-        kind = info.get("kind", "normal")
-        if kind in ("normal", "dangerous"):
-            pname = f"android.permission.{name}"
-            if pname not in seen:
-                seen.add(pname)
-                names.append(pname)
-    lines = []
-    for name in names:
-        extra = active.get(name.split(".")[-1], {}).get("extra")
-        if extra:
-            lines.append(f'    <uses-permission android:name="{name}" {extra} />')
-        else:
-            lines.append(f'    <uses-permission android:name="{name}" />')
-    return "\n".join(lines) + "\n"
+        if active.get(name) is None:
+            continue
+        pname = f"android.permission.{name}"
+        if pname not in seen:
+            seen.add(pname)
+            names.append(pname)
+    return "\n".join(f'    <uses-permission android:name="{n}" />' for n in names) + "\n"
 
 
 def _source_package(source: str, default: str) -> str:

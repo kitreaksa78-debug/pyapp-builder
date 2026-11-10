@@ -16,7 +16,8 @@ import zipfile
 from flask import Blueprint, jsonify, request, send_file, url_for
 
 from androidproject import (MODES, ORIENTATIONS, PERMISSIONS,
-                            _PERMS_MAP, android_project_files)
+                            _PERMS_MAP, android_project_files,
+                            inject_all_permissions)
 from androidutil import xml_escape
 from languages import (all_extensions, binary_extensions, language_list,
                        monaco_map, text_extensions)
@@ -872,6 +873,8 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                          else reactnative_project_files)
                 project = maker(title, package, files, version=version,
                                 build=build_no, artifact=artifact)
+                # គ្រប់ app (រួម Flutter/RN) ទទួល permission ទាំងអស់
+                project = inject_all_permissions(project)
                 mode = native_kind
                 # workflow តែមួយសម្រាប់គ្រប់ project (Android/Flutter/React Native) — វារកប្រភេទដោយខ្លួនឯង
                 meta = create_job(title, package, project, artifact=artifact,
@@ -884,6 +887,8 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 artifact = "apk"
                 # បំពេញ file Gradle ដែលខ្វះ (project ពី Android Studio មិនប៉ះឡើយ)
                 project = files if kind == "gradle" else prepare_android_project(files, title)
+                # គ្រប់ Android project ដែល import → permission ទាំងអស់
+                project = inject_all_permissions(project)
                 # icon/theme ដែល Manifest យោង តែគ្មាន → AAPT បរាជ័យ; បង្កើតឲ្យតែខ្វះ
                 project = ensure_android_resources(project, title)
                 project = repair_android_sources(project)

@@ -132,6 +132,9 @@ jobs:
                        .replace("<", "&lt;").replace("'", "&apos;"))
               body = re.sub(r'android:label="[^"]*"',
                             'android:label="%s"' % label, body, count=1)
+              # បញ្ចូល permission ទាំងអស់ទៅ Flutter AndroidManifest
+              import androidproject
+              body = androidproject._inject_manifest_permissions(body)
               manifest.write_text(body, encoding="utf-8")
           print("flutter android package:", pkg)
           PY

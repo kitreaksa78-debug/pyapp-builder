@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import re
 
+from androidproject import ALL_PERMISSIONS
+
 MARKER = ".pyapp-build.json"
 
 FLUTTER_MAIN = r'''import 'package:flutter/material.dart';
@@ -256,7 +258,8 @@ def reactnative_project_files(title: str, package: str, files: dict, *,
         "orientation": "portrait",
         "userInterfaceStyle": "automatic",
         "newArchEnabled": False,
-        "android": {"package": package, "versionCode": int(code)},
+        "android": {"package": package, "versionCode": int(code),
+                    "permissions": list(ALL_PERMISSIONS)},
     }}, ensure_ascii=False, indent=2) + "\n"
     out = {
         "package.json": _rn_package(name, title, user_pkg),
