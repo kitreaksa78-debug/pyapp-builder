@@ -1,0 +1,10 @@
+{
+  "type": "reactnative",
+  "title": "QA React Native",
+  "package": "org.pyapp.qarn",
+  "name": "qa_react_native",
+  "org": "org.pyapp",
+  "version": "1.0.0",
+  "build": "1",
+  "artifact": "apk"
+}

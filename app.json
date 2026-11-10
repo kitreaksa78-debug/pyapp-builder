@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "QA React Native",
+    "slug": "qa-react-native",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "android": {
+      "package": "org.pyapp.qarn",
+      "versionCode": 1
+    }
+  }
+}
