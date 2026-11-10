@@ -1,16 +1,6 @@
-__pycache__/
-*.pyc
-jobs/
-venv/
-.env
-files/
-.test/
-
-# build artifacts of generated Android projects (never commit)
-.gradle/
+.dart_tool/
 build/
-app/build/
-local.properties
-out/
-*.iml
-.idea/
+.flutter-plugins
+.flutter-plugins-dependencies
+android/.gradle/
+android/local.properties

@@ -1,0 +1,10 @@
+{
+  "type": "flutter",
+  "title": "QA Flutter Counter",
+  "package": "org.pyapp.qaflutter",
+  "name": "qa_flutter_counter",
+  "org": "org.pyapp",
+  "version": "1.0.0",
+  "build": "1",
+  "artifact": "apk"
+}
