@@ -6,6 +6,7 @@
 - `kotlin`   : `*.kt` របស់អ្នកប្រើ → compile ដោយ Kotlin (Gradle) ជា app native
 - `java`     : `*.java` របស់អ្នកប្រើ → compile ដោយ Java (Gradle) ជា app native
 - `ndk`      : app native + C/C++ (JNI) → NDK + CMake → `libnativeapp.so`
+- `python`   : `*.py` របស់អ្នកប្រើ → Chaquopy (CPython ខ្លួនឯង) ដំណើរការលើ Android
 
 Gradle + Android SDK/NDK compile ក្នុង GitHub Actions។
 """
@@ -16,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 from androidutil import MAX_ICON_BYTES, launcher_icons, xml_escape
 
-MODES = ("webview", "kotlin", "java", "ndk")
+MODES = ("webview", "kotlin", "java", "ndk", "python")
 
 # NDK/CMake version ត្រូវតែត្រូវនឹងអ្វីដែល workflow ដំឡើង (sdkmanager --install "ndk;<ver>")។
 NDK_VERSION = "26.1.10909125"
@@ -843,10 +844,69 @@ MANIFEST = '''<?xml version="1.0" encoding="utf-8"?>
 </manifest>
 '''
 
+# ---------------------------------------------------------------- Python
+# Chaquopy ខ្ចប់ CPython ពិតប្រាកដចូល APK (Maven Central) — គ្មាន toolchain បន្ថែមក្នុង CI។
+# 15.0.1 គាំទ្រ AGP 8.1–8.5 (យើងប្រើ 8.5.2) និង Python 3.8 លើ ABI ទាំង 4។
+CHAQUOPY_VERSION = "15.0.1"
+CHAQUOPY_ROOT = '    id("com.chaquo.python") version "%s" apply false\n' % CHAQUOPY_VERSION
+CHAQUOPY_PLUGIN = '    id("com.chaquo.python")\n'
+CHAQUOPY_CONFIG = '''
+chaquopy {
+    defaultConfig {
+        version = "3.8"
+    }
+}
+'''
+
+DEFAULT_MAIN_PY = '''"""app Python — MainActivity ហៅ main() តាម Chaquopy។"""
+
+
+def main():
+    import platform
+    return "សួស្តីពី Python " + platform.python_version() + " 🐍"
+'''
+
+# MainActivity ខាងក្រោមជា host: បើក CPython ហើយបង្ហាញអ្វីដែល main.py ត្រឡប់មកវិញ។
+PYTHON_KT = '''package @@PKG@@
+
+import android.app.Activity
+import android.graphics.Color
+import android.os.Bundle
+import android.widget.LinearLayout
+import android.widget.TextView
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
+
+class MainActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val message = try {
+            if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+            Python.getInstance().getModule("main").callAttr("main").toString()
+        } catch (e: Exception) {
+            "Python error: " + (e.message ?: e.toString())
+        }
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(56, 140, 56, 56)
+            setBackgroundColor(Color.parseColor("#0D1117"))
+        }
+        val label = TextView(this).apply {
+            text = message
+            textSize = 18f
+            setTextColor(Color.WHITE)
+        }
+        root.addView(label)
+        setContentView(root)
+    }
+}
+'''
+
 ROOT_GRADLE = '''plugins {
     id("com.android.application") version "8.5.2" apply false
     id("org.jetbrains.kotlin.android") version "1.9.24" apply false
-}
+@@CHAQUOPY_ROOT@@}
 '''
 
 SETTINGS_GRADLE = '''pluginManagement {
@@ -877,7 +937,7 @@ kotlin.code.style=official
 APP_GRADLE = '''plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-}
+@@CHAQUOPY_PLUGIN@@}
 
 android {
     namespace = "@@PKG@@"
@@ -932,7 +992,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
         jvmTarget = "17"
     }
 }
-@@DEPENDENCIES@@'''
+@@CHAQUOPY_CONFIG@@@@DEPENDENCIES@@'''
 
 STRINGS = '''<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -1200,7 +1260,7 @@ def android_project_files(title: str, package: str, mode: str,
     package = package.strip()
     mode = (mode or "webview").strip().lower()
     if mode not in MODES:
-        raise ValueError("mode មិនត្រឹមត្រូវ — ត្រូវជា webview, kotlin, java ឬ ndk")
+        raise ValueError("mode មិនត្រឹមត្រូវ — ត្រូវជា webview, kotlin, java, ndk ឬ python")
     if not re.match(r"^[a-z][a-z0-9_]{1,30}(\.[a-z][a-z0-9_]{1,30}){1,3}$", package):
         raise ValueError("package មិនត្រឹមត្រូវ — ឧ. org.pyapp.demo")
     orientation = (orientation or "unspecified").strip().lower()
@@ -1238,12 +1298,22 @@ def android_project_files(title: str, package: str, mode: str,
             continue
         src[name] = content
 
+    py_files: dict = {}
     if mode == "webview":
         html = next((c for n, c in src.items() if n.endswith("index.html")), None)
         if html is None:
             raise ValueError("រកមិនឃើញ index.html — WebView app ត្រូវការ index.html")
         sources = {f"app/src/main/java/{path}/MainActivity.kt":
                    WEBVIEW_KT.replace("@@PKG@@", package)}
+    elif mode == "python":
+        sources = {f"app/src/main/java/{path}/MainActivity.kt":
+                   PYTHON_KT.replace("@@PKG@@", package)}
+        for n, c in src.items():
+            if n.lower().endswith(".py"):
+                py_files[n.rsplit("/", 1)[-1]] = c
+        # MainActivity ហៅ `main` module — ត្រូវមាន main.py ជានិច្ច
+        if "main.py" not in py_files:
+            py_files["main.py"] = DEFAULT_MAIN_PY
     else:
         # `ndk` អាចប្រើ Kotlin ឬ Java ជា host — ជ្រើសតាម file ដែលអ្នកប្រើដាក់
         if mode == "java":
@@ -1346,7 +1416,8 @@ def android_project_files(title: str, package: str, mode: str,
 
     out = {
         "settings.gradle.kts": SETTINGS_GRADLE.replace("@@ROOT@@", package.split(".")[-1]),
-        "build.gradle.kts": ROOT_GRADLE,
+        "build.gradle.kts": ROOT_GRADLE.replace(
+            "@@CHAQUOPY_ROOT@@", CHAQUOPY_ROOT if mode == "python" else ""),
         "gradle.properties": GRADLE_PROPS.replace(
             "@@USE_ANDROIDX@@", "true" if needs_androidx else "false"),
         "app/build.gradle.kts": (APP_GRADLE.replace("@@PKG@@", package)
@@ -1354,6 +1425,10 @@ def android_project_files(title: str, package: str, mode: str,
                                  .replace("@@BUILD@@", str(build))
                                  .replace("@@NDK_BLOCK@@", ndk_block)
                                  .replace("@@NDK_CONFIG@@", ndk_config)
+                                 .replace("@@CHAQUOPY_PLUGIN@@",
+                                          CHAQUOPY_PLUGIN if mode == "python" else "")
+                                 .replace("@@CHAQUOPY_CONFIG@@",
+                                          CHAQUOPY_CONFIG if mode == "python" else "")
                                  .replace("@@DEPENDENCIES@@", dependencies)),
         "app/src/main/AndroidManifest.xml": (MANIFEST
             .replace("@@FEATURES@@", features_block)
@@ -1372,6 +1447,8 @@ def android_project_files(title: str, package: str, mode: str,
     }
     out.update(sources)
     out.update(native_extra)
+    for name, content in py_files.items():
+        out[f"app/src/main/python/{name}"] = content
     if mode == "webview":
         for name, content in files.items():
             out[f"app/src/main/assets/www/{name}"] = content

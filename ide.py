@@ -178,7 +178,7 @@ def project_kind(files: dict) -> str:
 
     gradle  — Android project ពិត (Manifest + settings.gradle) → build ដូចដើម
     android — Android project ខ្វះ file Gradle → បំពេញឲ្យ រួច build
-    ndk/kotlin/java — source សុទ្ធ → generate host app ហើយ compile
+    ndk/kotlin/java/python — source សុទ្ធ → generate host app ហើយ compile
     webview — HTML/CSS/JS → WebView app
     other   — អ្វីៗផ្សេង → WebView app (មិនបដិសេធ)
     """
@@ -187,6 +187,8 @@ def project_kind(files: dict) -> str:
         if any(_base(n) in _ANDROID_SETTINGS for n in names):
             return "gradle"
         return "android"
+    if any(n.lower().endswith(".py") for n in names):
+        return "python"
     if any(n.lower().endswith((".c", ".cc", ".cpp", ".cxx")) for n in names):
         return "ndk"
     if any(n.endswith(".kt") for n in names):

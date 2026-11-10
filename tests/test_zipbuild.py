@@ -276,7 +276,8 @@ ok(ide.project_kind({'index.html': ''}) == 'webview', 'HTML → webview')
 ok(ide.project_kind({'site/home.html': ''}) == 'webview', 'HTML ឈ្មោះផ្សេង → webview')
 ok(ide.project_kind({'MainActivity.kt': ''}) == 'kotlin', '.kt → kotlin')
 ok(ide.project_kind({'native-lib.cpp': ''}) == 'ndk', '.cpp → ndk')
-ok(ide.project_kind({'main.py': ''}) == 'other', 'ភាសាផ្សេង → other (មិនបដិសេធ)')
+ok(ide.project_kind({'main.py': ''}) == 'python', '.py → python (Chaquopy)')
+ok(ide.project_kind({'notes.txt': ''}) == 'other', 'file មិនស្គាល់ → other (មិនបដិសេធ)')
 shim = ide.ensure_index_html({'site/home.html': '<h1>x</h1>'}, 'My App')
 ok('site/home.html' in shim['index.html'], 'បង្កើត index.html ជា shim ទៅ page ដែលមាន')
 ok('index.html' in ide.ensure_index_html({'main.py': 'x'}, 'Py'), 'គ្មាន HTML → index.html អប្បបរមា')
@@ -362,6 +363,7 @@ _samples = {
     'kotlin': {},
     'java': {},
     'ndk': {},
+    'python': {'main.py': 'def main():\n    return "hi"\n'},
 }
 for _mode, _files in _samples.items():
     _pkg = 'org.pyapp.qa' + _mode
@@ -396,6 +398,15 @@ for _mode, _files in _samples.items():
                 ok(False, 'mode %s: local val %s ត្រូវ property ក្នុង apply '
                           '(Val cannot be reassigned)' % (_mode, _var))
                 break
+    if _mode == 'python':
+        ok('app/src/main/python/main.py' in _proj, 'python mode ដាក់ main.py')
+        ok('com.chaquo.python' in _proj.get('build.gradle.kts', ''),
+           'python mode ប្រកាស Chaquopy plugin ក្នុង root gradle')
+        ok('chaquopy {' in _proj.get('app/build.gradle.kts', ''),
+           'python mode មាន chaquopy block ក្នុង app gradle')
+    else:
+        ok('com.chaquo.python' not in _proj.get('build.gradle.kts', ''),
+           'mode %s មិនបញ្ចូល Chaquopy' % _mode)
     ok('hint' not in _re.findall(r'\bval\s+(\w+)\s*=\s*TextView',
                                  _proj.get('app/src/main/java/org/pyapp/qa'
                                            + _mode + '/MainActivity.kt', '')),
