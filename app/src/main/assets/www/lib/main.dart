@@ -1,0 +1,1 @@
+void main() { runApp(App()); }
