@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>អង្គរវត្ត 3D — សមរភូមិព្រះអាទិត្យលិច</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --gold:#e8c37a; --gold-2:#f6e3b4; --stone:#d9c39b;
+    --ink:#120d08; --blood:#c0392b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0805;
+    font-family:'Battambang','Noto Sans Khmer',system-ui,sans-serif;color:#f4e7cd;
+    user-select:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* ---------- film look ---------- */
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:
+      radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 42%, rgba(20,9,2,.42) 78%, rgba(8,4,1,.78) 100%),
+      linear-gradient(to bottom, rgba(255,190,110,.07), rgba(0,0,0,0) 28%, rgba(0,0,0,0) 66%, rgba(20,10,3,.28));
+    mix-blend-mode:multiply}
+  #grain{position:fixed;inset:-50%;pointer-events:none;z-index:6;opacity:.055;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.6'/></svg>");
+    animation:grain 1.2s steps(3) infinite}
+  @keyframes grain{0%{transform:translate(0,0)}33%{transform:translate(-3%,2%)}66%{transform:translate(2%,-3%)}100%{transform:translate(0,0)}}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .45s ease}
+  #hud.on{opacity:1}
+  .topbar{position:absolute;top:18px;left:22px;right:22px;display:flex;justify-content:space-between;align-items:flex-start}
+  .brand{font-family:'Battambang',serif;font-size:20px;letter-spacing:.5px;color:var(--gold-2);
+    text-shadow:0 2px 14px rgba(0,0,0,.85), 0 0 26px rgba(232,195,122,.25)}
+  .brand span{font-size:11px;letter-spacing:3px;color:#ffe9bd;opacity:.75;vertical-align:middle;
+    border:1px solid rgba(232,195,122,.45);border-radius:4px;padding:1px 5px;margin-left:6px}
+  .stats{display:flex;gap:10px}
+  .stat{min-width:76px;padding:7px 12px;border-radius:10px;text-align:center;
+    background:linear-gradient(180deg,rgba(24,15,7,.72),rgba(24,15,7,.42));
+    border:1px solid rgba(232,195,122,.22);backdrop-filter:blur(6px)}
+  .stat b{display:block;font-family:'Battambang',serif;font-size:19px;color:#fff3d6;line-height:1.1}
+  .stat span{font-size:11px;color:#cbb994;letter-spacing:.4px}
+
+  #crosshair{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%);
+    transition:transform .09s ease}
+  #crosshair i{position:absolute;background:rgba(255,246,225,.9);box-shadow:0 0 6px rgba(255,200,120,.65)}
+  #crosshair i:nth-child(1){left:50%;top:0;width:1.5px;height:8px;transform:translateX(-50%)}
+  #crosshair i:nth-child(2){left:50%;bottom:0;width:1.5px;height:8px;transform:translateX(-50%)}
+  #crosshair i:nth-child(3){top:50%;left:0;height:1.5px;width:8px;transform:translateY(-50%)}
+  #crosshair i:nth-child(4){top:50%;right:0;height:1.5px;width:8px;transform:translateY(-50%)}
+  #crosshair em{position:absolute;left:50%;top:50%;width:3px;height:3px;border-radius:50%;
+    transform:translate(-50%,-50%);background:rgba(255,180,120,.95)}
+  #crosshair.fire{transform:translate(-50%,-50%) scale(1.45)}
+
+  #hitmarker{position:absolute;left:50%;top:50%;width:34px;height:34px;transform:translate(-50%,-50%) rotate(45deg);
+    opacity:0;transition:opacity .12s ease}
+  #hitmarker.on{opacity:1}
+  #hitmarker i{position:absolute;background:#ffdca8;border-radius:2px}
+  #hitmarker i:nth-child(1){left:50%;top:0;width:2px;height:9px;transform:translateX(-50%)}
+  #hitmarker i:nth-child(2){left:50%;bottom:0;width:2px;height:9px;transform:translateX(-50%)}
+  #hitmarker i:nth-child(3){top:50%;left:0;height:2px;width:9px;transform:translateY(-50%)}
+  #hitmarker i:nth-child(4){top:50%;right:0;height:2px;width:9px;transform:translateY(-50%)}
+
+  .bottombar{position:absolute;left:26px;right:26px;bottom:22px;display:flex;justify-content:space-between;align-items:flex-end}
+  .health{width:min(280px,42vw)}
+  .health .label{font-size:11px;letter-spacing:2px;color:#d6c4a2;margin-bottom:6px;text-shadow:0 1px 8px #000}
+  .bar{height:11px;border-radius:99px;background:rgba(15,10,6,.7);border:1px solid rgba(232,195,122,.28);
+    overflow:hidden;box-shadow:inset 0 1px 4px rgba(0,0,0,.7)}
+  #hpfill{height:100%;width:100%;border-radius:99px;
+    background:linear-gradient(90deg,#8e1f12,#d4451f 55%,#f0a24a);
+    box-shadow:0 0 14px rgba(240,140,60,.45);transition:width .18s ease}
+  .ammo{text-align:right;line-height:1}
+  .ammo b{font-family:'Battambang',serif;font-size:38px;color:#fff4da;text-shadow:0 2px 16px rgba(0,0,0,.9)}
+  .ammo span{font-size:15px;color:#bda882;margin-left:4px}
+  #reloadnote{font-size:12px;color:#ffb27a;letter-spacing:.6px;margin-top:4px;opacity:0;transition:opacity .2s}
+  #reloadnote.on{opacity:1}
+
+  #toast{position:absolute;left:50%;top:24%;transform:translate(-50%,-6px);text-align:center;
+    opacity:0;transition:opacity .35s ease, transform .35s ease}
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+  #toast b{display:block;font-family:'Battambang',serif;font-size:27px;color:#ffe6b8;
+    text-shadow:0 3px 22px rgba(0,0,0,.9), 0 0 34px rgba(255,170,70,.5)}
+  #toast span{font-size:13px;color:#e0cdab;letter-spacing:1px}
+
+  #damage{position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at 50% 50%, rgba(190,20,10,0) 42%, rgba(190,20,10,.62) 100%);
+    transition:opacity .35s ease}
+
+  /* ---------- menu ---------- */
+  #menu{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(38,20,6,.55), rgba(6,3,1,.9));
+    backdrop-filter:blur(3px);transition:opacity .5s ease}
+  #menu.hide{opacity:0;pointer-events:none}
+  .panel{text-align:center;max-width:640px;padding:38px 34px 30px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(30,18,8,.72),rgba(16,9,4,.62));
+    border:1px solid rgba(232,195,122,.24);
+    box-shadow:0 40px 120px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,225,170,.14)}
+  .panel h1{margin:0;font-family:'Battambang',serif;font-size:clamp(32px,6vw,54px);color:#ffe9c0;
+    letter-spacing:1px;text-shadow:0 6px 40px rgba(255,150,60,.35)}
+  .panel h1 span{font-size:.42em;letter-spacing:8px;color:#ffcf8a;vertical-align:middle;
+    border:1px solid rgba(255,207,138,.5);border-radius:6px;padding:2px 8px;margin-left:10px}
+  .panel .sub{margin:12px 0 26px;color:#d9c6a4;font-size:15px;letter-spacing:.4px}
+  button{font-family:'Battambang',serif;font-size:20px;letter-spacing:1px;color:#26160a;cursor:pointer;
+    padding:14px 46px;border:0;border-radius:99px;
+    background:linear-gradient(180deg,#ffe6b4,#e2b263 60%,#c78f3e);
+    box-shadow:0 14px 40px rgba(226,169,90,.35), inset 0 1px 0 rgba(255,255,255,.7);
+    transition:transform .15s ease, box-shadow .15s ease}
+  button:hover{transform:translateY(-2px);box-shadow:0 20px 52px rgba(226,169,90,.45), inset 0 1px 0 rgba(255,255,255,.8)}
+  .keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 22px;margin-top:26px;
+    font-size:13px;color:#cbb894;text-align:left}
+  kbd{display:inline-block;min-width:26px;padding:2px 7px;border-radius:6px;font-family:inherit;
+    background:rgba(255,235,200,.1);border:1px solid rgba(232,195,122,.3);color:#ffe7bd;margin-right:8px;font-size:12px}
+  .hint{margin-top:20px;font-size:12px;color:#9c8a6d;letter-spacing:.4px}
+  @media (max-width: 560px){
+    .topbar{top:10px;left:12px;right:12px}
+    .brand{font-size:14px;line-height:1.3}
+    .brand span{display:none}
+    .stats{gap:6px}
+    .stat{min-width:52px;padding:5px 7px}
+    .stat b{font-size:14px}
+    .stat span{font-size:9px;letter-spacing:0}
+    .bottombar{left:14px;right:14px;bottom:14px}
+    .ammo b{font-size:28px}
+    .health{width:min(190px,46vw)}
+  }
+  @media (max-width: 560px){
+    .panel{padding:26px 20px 22px;margin:0 12px}
+    .keys{gap:6px 12px;font-size:12px}
+  }
+  #touch{display:none;position:fixed;inset:0;z-index:12;pointer-events:none}
+  body.touch #touch{display:block}
+  #stick{position:absolute;left:26px;bottom:104px;width:136px;height:136px;border-radius:50%;
+    background:radial-gradient(circle,rgba(22,13,6,.45),rgba(22,13,6,.14));
+    border:1px solid rgba(232,195,122,.35);pointer-events:auto;touch-action:none;
+    box-shadow:inset 0 0 30px rgba(0,0,0,.45)}
+  #knob{position:absolute;left:50%;top:50%;width:58px;height:58px;border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle at 38% 32%,#ffe9bd,#d89f56);
+    box-shadow:0 8px 20px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.7)}
+  .tbtns{position:absolute;right:20px;bottom:118px;display:flex;flex-direction:column;gap:12px;align-items:flex-end}
+  .tbtn{pointer-events:auto;border:0;border-radius:50%;font-family:'Battambang',serif;color:#2a1a0c;
+    background:radial-gradient(circle at 38% 32%,rgba(255,235,196,.96),rgba(198,142,66,.96));
+    box-shadow:0 10px 26px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.65);
+    touch-action:none;user-select:none}
+  .tbtn:active{transform:scale(.94)}
+  .tbtn.fire{width:104px;height:104px;font-size:19px;border:2px solid rgba(255,228,175,.75)}
+  .tbtn.small{width:58px;height:58px;font-size:22px;line-height:1}
+  body.touch .health{bottom:0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+<div id="grain"></div>
+
+<div id="hud">
+  <div class="topbar">
+    <div class="brand">អង្គរវត្ត <span>3D</span></div>
+    <div class="stats">
+      <div class="stat"><b id="score">0</b><span>ពិន្ទុ</span></div>
+      <div class="stat"><b id="wave">1</b><span>រលក</span></div>
+      <div class="stat"><b id="enemies">0</b><span>យក្ស</span></div>
+    </div>
+  </div>
+
+  <div id="crosshair"><i></i><i></i><i></i><i></i><em></em></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+
+  <div class="bottombar">
+    <div class="health">
+      <div class="label">ជីវិត</div>
+      <div class="bar"><div id="hpfill"></div></div>
+    </div>
+    <div class="ammo">
+      <b id="ammo">30</b><span>/ 30</span>
+      <div id="reloadnote">កំពុងដាក់គ្រាប់…</div>
+    </div>
+  </div>
+
+  <div id="touch">
+    <div id="stick"><i id="knob"></i></div>
+    <div class="tbtns">
+      <button id="btnReload" class="tbtn small" aria-label="reload">⟳</button>
+      <button id="btnJump" class="tbtn small" aria-label="jump">⤒</button>
+      <button id="btnFire" class="tbtn fire">បាញ់</button>
+    </div>
+  </div>
+
+  <div id="toast"><b></b><span></span></div>
+  <div id="damage"></div>
+</div>
+
+<div id="menu">
+  <div class="panel">
+    <h1>អង្គរវត្ត <span>3D</span></h1>
+    <p class="sub">សមរភូមិព្រះអាទិត្យលិច — ការពារប្រាសាទពីខ្មោចយក្ស</p>
+    <button id="startBtn">ចាប់ផ្តើមបាញ់</button>
+    <div class="keys">
+      <div><kbd>W A S D</kbd>ដើរ</div>
+      <div><kbd>Mouse</kbd>មើល</div>
+      <div><kbd>Click</kbd>បាញ់</div>
+      <div><kbd>R</kbd>ដាក់គ្រាប់</div>
+      <div><kbd>Shift</kbd>រត់</div>
+      <div><kbd>Space</kbd>លោត</div>
+    </div>
+    <div class="hint">សម្រាប់កុំព្យូទ័រ • ចុចលើផ្ទាំងដើម្បីចាប់យកកណ្តុរ</div>
+  </div>
+</div>
+
+<script src="./vendor/three.min.js?v=12"></script>
+<script defer src="./src/main.js?v=12"></script>
+  <script src="appforge-bridge.js"></script>
+</body>
+</html>
