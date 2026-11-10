@@ -401,6 +401,27 @@ for _mode, _files in _samples.items():
                                            + _mode + '/MainActivity.kt', '')),
        'mode %s មិនមាន local val hint (shadow EditText.hint)' % _mode)
 
+print('== parse_problems: Gradle script error ==')
+_gradle_log = (
+    "FAILURE: Build failed with an exception.\n\n"
+    "* Where:\n"
+    "Settings file '/home/runner/work/x/x/settings.gradle' line: 9\n\n"
+    "* What went wrong:\n"
+    "A problem occurred evaluating settings 'x'.\n"
+    "> No such property: FAIL_ON_PROJECT_REPOSISORIES for class: "
+    "org.gradle.api.initialization.resolve.RepositoriesMode\n\n"
+    "* Try:\n"
+    "> Run with --info or --debug option\n")
+_probs = ide.parse_problems(_gradle_log)
+ok(len(_probs) == 1, 'gradle script error → 1 problem (%d)' % len(_probs))
+if _probs:
+    ok('FAIL_ON_PROJECT_REPOSISORIES' in _probs[0]['message'],
+       'problem រក្សាសារ Gradle ពិត')
+    eq(_probs[0]['file'], 'settings.gradle', 'problem ចង្អុល settings.gradle')
+    eq(_probs[0]['line'], 9, 'problem ចង្អុលបន្ទាត់ 9')
+ok(ide.parse_problems('no failure here') == [], 'log ធម្មតា → គ្មាន problem')
+ok(ide.parse_problems('') == [], 'log ទទេ → គ្មាន problem')
+
 print('')
 if fails:
     print('FAILED %d checks' % fails)

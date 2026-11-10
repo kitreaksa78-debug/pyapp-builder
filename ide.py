@@ -684,6 +684,40 @@ def _short_path(path: str) -> str:
     return path.rsplit("/", 1)[-1]
 
 
+def _gradle_config_problems(logs: str) -> list[dict]:
+    """Gradle បរាជ័យពេលអាន script (settings/build.gradle) → `* What went wrong:` + `>`។
+
+    បញ្ហាប្រភេទនេះគ្មាន file:line ក្នុងទម្រង់ `e:` ធម្មតា ដូច្នេះ parse_problems មិនឃើញ
+    ហើយ UI បង្ហាញតែ «Build បរាជ័យ»។ នៅទីនេះយកសារ Gradle ពិត + file/line ដែលវាបញ្ជាក់។
+    """
+    text = (logs or "").replace("\r", "")
+    if "What went wrong:" not in text:
+        return []
+    lines = [ln.strip() for ln in text.split("\n")]
+    found: list[dict] = []
+    for i, line in enumerate(lines):
+        if not line.endswith("What went wrong:"):
+            continue
+        body: list[str] = []
+        for nxt in lines[i + 1:]:
+            if not nxt:
+                if body:
+                    break
+                continue
+            if nxt.startswith(("* ", "BUILD ", "##[")):
+                break
+            body.append(nxt.lstrip("> ").strip())
+        msg = " ".join(body).strip()
+        if msg:
+            found.append({"file": "", "line": 0, "severity": "error",
+                          "message": msg[:600]})
+    m = re.search(r"(?:Settings|Build) file '([^']+)' line: (\d+)", text)
+    if found and m:
+        found[0]["file"] = _short_path(m.group(1))
+        found[0]["line"] = int(m.group(2))
+    return found
+
+
 def parse_problems(logs: str) -> list[dict]:
     """បំលែង log របស់ Gradle/Kotlin/Java/CMake → Problems ដែលចុចទៅ file បាន។
 
@@ -718,7 +752,13 @@ def parse_problems(logs: str) -> list[dict]:
             break
         if len(out) >= MAX_PROBLEMS:
             break
-    return out
+    for problem in _gradle_config_problems(logs):
+        key = (problem["file"], problem["line"], problem["message"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(problem)
+    return out[:MAX_PROBLEMS]
 
 
 def create_blueprint(create_job, validate_common, repo: str, token: str,
