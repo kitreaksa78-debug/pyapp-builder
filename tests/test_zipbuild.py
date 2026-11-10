@@ -433,6 +433,33 @@ if _probs:
 ok(ide.parse_problems('no failure here') == [], 'log ធម្មតា → គ្មាន problem')
 ok(ide.parse_problems('') == [], 'log ទទេ → គ្មាន problem')
 
+print('== គ្រប់ភាសា file → បង្កើត project បាន (គ្មាន error) ==')
+_matrix = {
+    'MainActivity.kt': 'kotlin', 'Main.java': 'java', 'native-lib.cpp': 'ndk',
+    'main.py': 'python', 'index.html': 'webview', 'app.js': 'webview',
+    'style.css': 'webview',
+}
+for _name, _want in _matrix.items():
+    eq(ide.project_kind({_name: ''}), _want, '%s → %s' % (_name, _want))
+# ភាសាដែល Android មិន compile ផ្ទាល់ (Dart, Rust, Go, C#, Ruby, PHP, Lua, Swift,
+# shell, SQL…) → មិនបដិសេធ: build ជា WebView app ដែលបើកបានជានិច្ច
+for _name in ('lib/main.dart', 'main.rs', 'main.go', 'Program.cs', 'main.rb',
+              'index.php', 'init.lua', 'app.swift', 'run.sh', 'query.sql',
+              'notes.txt', 'app.ts', 'app.vue'):
+    _kind = ide.project_kind({_name: ''})
+    ok(_kind in ('webview', 'other'),
+       '%s → %s (build បាន មិនបដិសេធ)' % (_name, _kind))
+    _mode = _kind if _kind in androidproject.MODES else 'webview'
+    try:
+        _files = ide.ensure_index_html({_name: 'x'}, 'M')
+        _p = androidproject.android_project_files('M', 'org.pyapp.qam', _mode, _files)
+        ET.fromstring(_p['app/src/main/AndroidManifest.xml'])
+        ok(True, '%s → project ពេញលេញ (%s)' % (_name, _mode))
+    except Exception as _exc:  # noqa: BLE001
+        ok(False, '%s → %s' % (_name, _exc))
+ok(ide.project_kind({'main.py': '', 'index.html': ''}) == 'python',
+   'Python + HTML → python (code ពិតមិនបាត់)')
+
 print('')
 if fails:
     print('FAILED %d checks' % fails)

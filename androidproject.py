@@ -858,6 +858,13 @@ chaquopy {
 }
 '''
 
+# Chaquopy បដិសេធ build បើគ្មាន ndk.abiFilters ច្បាស់លាស់ — ABI ទាំង 4 ដែលវាគាំទ្រ។
+CHAQUOPY_ABI = '''
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
+'''
+
 DEFAULT_MAIN_PY = '''"""app Python — MainActivity ហៅ main() តាម Chaquopy។"""
 
 
@@ -1377,7 +1384,8 @@ def android_project_files(title: str, package: str, mode: str,
                 .replace("@@SOURCES@@", "\n        ".join(cpp_names)))
     ndk_block = (NDK_GRADLE_BLOCK.replace("@@NDK@@", NDK_VERSION)
                  .replace("@@CMAKE@@", CMAKE_VERSION)) if want_native else ""
-    ndk_config = NDK_GRADLE_CONFIG if want_native else ""
+    ndk_config = (NDK_GRADLE_CONFIG if want_native
+                  else (CHAQUOPY_ABI if mode == "python" else ""))
 
     # Project ដែលប្រើ AndroidX (AppCompatActivity, NotificationCompat…) ត្រូវការ
     # dependency + theme ត្រឹមត្រូវ បើមិនដូច្នេះ Kotlin compile បរាជ័យ ឬ crash ពេលបើក app។
