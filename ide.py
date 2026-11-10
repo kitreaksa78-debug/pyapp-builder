@@ -179,8 +179,9 @@ def repair_android_sources(files: dict) -> dict:
     return out
 
 
-# តម្លៃត្រឹមត្រូវតែមួយគត់របស់ RepositoriesMode (Gradle 6.8+)
-_VALID_REPOS_MODES = ("PREFER_PROJECT", "PREFER_SETTINGS", "FAIL_ON_PROJECT_REPOSITORIES")
+# តម្លៃត្រឹមត្រូវតែមួយគត់របស់ RepositoriesMode (Gradle 6.8+):
+# ឈ្មោះពិតគឺ FAIL_ON_PROJECT_REPOS — មិនមែន ..._REPOSITORIES ទេ
+_VALID_REPOS_MODES = ("PREFER_PROJECT", "PREFER_SETTINGS", "FAIL_ON_PROJECT_REPOS")
 _REPOS_MODE_REF = re.compile(r"RepositoriesMode\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)")
 _REPOS_IMPORT = "import org.gradle.api.initialization.resolve.RepositoriesMode"
 
@@ -198,7 +199,7 @@ def repair_gradle_scripts(files: dict) -> dict:
             continue
         fixed = _REPOS_MODE_REF.sub(
             lambda m: "RepositoriesMode." + (m.group(1) if m.group(1) in _VALID_REPOS_MODES
-                                             else "FAIL_ON_PROJECT_REPOSITORIES"), content)
+                                             else "FAIL_ON_PROJECT_REPOS"), content)
         if fixed == content:
             continue
         if _REPOS_IMPORT not in fixed:
@@ -872,8 +873,9 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 project = maker(title, package, files, version=version,
                                 build=build_no, artifact=artifact)
                 mode = native_kind
+                # workflow តែមួយសម្រាប់គ្រប់ project (Android/Flutter/React Native) — វារកប្រភេទដោយខ្លួនឯង
                 meta = create_job(title, package, project, artifact=artifact,
-                                  kind=native_kind, clean=True)
+                                  kind=native_kind, workflow=zip_workflow, clean=True)
             elif kind in ("gradle", "android"):
                 # Android project ដែល import ចូល → compile ដូចដើម (Gradle + Manifest)
                 title = android_title(data.get("title"), files)

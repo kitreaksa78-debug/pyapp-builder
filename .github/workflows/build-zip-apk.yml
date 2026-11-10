@@ -32,11 +32,6 @@ jobs:
           cmdline-tools-version: "12.0"
           packages: "platform-tools platforms;android-34 platforms;android-35 build-tools;34.0.0"
 
-      - name: Set up Gradle 8.7
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.7"
-
       - name: Detect project type
         id: kind
         run: |
@@ -50,6 +45,12 @@ jobs:
           echo "type=$TYPE" >> "$GITHUB_OUTPUT"
           echo "project type: $TYPE"
 
+      # Flutter/RN មកជាមួយ wrapper របស់ខ្លួន — setup-gradle រកតែ build របស់ Android
+      - name: Set up Gradle 8.7
+        if: steps.kind.outputs.type == 'android'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
       - name: Read app metadata
         id: meta
         if: steps.kind.outputs.type != 'android'
@@ -170,6 +171,15 @@ jobs:
           {
             npm install --no-audit --no-fund --legacy-peer-deps
             npx --yes expo prebuild --platform android --no-install
+            # JetifyTransform លើ hermes AAR លេប heap → OutOfMemoryError:
+            # RN 0.74/Expo 51 មិនត្រូវការ Jetifier ទេ ដូច្នេះបិទវា និងបង្កើន heap
+            JJ='org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1024m'
+            sed -i -E "s|^org\.gradle\.jvmargs=.*|$JJ|" android/gradle.properties || true
+            grep -q '^org.gradle.jvmargs=' android/gradle.properties || echo "$JJ" >> android/gradle.properties
+            grep -q '^android.enableJetifier=' android/gradle.properties \
+              && sed -i -E 's|^android\.enableJetifier=.*|android.enableJetifier=false|' android/gradle.properties \
+              || echo 'android.enableJetifier=false' >> android/gradle.properties
+            grep -E 'jvmargs|enableJetifier|useAndroidX' android/gradle.properties
             ( cd android && ./gradlew assembleDebug --no-daemon --stacktrace --console=plain )
             if [ "$ARTIFACT" = "aab" ] || [ "$ARTIFACT" = "both" ]; then
               ( cd android && ./gradlew bundleRelease --no-daemon --stacktrace --console=plain )

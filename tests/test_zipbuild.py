@@ -520,8 +520,9 @@ _bad = {'settings.gradle': (
     'rootProject.name = "pool"\ninclude(":app")\n')}
 _fixed = ide.repair_gradle_scripts(_bad)['settings.gradle']
 ok('FAIL_ON_PROJECT_REPOSISORIES' not in _fixed, 'typo ត្រូវកែ')
-ok('RepositoriesMode.FAIL_ON_PROJECT_REPOSITORIES' in _fixed,
-   'constant ត្រឹមត្រូវ (Gradle មិនបរាជ័យ)')
+ok('RepositoriesMode.FAIL_ON_PROJECT_REPOS' in _fixed,
+   'constant ត្រូវ FAIL_ON_PROJECT_REPOS (Gradle មិនបរាជ័យ)')
+ok('FAIL_ON_PROJECT_REPOSITORIES' not in _fixed, 'គ្មានឈ្មោះប្រឌិត ..._REPOSITORIES')
 ok('import org.gradle.api.initialization.resolve.RepositoriesMode' in _fixed,
    'import បន្ថែម')
 ok('rootProject.name = "pool"' in _fixed, 'បន្ទាត់ផ្សេងរក្សាដើម')
