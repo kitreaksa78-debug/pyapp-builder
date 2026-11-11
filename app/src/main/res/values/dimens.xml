@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 
+            Modified for Device: 720 x 1472 px (Landscape Mode)
+                    Original was for: 1920 x 1080 px
+                        -->
+
+                            <!-- Board -->
+                                <dimen name="boardWidth" tools:ignore="PxUsage">1241px</dimen>
+                                    <dimen name="boardHeight" tools:ignore="PxUsage">687px</dimen>
+                                        <dimen name="boardMarginBottom" tools:ignore="PxUsage">15px</dimen>
+
+                                            <!-- Canvas -->
+                                                <dimen name="canvasWidth" tools:ignore="PxUsage">1117px</dimen>
+                                                    <dimen name="canvasHeight" tools:ignore="PxUsage">560px</dimen>
+                                                        <dimen name="canvasMarginTop" tools:ignore="PxUsage">62px</dimen>
+
+                                                            <!-- Buttons -->
+                                                                <dimen name="buttonWidth" tools:ignore="PxUsage">230px</dimen>
+                                                                    <dimen name="buttonHeight" tools:ignore="PxUsage">65px</dimen>
+                                                                        <dimen name="buttonNormalMarginStart" tools:ignore="PxUsage">140px</dimen>
+                                                                            <dimen name="buttonCloseMarginEnd" tools:ignore="PxUsage">140px</dimen>
+                                                                                <dimen name="buttonTrickshotSecondLineMarginEnd" tools:ignore="PxUsage">140px</dimen>
+                                                                                </resources>
