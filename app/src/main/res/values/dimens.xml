@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ទំហំតុប៊ីយ៉ា (សម្រាប់អេក្រង់ 720x1472) -->
+        <dimen name="boardWidth">710dp</dimen>
+            <dimen name="boardHeight">340dp</dimen>
+                <dimen name="boardMarginBottom">0dp</dimen>
+
+                    <!-- ទំហំផ្ទៃគូរបន្ទាត់ (Canvas) -->
+                        <dimen name="canvasWidth">675dp</dimen>
+                            <dimen name="canvasHeight">320dp</dimen>
+                                <dimen name="canvasMarginTop">15dp</dimen>
+
+                                    <!-- ទំហំប៊ូតុង (កំហុសមុននេះគឺខ្វះនៅផ្នែកនេះ) -->
+                                        <dimen name="buttonWidth">120dp</dimen>
+                                            <dimen name="buttonHeight">36dp</dimen>
+                                                <dimen name="buttonNormalMarginStart">140dp</dimen>
+                                                    <dimen name="buttonCloseMarginEnd">140dp</dimen>
+                                                        <dimen name="buttonTrickshotSecondLineMarginEnd">140dp</dimen>
+                                                        </resources>

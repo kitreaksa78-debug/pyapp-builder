@@ -1,0 +1,22 @@
+Overlay touch modes
+===================
+
+A small floating control is shown at the top-right of the screen.
+
+Tap it repeatedly to cycle:
+1. MOD ON · PLAY: drawing overlay stays visible but the overlay window is
+   FLAG_NOT_TOUCHABLE, so touches pass through to the game underneath.
+2. EDIT MODE: overlay becomes touchable so its drawing handles and mode
+   buttons can be adjusted. The game area covered by the overlay will not
+   receive touches while in this mode.
+3. MOD OFF: hides the drawing overlay; the small floating control remains.
+
+Long-press the floating control to switch directly to MOD OFF.
+Tap again to cycle back to MOD ON · PLAY.
+
+The floating control is a separate small touchable window. The drawing
+window uses FLAG_NOT_TOUCHABLE in play mode, rather than relying only on
+FLAG_NOT_TOUCH_MODAL. This is the key change for game touch pass-through.
+
+The floating control remains available when the main HIDE button hides the
+board, so it can be used to show the board again.
