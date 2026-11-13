@@ -30,12 +30,12 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: "11076708"
-          packages: "platforms;android-34 build-tools;34.0.0 cmake;3.22.1 ndk;26.1.10909125"
+          packages: "platforms;android-34 platforms;android-36 build-tools;34.0.0 build-tools;36.0.0 cmake;3.22.1 ndk;26.1.10909125"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.7"
+          gradle-version: "8.14.3"
 
       - name: Signature key
         run: |
