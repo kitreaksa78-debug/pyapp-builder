@@ -240,6 +240,7 @@ class GitHub:
         now = time.time()
         total = done = remaining = 0.0
         current = ""
+        failed = ""
         shown: list[dict] = []
         for step in steps:
             name = step.get("name") or ""
@@ -247,7 +248,15 @@ class GitHub:
                 continue
             expected = STEP_SECONDS.get(name, 20)
             total += expected
-            if step.get("conclusion"):
+            conclusion = (step.get("conclusion") or "").lower()
+            if conclusion == "skipped":
+                remaining += expected
+                shown.append({"name": STEP_KH.get(name, name), "state": "skipped"})
+            elif conclusion in ("failure", "cancelled", "timed_out", "action_required"):
+                done += expected
+                current = failed = name
+                shown.append({"name": STEP_KH.get(name, name), "state": "failed"})
+            elif conclusion:
                 done += expected
                 shown.append({"name": STEP_KH.get(name, name), "state": "done"})
             elif step.get("status") == "in_progress":
@@ -261,7 +270,8 @@ class GitHub:
                 remaining += expected
                 shown.append({"name": STEP_KH.get(name, name), "state": "wait"})
         if run.get("status") == "completed":
-            return {"percent": 100, "step": "", "steps": shown, "eta": 0}
+            return {"percent": 100, "step": STEP_KH.get(failed, failed),
+                    "steps": shown, "eta": 0}
         percent = int(round(100 * done / total)) if total else 0
         return {"percent": max(0, min(99, percent)),
                 "step": STEP_KH.get(current, current),
@@ -383,6 +393,15 @@ def refresh_job(meta: dict) -> dict:
         else:
             meta["status"] = "error"
             meta["error"] = f"Build បរាជ័យ ({run.get('conclusion')}) — មើល log ក្នុង GitHub"
+            try:
+                meta["progress"] = gh().run_progress(run)
+                failed = next((s["name"] for s in meta["progress"].get("steps", [])
+                               if s.get("state") == "failed"), "")
+                if failed:
+                    meta["error"] = (f"Build បរាជ័យ — ជំហាន «{failed}» "
+                                     "(មើល log ក្នុង GitHub)")
+            except Exception:  # noqa: BLE001 — រក្សា error ដើម
+                pass
     else:
         try:
             meta["progress"] = gh().run_progress(run)

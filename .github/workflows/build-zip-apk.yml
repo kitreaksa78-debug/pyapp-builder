@@ -29,7 +29,7 @@ jobs:
       - name: Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: "12.0"
+          cmdline-tools-version: "11076708"
           packages: "platform-tools platforms;android-34 platforms;android-35 build-tools;34.0.0"
 
       - name: Detect project type
@@ -209,6 +209,10 @@ jobs:
         if: always()
         run: |
           touch build.log
+          # GitHub បដិសេធ asset ទទេ (0 byte) → release បរាជ័យ បិទបាំងកំហុស build ពិត
+          if [ ! -s build.log ]; then
+            echo "No build output (build skipped or failed before compiling)." > build.log
+          fi
           mkdir -p out
           echo "build log lines: $(wc -l < build.log)"
           if [ ! -f out/app.apk ]; then
@@ -234,7 +238,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish release
-        if: always()
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}

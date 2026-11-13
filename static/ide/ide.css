@@ -211,6 +211,8 @@ html[data-theme="light"] .log { background: #f6f8fa; color: #1f2328; }
 .steps span { padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); }
 .steps span.now { color: var(--accent); border-color: var(--accent); }
 .steps span.done { color: var(--ok); border-color: #238636; }
+.steps span.failed { color: var(--bad); border-color: var(--bad); }
+.steps span.skipped { opacity: .55; }
 .btn {
   padding: 8px 14px; border-radius: 6px; background: var(--line); font-size: 13px; font-weight: 600;
 }

@@ -1425,8 +1425,8 @@
           setBuildState((j.progress && j.progress.step) || j.note || t('running'));
           if (j.progress && j.progress.steps) {
             $('buildSteps').innerHTML = j.progress.steps.map(function (s) {
-              return '<span class="' + (s.state === 'done' ? 'done' : s.state === 'now' ? 'now' : '') +
-                '">' + esc(s.name) + '</span>';
+              var cls = {done: 'done', now: 'now', failed: 'failed', skipped: 'skipped'}[s.state] || '';
+              return '<span class="' + cls + '">' + esc(s.name) + '</span>';
             }).join('');
           }
           if (j.run_url) {
