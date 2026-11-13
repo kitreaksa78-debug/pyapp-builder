@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: pool-trajectory-vision
+    runtime: node
+    rootDir: render-backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
