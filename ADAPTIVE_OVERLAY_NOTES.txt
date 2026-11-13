@@ -1,0 +1,27 @@
+8 Ball Pool overlay adjustments
+================================
+
+- Replaced the old fixed px dimensions with dp dimensions suitable as a
+  starting point for a 720 x 1472 px, 320 dpi phone used in landscape.
+- Reduced the board/canvas and control sizes so the overlay fits the
+  available landscape screen much better.
+- Added FLAG_NOT_TOUCH_MODAL: touches outside the overlay window bounds
+  can reach the game. The overlay still receives touches inside its own
+  visible window area so its handles and buttons can be dragged/tapped.
+- Fixed drag handling so a drawing view only moves after a valid handle
+  is selected, and resets cleanly on ACTION_CANCEL.
+
+Important Android limitation:
+A touchable TYPE_APPLICATION_OVERLAY window receives touches within its
+window bounds. FLAG_NOT_TOUCH_MODAL only passes touches outside those
+bounds; it cannot make touches pass through the visible drawing area while
+also allowing the user to drag its handles. To achieve full-screen
+touch-through, the drawing layer must be redesigned as a separate
+FLAG_NOT_TOUCHABLE window and its controls/drag handles placed in separate
+small touchable windows. This ZIP does not claim to implement that more
+complex architecture.
+
+The screenshot reports 720 x 1472 px and 320 dpi, but actual available
+landscape size can vary with system bars, game immersive mode, and display
+scaling. The dimensions are a fitted baseline, not a runtime guarantee
+for every phone.

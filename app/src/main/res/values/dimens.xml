@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ទំហំតុប៊ីយ៉ា (ស្មើនឹង 1420px ទទឹង និង 680px កម្ពស់) -->
+        <dimen name="boardWidth">710dp</dimen>
+            <dimen name="boardHeight">340dp</dimen>
+                <dimen name="boardMarginBottom">0dp</dimen>
+
+                    <!-- ទំហំផ្ទៃគូរបន្ទាត់ (ស្មើនឹង 1350px ទទឹង និង 640px កម្ពស់) -->
+                        <dimen name="canvasWidth">675dp</dimen>
+                            <dimen name="canvasHeight">320dp</dimen>
+                                <dimen name="canvasMarginTop">15dp</dimen>
+
+                                    <!-- ទំហំប៊ូតុង -->
+                                        <dimen name="buttonWidth">120dp</dimen>
+                                            <dimen name="buttonHeight">36dp</dimen>
+                                            </resources>
