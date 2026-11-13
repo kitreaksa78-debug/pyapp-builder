@@ -1,0 +1,15 @@
+Groq app integration update
+
+Implemented:
+- In-app API key entry.
+- AES/GCM encrypted local key storage backed by Android Keystore.
+- Model selection.
+- Test connection endpoint.
+- Connected/Failed status.
+- Image picker, resize/compress, and image upload to backend.
+- Backend accepts key/model per request over HTTPS and does not persist/log the key.
+
+Important:
+- Update BACKEND_BASE_URL in app/src/main/java/app/hack/eightballpool/GroqApiClient.java to the Render service hosting render-backend/server.js.
+- The image analysis response is general scene description/practice feedback, not shot trajectory/aim guidance or game automation.
+- This is a source ZIP, not a built/signed APK. Build and test with JDK 17.

@@ -1,0 +1,13 @@
+8BallPool Groq Practice source ZIP - build configuration update
+
+Changes:
+- app/build.gradle Java sourceCompatibility and targetCompatibility changed to Java 17.
+- Gradle wrapper remains 8.14.3.
+- Groq backend starter and existing overlay source are preserved.
+- GroqVisionClient.java still contains a placeholder Render URL. Replace it with the URL of the Render Web Service that actually deploys render-backend/server.js.
+- The current source does NOT yet connect a MediaProjection screenshot capture flow to the GroqVisionClient. Therefore this is source code, not a ready APK or a verified complete live AI overlay.
+
+Build:
+- Use JDK 17.
+- Build with the included Gradle wrapper / Android Gradle Plugin.
+- This environment did not build or sign an APK; verify the build in Android Studio or your build service.
