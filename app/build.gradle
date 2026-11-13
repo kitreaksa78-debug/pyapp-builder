@@ -1,0 +1,28 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'org.pyapp.kfix'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'org.pyapp.kfix'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+    }
+}
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.21'
+}
+
+// PyApp Builder: Kotlin 1.8+ merged jdk7/jdk8 into kotlin-stdlib.
+// Old transitive jdk7/jdk8 artifacts duplicate classes in the APK.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jetbrains.kotlin' &&
+                (details.requested.name == 'kotlin-stdlib-jdk7' ||
+                 details.requested.name == 'kotlin-stdlib-jdk8')) {
+            details.useVersion '1.8.22'
+        }
+    }
+}
