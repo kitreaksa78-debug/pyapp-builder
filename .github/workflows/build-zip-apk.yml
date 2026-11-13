@@ -93,6 +93,23 @@ jobs:
           set -o pipefail
           $GRADLE_CMD assembleDebug --no-daemon --stacktrace --console=plain 2>&1 | tee build.log
 
+      - name: Align and sign APK
+        if: steps.kind.outputs.type == 'android'
+        run: |
+          set -e
+          APK=$(find . -path "*/build/outputs/apk/*.apk" -not -path "./out/*" -print | head -1)
+          test -n "$APK" || (echo "::error::no APK to align/sign" && exit 1)
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p out
+          "$BT/zipalign" -f -p 4 "$APK" out/app-unaligned.apk
+          # v1 ជួយ OEM/Android ចាស់; v2/v3 សម្រាប់ Android 7+
+          "$BT/apksigner" sign --ks signing/debug.p12 --ks-pass pass:android \
+            --ks-key-alias androiddebugkey --v1-signing-enabled true \
+            --v2-signing-enabled true --v3-signing-enabled true \
+            --out out/app.apk out/app-unaligned.apk
+          rm -f out/app-unaligned.apk
+          "$BT/apksigner" verify --verbose out/app.apk
+
       - name: Set up Flutter
         if: steps.kind.outputs.type == 'flutter'
         uses: subosito/flutter-action@v2

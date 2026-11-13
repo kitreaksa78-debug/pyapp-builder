@@ -45,6 +45,21 @@ jobs:
       - name: Build APK (Kotlin)
         run: gradle assembleDebug --no-daemon --stacktrace
 
+      - name: Align and sign APK
+        run: |
+          set -e
+          APK=$(find . -path "*/build/outputs/apk/*.apk" -not -path "./out/*" -print | head -1)
+          test -n "$APK" || (echo "::error::no APK to align/sign" && exit 1)
+          BT="$ANDROID_HOME/build-tools/36.0.0"
+          mkdir -p out
+          "$BT/zipalign" -f -p 4 "$APK" out/app-unaligned.apk
+          "$BT/apksigner" sign --ks signing/debug.p12 --ks-pass pass:android \
+            --ks-key-alias androiddebugkey --v1-signing-enabled true \
+            --v2-signing-enabled true --v3-signing-enabled true \
+            --out out/app.apk out/app-unaligned.apk
+          rm -f out/app-unaligned.apk
+          "$BT/apksigner" verify --verbose out/app.apk
+
       - name: Build AAB (bundleRelease)
         run: gradle bundleRelease --no-daemon --stacktrace
 
