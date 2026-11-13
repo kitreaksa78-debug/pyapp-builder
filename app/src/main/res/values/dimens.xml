@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Reference screenshot: 1472 x 720 px landscape. These are reference px values. -->
+    <dimen name="boardWidth" tools:ignore="PxUsage">1241px</dimen>
+    <dimen name="boardHeight" tools:ignore="PxUsage">687px</dimen>
+    <dimen name="boardMarginBottom" tools:ignore="PxUsage">15px</dimen>
+    <dimen name="canvasWidth" tools:ignore="PxUsage">1117px</dimen>
+    <dimen name="canvasHeight" tools:ignore="PxUsage">560px</dimen>
+    <dimen name="canvasMarginTop" tools:ignore="PxUsage">62px</dimen>
+    <dimen name="buttonWidth" tools:ignore="PxUsage">230px</dimen>
+    <dimen name="buttonHeight" tools:ignore="PxUsage">65px</dimen>
+    <dimen name="buttonNormalMarginStart" tools:ignore="PxUsage">140px</dimen>
+    <dimen name="buttonCloseMarginEnd" tools:ignore="PxUsage">140px</dimen>
+    <dimen name="buttonTrickshotSecondLineMarginEnd" tools:ignore="PxUsage">140px</dimen>
+</resources>
