@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Landscape viewport: 1472 x 720 px (device portrait: 720 x 1472 px) -->
+    <!-- These values intentionally use px because the original overlay is positioned in screen pixels. -->
+
+    <!-- Board: centered, leaves 115 px horizontal and 16 px vertical margin -->
+    <dimen name="boardWidth" tools:ignore="PxUsage">1241px</dimen>
+    <dimen name="boardHeight" tools:ignore="PxUsage">687px</dimen>
+    <dimen name="boardMarginBottom" tools:ignore="PxUsage">0px</dimen>
+
+    <!-- Drawing canvas -->
+    <dimen name="canvasWidth" tools:ignore="PxUsage">1117px</dimen>
+    <dimen name="canvasHeight" tools:ignore="PxUsage">560px</dimen>
+    <dimen name="canvasMarginTop" tools:ignore="PxUsage">62px</dimen>
+
+    <!-- Controls -->
+    <dimen name="buttonWidth" tools:ignore="PxUsage">230px</dimen>
+    <dimen name="buttonHeight" tools:ignore="PxUsage">65px</dimen>
+    <dimen name="buttonNormalMarginStart" tools:ignore="PxUsage">140px</dimen>
+    <dimen name="buttonCloseMarginEnd" tools:ignore="PxUsage">140px</dimen>
+    <dimen name="buttonTrickshotSecondLineMarginEnd" tools:ignore="PxUsage">140px</dimen>
+</resources>
