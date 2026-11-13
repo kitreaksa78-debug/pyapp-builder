@@ -1,0 +1,128 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #12161f;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    background-color: #1e2433;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    max-width: 860px;
+    width: 100%;
+    text-align: center;
+}
+
+h1 {
+    font-size: 24px;
+    margin-bottom: 8px;
+    color: #4ade80;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 20px;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+select, button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+}
+
+select {
+    background-color: #2d3548;
+    color: #fff;
+    border: 1px solid #475569;
+}
+
+button {
+    background-color: #22c55e;
+    color: #0f172a;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background-color: #16a34a;
+}
+
+button#resetBtn {
+    background-color: #3b82f6;
+    color: #fff;
+}
+
+button#resetBtn:hover {
+    background-color: #2563eb;
+}
+
+.canvas-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+canvas {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    cursor: grab;
+    max-width: 100%;
+    height: auto;
+    touch-action: none;
+}
+
+canvas:active {
+    cursor: grabbing;
+}
+
+.telemetry {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    background-color: #151923;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #2d3548;
+}
+
+.stat-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-box .label {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.stat-box .value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #38bdf8;
+}

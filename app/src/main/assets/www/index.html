@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8 Ball Pool Auto Aim Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎱 8 Ball Pool Auto Aim Calculator</h1>
+        <p class="subtitle">អូសបាល់ស (Cue Ball) ឬបាល់គោល (Object Ball) ដើម្បីមើលការគណនាមុំបាញ់ស្វ័យប្រវត្តិ (Ghost Ball Method)</p>
+        
+        <div class="controls">
+            <label for="pocketSelect">ជ្រើសរើសរន្ធគោលដៅ (Target Pocket): </label>
+            <select id="pocketSelect">
+                <option value="auto">ស្វ័យប្រវត្តិ (Auto Closest/Best Pocket)</option>
+                <option value="0">ជ្រុងលើឆ្វេង (Top-Left)</option>
+                <option value="1">កណ្តាលលើ (Top-Middle)</option>
+                <option value="2">ជ្រុងលើស្តាំ (Top-Right)</option>
+                <option value="3">ជ្រុងក្រោមឆ្វេង (Bottom-Left)</option>
+                <option value="4">កណ្តាលក្រោម (Bottom-Middle)</option>
+                <option value="5">ជ្រុងក្រោមស្តាំ (Bottom-Right)</option>
+            </select>
+            <button id="shootBtn">បាញ់សាកល្បង (Simulate Shot)</button>
+            <button id="resetBtn">កំណត់ទីតាំងឡើងវិញ (Reset)</button>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="poolCanvas" width="800" height="420"></canvas>
+        </div>
+
+        <div class="telemetry">
+            <div class="stat-box">
+                <span class="label">មុំបាញ់ (Aim Angle):</span>
+                <span id="angleVal" class="value">0.00°</span>
+            </div>
+            <div class="stat-box">
+                <span class="label">ទីតាំងបាល់ខ្មោច (Ghost Ball):</span>
+                <span id="ghostVal" class="value">(0, 0)</span>
+            </div>
+            <div class="stat-box">
+                <span class="label">មុំកាត់ (Cut Angle):</span>
+                <span id="cutAngleVal" class="value">0.00°</span>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+  <script src="appforge-bridge.js"></script>
+</body>
+</html>
