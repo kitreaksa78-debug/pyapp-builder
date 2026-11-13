@@ -220,6 +220,62 @@ def repair_gradle_scripts(files: dict) -> dict:
     return out
 
 
+_KOTLIN_STDLIB_FIX = """
+// PyApp Builder: Kotlin 1.8+ merged jdk7/jdk8 into kotlin-stdlib.
+// Old transitive jdk7/jdk8 artifacts duplicate classes in the APK.
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jetbrains.kotlin' &&
+                (details.requested.name == 'kotlin-stdlib-jdk7' ||
+                 details.requested.name == 'kotlin-stdlib-jdk8')) {
+            details.useVersion '1.8.22'
+        }
+    }
+}
+"""
+_KOTLIN_STDLIB_FIX_KTS = """
+// PyApp Builder: Kotlin 1.8+ merged jdk7/jdk8 into kotlin-stdlib.
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin" &&
+                (requested.name == "kotlin-stdlib-jdk7" ||
+                 requested.name == "kotlin-stdlib-jdk8")) {
+            useVersion("1.8.22")
+        }
+    }
+}
+"""
+
+
+def repair_kotlin_stdlib(files: dict) -> dict:
+    """Force old kotlin-stdlib-jdk7/jdk8 to 1.8.22 (empty artifacts).
+
+    New kotlin-stdlib already contains those classes; keeping the old jdk
+    artifacts makes D8 fail with "Duplicate class kotlin.*".
+    """
+    out = dict(files or {})
+    if "PyApp Builder: Kotlin 1.8+" in "\n".join(
+            v for v in out.values() if isinstance(v, str)):
+        return out
+    module, _ = _android_module(out)
+    base = (module + "/" if module else "")
+    for path, block in ((base + "build.gradle", _KOTLIN_STDLIB_FIX),
+                        (base + "build.gradle.kts", _KOTLIN_STDLIB_FIX_KTS)):
+        content = out.get(path)
+        if isinstance(content, str):
+            out[path] = content.rstrip() + "\n" + block
+            return out
+    # គ្មាន module build → ដាក់ក្នុង root សម្រាប់គ្រប់ subproject
+    for path, block in (("build.gradle", _KOTLIN_STDLIB_FIX),
+                        ("build.gradle.kts", _KOTLIN_STDLIB_FIX_KTS)):
+        content = out.get(path)
+        if isinstance(content, str):
+            wrapped = ("subprojects {\n" + block + "}\n")
+            out[path] = content.rstrip() + "\n" + wrapped
+            return out
+    return out
+
+
 def _is_react_native(files: dict) -> bool:
     """React Native/Expo project — package.json មាន dependency ពិត។"""
     for path, content in (files or {}).items():
@@ -906,6 +962,7 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
                 project = repair_android_sources(project)
                 # settings.gradle ដែលសរសេរខុស (ឧ. FAIL_ON_PROJECT_REPOSISORIES) → build មិនរត់
                 project = repair_gradle_scripts(project)
+                project = repair_kotlin_stdlib(project)
                 meta = create_job(title, package, project, artifact=artifact,
                                   kind="zip", workflow=zip_workflow, clean=True)
             else:
