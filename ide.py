@@ -65,6 +65,17 @@ def is_android_project(files: dict) -> bool:
     return bool(_manifests(files))
 
 
+# folder ដែលមិនប៉ះពាល់ការ compile — screenshot ធំៗធ្វើឲ្យ request/push យឺត
+_BUILD_SKIP = ("screenshots/", ".idea/", ".gradle/", "build/", "captures/",
+               ".git/", ".cxx/", ".externalNativeBuild/")
+
+
+def build_files(files: dict) -> dict:
+    """ដក file ដែលមិនត្រូវការសម្រាប់ APK ចេញ មុនពេលបង្កើត job។"""
+    return {p: c for p, c in files.items()
+            if not p.startswith(_BUILD_SKIP) and "/build/" not in p}
+
+
 # resource ដែល Manifest សំដៅ តែ project គ្មាន (ឧ. project គ្មាន res/ ទាល់តែសោះ)
 _RES_REF_RE = re.compile(r"@(mipmap|drawable|string|style|color|xml)/([A-Za-z0-9_]+)")
 _RES_DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
@@ -849,6 +860,7 @@ def create_blueprint(create_job, validate_common, repo: str, token: str,
         try:
             files = decode_files(data.get("files") or {})
             kind = project_kind(files)
+            files = build_files(files)
             requested = str(data.get("mode") or "").strip().lower()
             native_kind = (requested if requested in (FLUTTER_MODE, REACTNATIVE_MODE)
                            else kind if kind in (FLUTTER_MODE, REACTNATIVE_MODE) else "")

@@ -1262,6 +1262,16 @@
     Object.keys(state.files).forEach(function (p) { out[p] = state.files[p]; });
     return out;
   }
+  // screenshot/.idea/build មិនត្រូវការសម្រាប់ compile — កុំផ្ញើរូបធំៗ
+  // ទៅ server ព្រោះ request ធំពេក → browser ឡើង «Failed to fetch»
+  function buildFiles() {
+    var out = {};
+    var skip = /^(screenshots|\.idea|\.gradle|build|captures|\.git|\.cxx|\.externalNativeBuild)\//;
+    Object.keys(state.files).forEach(function (p) {
+      if (!skip.test(p) && p.indexOf('/build/') < 0) out[p] = state.files[p];
+    });
+    return out;
+  }
   function exportZip() {
     status('ZIP…');
     fetch('/api/ide/zip', {
@@ -1365,7 +1375,7 @@
     $('buildSteps').innerHTML = '';
     setProgress(1);
     setBuildState(t('running'));
-    var filesNow = currentFiles();
+    var filesNow = buildFiles();
     var payload = {
       title: $('bTitle').value.trim() || state.name,
       package: $('bPkg').value.trim() || state.pkg,
@@ -1408,9 +1418,12 @@
       pollJob(res.j, androidProject);
     }).catch(function (e) {
       $('buildBtn').disabled = false;
-      setBuildState(e.message, 'bad');
+      var msg = (e && /fetch/i.test(e.message || ''))
+        ? 'Server មិនឆ្លើយតប — សាក Build ម្តងទៀត (រង់ចាំ 30 វិនាទី)'
+        : (e && e.message) || 'build request failed';
+      setBuildState(msg, 'bad');
       setProgress(0, 'bad');
-      appendLog('ERROR: ' + e.message);
+      appendLog('ERROR: ' + msg);
     });
   }
 
