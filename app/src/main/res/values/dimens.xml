@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive baseline for a 720 x 1472 px phone in landscape (320 dpi). -->
+    <dimen name="boardWidth">720dp</dimen>
+    <dimen name="boardHeight">350dp</dimen>
+    <dimen name="boardMarginBottom">0dp</dimen>
+    <dimen name="canvasWidth">648dp</dimen>
+    <dimen name="canvasHeight">285dp</dimen>
+    <dimen name="canvasMarginTop">25dp</dimen>
+    <dimen name="buttonWidth">120dp</dimen>
+    <dimen name="buttonHeight">36dp</dimen>
+    <dimen name="buttonNormalMarginStart">75dp</dimen>
+    <dimen name="buttonCloseMarginEnd">75dp</dimen>
+    <dimen name="buttonTrickshotSecondLineMarginEnd">75dp</dimen>
+</resources>
