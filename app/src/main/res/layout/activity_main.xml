@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <Button
+        android:id="@+id/btnScanApi"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:backgroundTint="#16A34A"
+        android:text="SCAN API"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Pool Overlay Robot"
+        android:textColor="#333333"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="24dp"
+        android:gravity="center"
+        android:text="រួចរាល់សម្រាប់តភ្ជាប់ API"
+        android:textColor="#555555"
+        android:textSize="15sp" />
+
+    <Button
+        android:id="@+id/btnTestConnection"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="#D9D9D9"
+        android:text="TEST API CONNECTION"
+        android:textColor="#111111"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnStartOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="#D9D9D9"
+        android:text="START OVERLAY"
+        android:textColor="#111111"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnStopOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:backgroundTint="#D9D9D9"
+        android:text="STOP OVERLAY"
+        android:textColor="#111111"
+        android:textStyle="bold" />
+
+</LinearLayout>
