@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="Pool Overlay Robot"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvApiStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:gravity="center"
+        android:text="API: https://pool-027f.onrender.com/api/calculate"
+        android:textSize="13sp" />
+
+    <Button
+        android:id="@+id/btnTestApi"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginBottom="14dp"
+        android:text="TEST API CONNECTION" />
+
+    <Button
+        android:id="@+id/btnStart"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginBottom="14dp"
+        android:text="START OVERLAY" />
+
+    <Button
+        android:id="@+id/btnStop"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="STOP OVERLAY" />
+
+</LinearLayout>
